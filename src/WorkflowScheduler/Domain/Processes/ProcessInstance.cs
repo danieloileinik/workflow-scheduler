@@ -1,0 +1,100 @@
+using ErrorOr;
+using WorkflowScheduler.Domain.Steps;
+
+namespace WorkflowScheduler.Domain.Processes;
+
+public class ProcessInstance(Guid id, Guid definitionId, string businessKey, string inputData)
+{
+    private readonly List<ProcessStepInstance> _steps = [];
+
+    public ProcessInstance(Guid definitionId, string businessKey, string inputData)
+        : this(Guid.NewGuid(), definitionId, businessKey, inputData)
+    {
+    }
+
+    public Guid Id { get; init; } = id;
+    public Guid DefinitionId { get; init; } = definitionId;
+    public string BusinessKey { get; init; } = businessKey;
+    public string InputData { get; init; } = inputData;
+    public ProcessStatus Status { get; private set; } = ProcessStatus.Created;
+    public Guid? CurrentStepId { get; private set; }
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; private set; }
+    public IReadOnlyList<ProcessStepInstance> Steps => _steps;
+
+    public ErrorOr<ProcessStepInstance> Start(Guid firstStepDefinitionId)
+    {
+        if (Status != ProcessStatus.Created) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+        var step = CreateStepInstance(firstStepDefinitionId);
+        Status = ProcessStatus.Running;
+        CurrentStepId = step.Id;
+        UpdatedAt = DateTime.UtcNow;
+        return step;
+    }
+
+    public ErrorOr<ProcessStepInstance> MoveToStep(Guid stepDefinitionId)
+    {
+        if (Status != ProcessStatus.Running) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+        var step = CreateStepInstance(stepDefinitionId);
+        CurrentStepId = step.Id;
+        UpdatedAt = DateTime.UtcNow;
+        return step;
+    }
+
+    public ErrorOr<Success> Wait()
+    {
+        if (Status != ProcessStatus.Running) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Waiting);
+        Status = ProcessStatus.Waiting;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success;
+    }
+
+    public ErrorOr<Success> Resume()
+    {
+        if (Status != ProcessStatus.Waiting) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+        Status = ProcessStatus.Running;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success;
+    }
+
+    public ErrorOr<Success> Complete()
+    {
+        if (Status is not (ProcessStatus.Running or ProcessStatus.Waiting))
+            return ProcessErrors.InvalidTransition(Status, ProcessStatus.Completed);
+        Status = ProcessStatus.Completed;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success;
+    }
+
+    public ErrorOr<Success> Fail()
+    {
+        if (Status is not (ProcessStatus.Completed or ProcessStatus.Cancelled))
+            return ProcessErrors.InvalidTransition(Status, ProcessStatus.Failed);
+        Status = ProcessStatus.Failed;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success;
+    }
+
+    public void Cancel()
+    {
+        Status = ProcessStatus.Cancelled;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public ProcessStepInstance? GetCurrentStepInstance()
+    {
+        return CurrentStepId is null ? null : _steps.FirstOrDefault(s => s.Id == CurrentStepId);
+    }
+
+    public IEnumerable<ProcessStepInstance> GetCompletedSteps()
+    {
+        return _steps.Where(s => s.Status == StepStatus.Completed);
+    }
+
+    private ProcessStepInstance CreateStepInstance(Guid stepId)
+    {
+        var step = new ProcessStepInstance(Id, stepId);
+        _steps.Add(step);
+        return step;
+    }
+}

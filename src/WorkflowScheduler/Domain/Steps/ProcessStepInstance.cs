@@ -1,0 +1,82 @@
+namespace WorkflowScheduler.Domain.Steps;
+
+public class ProcessStepInstance(
+    Guid id,
+    Guid processInstanceId,
+    Guid stepDefinitionId,
+    int maxRetries,
+    TimeSpan? timeout)
+{
+    private readonly DateTime? _timeoutAt = timeout.HasValue ? DateTime.UtcNow + timeout.Value : DateTime.UtcNow;
+    private int _retryCount;
+
+    public ProcessStepInstance(
+        Guid processInstanceId,
+        Guid stepDefinitionId,
+        int maxRetries = 3,
+        TimeSpan? timeout = null)
+        : this(Guid.NewGuid(), processInstanceId, stepDefinitionId, maxRetries, timeout)
+    {
+    }
+
+    public Guid Id { get; init; } = id;
+    public Guid ProcessInstanceId { get; init; } = processInstanceId;
+    public Guid StepDefinitionId { get; init; } = stepDefinitionId;
+    public StepStatus Status { get; private set; } = StepStatus.Pending;
+    public DateTime StartedAt { get; init; } = DateTime.UtcNow;
+    public DateTime? CompletedAt { get; private set; }
+    public DateTime? NextRetryAt { get; private set; }
+    public string? OutputData { get; private set; }
+    public string? Error { get; private set; }
+
+    public void MarkRunning()
+    {
+        Status = StepStatus.Running;
+    }
+
+    public void MarkWaiting()
+    {
+        Status = StepStatus.Waiting;
+    }
+
+    public void Complete(string? outputData = null)
+    {
+        Status = StepStatus.Completed;
+        OutputData = outputData;
+        CompletedAt = DateTime.UtcNow;
+    }
+
+    public bool TryScheduleRetry(TimeSpan delay)
+    {
+        if (_retryCount >= maxRetries) return false;
+        _retryCount++;
+        Status = StepStatus.Pending;
+        NextRetryAt = DateTime.UtcNow.Add(delay);
+        Error = null;
+        return true;
+    }
+
+    public void Fail(string error)
+    {
+        Status = StepStatus.Failed;
+        Error = error;
+        CompletedAt = DateTime.UtcNow;
+    }
+
+    public void MarkTimedOut()
+    {
+        Status = StepStatus.TimedOut;
+        Error = "Step execution timed out";
+        CompletedAt = DateTime.UtcNow;
+    }
+
+    public void MarkCompensated()
+    {
+        Status = StepStatus.Compensated;
+    }
+
+    public bool IsTimedOut()
+    {
+        return _timeoutAt.HasValue && DateTime.UtcNow > _timeoutAt.Value && Status == StepStatus.Running;
+    }
+}
