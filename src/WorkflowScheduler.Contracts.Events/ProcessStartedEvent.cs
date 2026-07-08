@@ -1,5 +1,7 @@
 namespace WorkflowScheduler.Contracts.Events;
 
-public class ProcessStartedEvent
-{
-}
+public sealed record ProcessStartedEvent(
+    Guid ProcessInstanceId,
+    Guid DefinitionId,
+    string BusinessKey,
+    DateTime StartedAt);

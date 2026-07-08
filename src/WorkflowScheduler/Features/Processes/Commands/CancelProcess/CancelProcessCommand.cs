@@ -1,5 +1,6 @@
+using ErrorOr;
+using MediatR;
+
 namespace WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 
-public class CancelProcessCommand
-{
-}
+public record CancelProcessCommand(Guid ProcessInstanceId) : IRequest<ErrorOr<Success>>;

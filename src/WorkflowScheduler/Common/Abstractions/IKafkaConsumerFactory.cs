@@ -1,3 +1,5 @@
+using Confluent.Kafka;
+
 namespace WorkflowScheduler.Common.Abstractions;
 
 public interface IKafkaConsumerFactory

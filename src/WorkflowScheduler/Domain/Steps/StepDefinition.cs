@@ -1,29 +1,29 @@
 namespace WorkflowScheduler.Domain.Steps;
 
-public class ProcessStepDefinition(
+public class StepDefinition(
     Guid id,
     Guid processDefinitionId,
     string name,
-    StepType stepType,
+    StepType type,
     string metadata,
     Guid? nextStepId,
     Guid? compensationStepId)
 {
-    public ProcessStepDefinition(
+    public StepDefinition(
         Guid processDefinitionId,
         string name,
-        StepType stepType,
+        StepType type,
         string metadata,
         Guid? nextStepId = null,
         Guid? compensationStepId = null)
-        : this(Guid.NewGuid(), processDefinitionId, name, stepType, metadata, nextStepId, compensationStepId)
+        : this(Guid.NewGuid(), processDefinitionId, name, type, metadata, nextStepId, compensationStepId)
     {
     }
 
     public Guid Id { get; init; } = id;
     public Guid ProcessDefinitionId { get; init; } = processDefinitionId;
     public string Name { get; init; } = name;
-    public StepType StepType { get; init; } = stepType;
+    public StepType Type { get; init; } = type;
     public string Metadata { get; init; } = metadata;
     public Guid? NextStepId { get; init; } = nextStepId;
     public Guid? CompensationStepId { get; init; } = compensationStepId;
