@@ -5,7 +5,7 @@ namespace WorkflowScheduler.Domain.Processes;
 
 public class ProcessDefinition(Guid id, string name, int version)
 {
-    private readonly List<ProcessStepDefinition> _steps = [];
+    private readonly List<StepDefinition> _steps = [];
 
     public ProcessDefinition(string name, int version) : this(Guid.NewGuid(), name, version)
     {
@@ -15,20 +15,20 @@ public class ProcessDefinition(Guid id, string name, int version)
     public string Name { get; } = name;
     public int Version { get; } = version;
     public DateTime CreatedAt { get; } = DateTime.UtcNow;
-    public IEnumerable<ProcessStepDefinition> Steps => _steps;
+    public IEnumerable<StepDefinition> Steps => _steps;
 
-    public void AddStep(ProcessStepDefinition step)
+    public void AddStep(StepDefinition step)
     {
         _steps.Add(step);
     }
 
-    public ErrorOr<ProcessStepDefinition> GetFirstStep()
+    public ErrorOr<StepDefinition> GetFirstStep()
     {
         if (_steps.Count == 0) return ProcessErrors.NoStepsDefined;
         return _steps[0];
     }
 
-    public ProcessStepDefinition? FindStep(Guid stepId)
+    public StepDefinition? FindStep(Guid stepId)
     {
         return _steps.FirstOrDefault(s => s.Id == stepId);
     }

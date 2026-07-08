@@ -1,6 +1,6 @@
 namespace WorkflowScheduler.Domain.Steps;
 
-public class ProcessStepInstance(
+public class StepInstance(
     Guid id,
     Guid processInstanceId,
     Guid stepDefinitionId,
@@ -10,7 +10,7 @@ public class ProcessStepInstance(
     private readonly DateTime? _timeoutAt = timeout.HasValue ? DateTime.UtcNow + timeout.Value : DateTime.UtcNow;
     private int _retryCount;
 
-    public ProcessStepInstance(
+    public StepInstance(
         Guid processInstanceId,
         Guid stepDefinitionId,
         int maxRetries = 3,

@@ -5,7 +5,7 @@ namespace WorkflowScheduler.Domain.Processes;
 
 public class ProcessInstance(Guid id, Guid definitionId, string businessKey, string inputData)
 {
-    private readonly List<ProcessStepInstance> _steps = [];
+    private readonly List<StepInstance> _steps = [];
 
     public ProcessInstance(Guid definitionId, string businessKey, string inputData)
         : this(Guid.NewGuid(), definitionId, businessKey, inputData)
@@ -20,9 +20,9 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
     public Guid? CurrentStepId { get; private set; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; private set; }
-    public IReadOnlyList<ProcessStepInstance> Steps => _steps;
+    public IReadOnlyList<StepInstance> Steps => _steps;
 
-    public ErrorOr<ProcessStepInstance> Start(Guid firstStepDefinitionId)
+    public ErrorOr<StepInstance> Start(Guid firstStepDefinitionId)
     {
         if (Status != ProcessStatus.Created) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
         var step = CreateStepInstance(firstStepDefinitionId);
@@ -32,7 +32,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
         return step;
     }
 
-    public ErrorOr<ProcessStepInstance> MoveToStep(Guid stepDefinitionId)
+    public ErrorOr<StepInstance> MoveToStep(Guid stepDefinitionId)
     {
         if (Status != ProcessStatus.Running) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
         var step = CreateStepInstance(stepDefinitionId);
@@ -81,19 +81,19 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public ProcessStepInstance? GetCurrentStepInstance()
+    public StepInstance? GetCurrentStepInstance()
     {
         return CurrentStepId is null ? null : _steps.FirstOrDefault(s => s.Id == CurrentStepId);
     }
 
-    public IEnumerable<ProcessStepInstance> GetCompletedSteps()
+    public IEnumerable<StepInstance> GetCompletedSteps()
     {
         return _steps.Where(s => s.Status == StepStatus.Completed);
     }
 
-    private ProcessStepInstance CreateStepInstance(Guid stepId)
+    private StepInstance CreateStepInstance(Guid stepId)
     {
-        var step = new ProcessStepInstance(Id, stepId);
+        var step = new StepInstance(Id, stepId);
         _steps.Add(step);
         return step;
     }

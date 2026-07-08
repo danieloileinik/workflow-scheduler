@@ -31,6 +31,20 @@ public static class ProcessErrors
     public static Error DefinitionVersionConflict =>
         Error.Conflict("ProcessDefinition.VersionConflict", "A definition with this name and version already exists");
 
+    public static Error LockNotAcquired =>
+        Error.Conflict("Process.LockNotAcquired", "Could not acquire lock, another operation is in progress");
+
+    public static Error NotWaiting =>
+        Error.Conflict("Process.NotWaiting", "Process is not in waiting state");
+
+    public static Error EventNameMismatch =>
+        Error.Conflict(
+            "Process.EventNameMismatch",
+            "Event name does not match the expected event for the current step");
+
+    public static Error StepTypeMismatch =>
+        Error.Conflict("Process.StepTypeMismatch", "Current step type does not support this operation");
+
     public static Error InvalidTransition(ProcessStatus from, ProcessStatus to)
     {
         return Error.Validation("Process.InvalidTransition", $"Cannot transition from {from} to {to}");
