@@ -39,7 +39,7 @@ public class CompleteStepHandler(
         if (processInstance.Status is ProcessStatus.Completed or ProcessStatus.Cancelled)
             return ProcessErrors.AlreadyCompleted;
 
-        var stepInstance = processInstance.GetCurrentStep();
+        var stepInstance = processInstance.GetCurrentStepInstance();
         if (stepInstance is null || stepInstance.StepDefinitionId != request.StepDefinitionId)
             return ProcessErrors.StepNotFound;
 
@@ -88,7 +88,7 @@ public class CompleteStepHandler(
             {
                 stepInstance.Fail(request.OutputData ?? "Step failed after max retries");
 
-                var failResult = processInstance.Fail("Step failed after max retries");
+                var failResult = processInstance.Fail();
                 if (failResult.IsError) return failResult.Errors;
 
                 TriggerSagaRollback(processInstance, processDefinition);

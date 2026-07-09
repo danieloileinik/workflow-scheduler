@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using WorkflowScheduler.Domain.Processes;
 
 namespace WorkflowScheduler.Infrastructure.Persistence.Configurations;
 
