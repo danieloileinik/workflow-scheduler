@@ -7,7 +7,7 @@ public class StepInstance(
     int maxRetries,
     TimeSpan? timeout)
 {
-    private readonly DateTime? _timeoutAt = timeout.HasValue ? DateTime.UtcNow + timeout.Value : DateTime.UtcNow;
+    private readonly DateTime? _timeoutAt = timeout.HasValue ? DateTime.UtcNow + timeout.Value : null;
     private int _retryCount;
 
     public StepInstance(

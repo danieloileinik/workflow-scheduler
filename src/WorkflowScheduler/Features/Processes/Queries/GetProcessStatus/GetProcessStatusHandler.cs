@@ -4,15 +4,15 @@ using WorkflowScheduler.Infrastructure.Persistence;
 namespace WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
 
 public class GetProcessStatusHandler(AppDbContext db)
-    : IRequestHandler<GetProcessStatusQuery, GetProcessStatusQuery.GetProcessStatusResponse?>
+    : IRequestHandler<GetProcessStatusQuery, GetProcessStatusResponse?>
 {
-    public async Task<GetProcessStatusQuery.GetProcessStatusResponse?> Handle(GetProcessStatusQuery request,
+    public async Task<GetProcessStatusResponse?> Handle(GetProcessStatusQuery request,
         CancellationToken ct)
     {
         return await db
             .ProcessInstances
             .Where(i => i.Id == request.ProcessInstanceId)
-            .Select(i => new GetProcessStatusQuery.GetProcessStatusResponse(
+            .Select(i => new GetProcessStatusResponse(
                 i.Id,
                 i.DefinitionId,
                 i.BusinessKey,

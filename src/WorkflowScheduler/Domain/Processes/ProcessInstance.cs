@@ -68,7 +68,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
 
     public ErrorOr<Success> Fail()
     {
-        if (Status is not (ProcessStatus.Completed or ProcessStatus.Cancelled))
+        if (Status is ProcessStatus.Completed or ProcessStatus.Cancelled)
             return ProcessErrors.InvalidTransition(Status, ProcessStatus.Failed);
         Status = ProcessStatus.Failed;
         UpdatedAt = DateTime.UtcNow;

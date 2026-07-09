@@ -1,10 +1,11 @@
 using FluentValidation;
+using MediatR;
 using GrpcRequest = WorkflowScheduler.Grpc.SendEventRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.SendEventResponse;
 
 namespace WorkflowScheduler.Features.Processes.Commands.SendEvent;
 
-public class ProcessService
+public class ProcessService(IMediator mediator)
 {
     public override async Task<GrpcResponse> SendEvent(GrpcRequest request, ServerCallContext context)
     {
