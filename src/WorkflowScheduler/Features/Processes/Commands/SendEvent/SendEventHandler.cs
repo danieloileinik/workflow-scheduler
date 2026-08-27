@@ -1,7 +1,6 @@
 using System.Text.Json;
 using ErrorOr;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using WorkflowScheduler.Common.Abstractions;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
@@ -37,7 +36,7 @@ public class SendEventHandler(
 
         if (processInstance.Status != ProcessStatus.Waiting) return ProcessErrors.NotWaiting;
 
-        var stepInstance = processInstance.GetCurrentStep();
+        var stepInstance = processInstance.GetCurrentStepInstance();
         if (stepInstance is null) return ProcessErrors.StepNotFound;
 
         var processDefinition = await GetDefinitionAsync(processInstance.DefinitionId, ct);

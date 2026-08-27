@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;

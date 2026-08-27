@@ -1,10 +1,12 @@
 using FluentValidation;
+using WorkflowScheduler.Common;
+using WorkflowScheduler.Features.Processes.Commands.CompleteStep;
 using GrpcRequest = WorkflowScheduler.Grpc.CompleteStepRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.CompleteStepResponse;
 
-namespace WorkflowScheduler.Features.Processes.Commands.CompleteStep;
+namespace WorkflowScheduler.Features.Processes.Endpoints;
 
-public class ProcessService
+public partial class ProcessService
 {
     public override async Task<GrpcResponse> CompleteStep(GrpcRequest request, ServerCallContext context)
     {

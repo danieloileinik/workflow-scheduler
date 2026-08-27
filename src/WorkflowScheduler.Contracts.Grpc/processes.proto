@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service Processes {
+  rpc RegisterProcessDefinition (RegisterProcessDefinitionRequest) returns (RegisterProcessDefinitionResponse);
+  rpc StartProcess (StartProcessRequest) returns (StartProcessResponse);
+  rpc CompleteStep (CompleteStepRequest) returns (CompleteStepResponse);
+  rpc SendEvent (SendEventRequest) returns (SendEventResponse);
+  rpc CancelProcess (CancelProcessRequest) returns (CancelProcessResponse);
+  rpc GetProcessStatus (GetProcessStatusRequest) returns (GetProcessStatusResponse);
+}
+
+enum StepTypeMessage {
+  CALL = 0;
+  WAIT_EVENT = 1;
+  CONDITION = 2;
+}
+
+message StepDefinitionMessage {
+  string id = 1;
+  string name = 2;
+  StepTypeMessage step_type = 3;
+  string metadata = 4;
+  string next_step_id = 5;
+  string compensation_step_id = 6;
+}
+
+message RegisterProcessDefinitionRequest {
+  string name = 1;
+  int32 version = 2;
+  repeated StepDefinitionMessage steps = 3;
+}
+
+message RegisterProcessDefinitionResponse {
+  string definition_id = 1;
+}
+
+message StartProcessRequest {
+  string definition_id = 1;
+  string business_key = 2;
+  string input_data = 3;
+  string idempotency_key = 4;
+}
+
+message StartProcessResponse {
+  string process_instance_id = 1;
+}
+
+message CompleteStepRequest {
+  string process_instance_id = 1;
+  string step_definition_id = 2;
+  bool success = 3;
+  string output_data = 4;
+  string correlation_id = 5;
+}
+
+message CompleteStepResponse {
+}
+
+message SendEventRequest {
+  string process_instance_id = 1;
+  string event_name = 2;
+  string payload = 3;
+  string correlation_id = 4;
+}
+
+message SendEventResponse {
+}
+
+message CancelProcessRequest {
+  string process_instance_id = 1;
+}
+
+message CancelProcessResponse {
+}
+
+message GetProcessStatusRequest {
+  string process_instance_id = 1;
+}
+
+message StepHistoryEntry {
+  string id = 1;
+  string step_definition_id = 2;
+  string status = 3;
+  string started_at = 4;
+  string completed_at = 5;
+  string output_data = 6;
+  string error = 7;
+  int32 retry_count = 8;
+}
+
+message GetProcessStatusResponse {
+  string id = 1;
+  string definition_id = 2;
+  string business_key = 3;
+  string status = 4;
+  string current_step_id = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  repeated StepHistoryEntry step_history = 8;
+}
