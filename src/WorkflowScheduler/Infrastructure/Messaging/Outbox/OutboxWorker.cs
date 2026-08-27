@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Infrastructure.Messaging.Outbox;

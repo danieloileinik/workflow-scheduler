@@ -1,14 +1,13 @@
-using MediatR;
-using GrpcGetProcessStatusRequest = WorkflowScheduler.Grpc.GetProcessStatusRequest;
-using GrpcGetProcessStatusResponse = WorkflowScheduler.Grpc.GetProcessStatusResponse;
+using WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
+using GrpcRequest = WorkflowScheduler.Grpc.GetProcessStatusRequest;
+using GrpcResponse = WorkflowScheduler.Grpc.GetProcessStatusResponse;
+using GrpcStepHistoryEntry = WorkflowScheduler.Grpc.StepHistoryEntry;
 
-namespace WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
+namespace WorkflowScheduler.Features.Processes.Endpoints;
 
-public class ProcessService(IMediator mediator) : Processes.ProcessesBase
+public partial class ProcessService
 {
-    public override async Task<GrpcGetProcessStatusResponse> GetProcessStatus(
-        GrpcGetProcessStatusRequest request,
-        ServerCallContext context)
+    public override async Task<GrpcResponse> GetProcessStatus(GrpcRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.ProcessInstanceId, out var instanceId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid process instance id"));
@@ -19,7 +18,7 @@ public class ProcessService(IMediator mediator) : Processes.ProcessesBase
         if (result is null)
             throw new RpcException(new Status(StatusCode.NotFound, "Process instance not found"));
 
-        return new GrpcGetProcessStatusResponse
+        return new GrpcResponse
         {
             Id = result.Id.ToString(),
             DefinitionId = result.DefinitionId.ToString(),

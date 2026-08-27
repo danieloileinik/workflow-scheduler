@@ -1,6 +1,0 @@
-@WorkflowScheduler_HostAddress = http://localhost:5125
-
-GET {{WorkflowScheduler_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

@@ -1,6 +1,5 @@
 using ErrorOr;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using WorkflowScheduler.Common.Abstractions;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
