@@ -4,5 +4,7 @@
         <Project Path="src/WorkflowScheduler.Contracts.Grpc/WorkflowScheduler.Contracts.Grpc.csproj"/>
         <Project Path="src/WorkflowScheduler/WorkflowScheduler.csproj"/>
     </Folder>
-    <Folder Name="/tests/"/>
+    <Folder Name="/tests/">
+        <Project Path="tests/WorkflowScheduler.Tests/WorkflowScheduler.Tests.csproj"/>
+    </Folder>
 </Solution>
