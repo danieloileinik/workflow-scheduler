@@ -1,0 +1,16 @@
+global using Xunit;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.DependencyInjection;
+global using ErrorOr;
+global using MediatR;
+global using WorkflowScheduler.Domain.Processes;
+global using WorkflowScheduler.Domain.Steps;
+global using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
+global using WorkflowScheduler.Features.Processes.Commands.StartProcess;
+global using WorkflowScheduler.Features.Processes.Commands.CompleteStep;
+global using WorkflowScheduler.Features.Processes.Commands.SendEvent;
+global using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
+global using WorkflowScheduler.Features.Processes.Commands.RetrySteps;
+global using WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
+global using WorkflowScheduler.Features.Processes.StepStrategies;
+global using WorkflowScheduler.Infrastructure.Persistence;
