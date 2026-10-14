@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 
 namespace WorkflowScheduler.Infrastructure.Messaging;
 
-public sealed class KafkaPublisher(IOptions<KafkaOptions> options) : IAsyncDisposable
+public sealed class KafkaPublisher(IOptions<KafkaOptions> options) : IMessagePublisher, IAsyncDisposable
 {
     private readonly IProducer<string, string> _producer = new ProducerBuilder<string, string>(
         new ProducerConfig

@@ -16,6 +16,9 @@ public partial class ProcessService
         if (!Guid.TryParse(request.StepDefinitionId, out var stepDefinitionId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid step definition id"));
 
+        if (!Guid.TryParse(request.StepInstanceId, out var stepInstanceId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid step instance id"));
+
         try
         {
             var command = new CompleteStepCommand(
@@ -23,7 +26,9 @@ public partial class ProcessService
                 stepDefinitionId,
                 request.Success,
                 string.IsNullOrEmpty(request.OutputData) ? null : request.OutputData,
-                request.CorrelationId);
+                request.CorrelationId,
+                stepInstanceId,
+                request.Attempt);
 
             var result = await mediator.Send(command, context.CancellationToken);
             return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();

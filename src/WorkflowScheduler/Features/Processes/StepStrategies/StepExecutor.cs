@@ -6,42 +6,51 @@ namespace WorkflowScheduler.Features.Processes.StepStrategies;
 
 public class StepExecutor(IEnumerable<IStepStrategy> strategies)
 {
-    public async Task<ErrorOr<Success>> ExecuteAsync(ProcessDefinition processDefinition,
-        ProcessInstance processInstance,
-        Guid nextStepDefId,
+    public Task<ErrorOr<Success>> ExecuteAsync(ProcessDefinition definition,
+        ProcessInstance instance,
+        Guid nextStepId,
         CancellationToken ct)
     {
-        var nexStepDef = processDefinition.FindStep(nextStepDefId);
-        if (nexStepDef == null) return ProcessErrors.StepNotFound;
-
-        var moveResult = processInstance.MoveToStep(nextStepDefId);
-        if (moveResult.IsError) return moveResult.Errors;
-
-        return await RunAsync(processDefinition, processInstance, nexStepDef, moveResult.Value, ct);
+        var next = definition.FindStep(nextStepId);
+        if (next is null) return Task.FromResult<ErrorOr<Success>>(ProcessErrors.StepNotFound);
+        var move = instance.MoveToStep(nextStepId);
+        return move.IsError
+            ? Task.FromResult<ErrorOr<Success>>(move.Errors)
+            : RunAsync(definition, instance, next, move.Value, ct);
     }
 
-    public async Task<ErrorOr<Success>> RunAsync(ProcessDefinition processDefinition,
-        ProcessInstance processInstance,
+    public async Task<ErrorOr<Success>> RunAsync(ProcessDefinition definition,
+        ProcessInstance instance,
         StepDefinition stepDefinition,
-        StepInstance stepInstance,
+        StepInstance step,
         CancellationToken ct)
     {
-        stepInstance.MarkRunning();
+        var visited = new HashSet<Guid>();
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!visited.Add(stepDefinition.Id))
+                return Error.Validation("ProcessDefinition.Cycle", "Automatic step chain contains a cycle");
+            var strategy = strategies.FirstOrDefault(s => s.StepType == stepDefinition.Type);
+            if (strategy is null) return ProcessErrors.StepTypeMismatch;
+            step.MarkRunning();
+            var result = await strategy.ExecuteAsync(instance, step, stepDefinition, ct);
+            if (step.IsCompensation) return Result.Success;
+            if (result.ShouldWait)
+            {
+                if (stepDefinition.Type == StepType.WaitEvent) step.MarkWaiting();
+                return instance.Wait();
+            }
 
-        var strategy = strategies.First(s => s.StepType == stepDefinition.Type);
-        var result = await strategy.ExecuteAsync(processInstance, stepInstance, stepDefinition, ct);
-
-        if (result.ShouldWait) return processInstance.Wait();
-
-        stepInstance.Complete();
-
-        var nextId = result.OverrideNextStepId ?? stepDefinition.NextStepId;
-        return nextId is null
-            ? processInstance.Complete()
-            : await ExecuteAsync(
-                processDefinition,
-                processInstance,
-                nextId.Value,
-                ct);
+            step.Complete();
+            var nextId = result.OverrideNextStepId ?? stepDefinition.NextStepId;
+            if (nextId is null) return instance.Complete();
+            var next = definition.FindStep(nextId.Value);
+            if (next is null) return ProcessErrors.StepNotFound;
+            var move = instance.MoveToStep(nextId.Value);
+            if (move.IsError) return move.Errors;
+            stepDefinition = next;
+            step = move.Value;
+        }
     }
 }

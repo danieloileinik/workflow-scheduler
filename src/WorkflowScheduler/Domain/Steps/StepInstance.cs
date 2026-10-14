@@ -18,6 +18,13 @@ public class StepInstance(
     {
     }
 
+    private StepInstance() : this(Guid.Empty, Guid.Empty, Guid.Empty, 3, null, 0)
+    {
+    }
+
+    public int Sequence { get; private set; }
+    public bool IsCompensation { get; private set; }
+
     public Guid Id { get; init; } = id;
     public int RetryCount { get; private set; } = retryCount;
     public DateTime? TimeoutAt { get; } = timeout.HasValue ? DateTime.UtcNow + timeout.Value : null;
@@ -33,9 +40,16 @@ public class StepInstance(
     public string? OutputData { get; private set; }
     public string? Error { get; private set; }
 
+    public void SetSequence(int sequence, bool isCompensation = false)
+    {
+        Sequence = sequence;
+        IsCompensation = isCompensation;
+    }
+
     public void MarkRunning()
     {
         Status = StepStatus.Running;
+        NextRetryAt = null;
     }
 
     public void MarkWaiting()
@@ -57,6 +71,7 @@ public class StepInstance(
         Status = StepStatus.Pending;
         NextRetryAt = DateTime.UtcNow.Add(delay);
         Error = null;
+        CompletedAt = null;
         return true;
     }
 
@@ -74,6 +89,13 @@ public class StepInstance(
         CompletedAt = DateTime.UtcNow;
     }
 
+    public void Cancel()
+    {
+        Status = StepStatus.Cancelled;
+        NextRetryAt = null;
+        CompletedAt = DateTime.UtcNow;
+    }
+
     public void MarkCompensated()
     {
         Status = StepStatus.Compensated;
@@ -81,6 +103,7 @@ public class StepInstance(
 
     public bool IsTimedOut()
     {
-        return TimeoutAt.HasValue && DateTime.UtcNow > TimeoutAt.Value && Status == StepStatus.Running;
+        return TimeoutAt.HasValue && DateTime.UtcNow > TimeoutAt.Value &&
+               Status is StepStatus.Running or StepStatus.Waiting;
     }
 }

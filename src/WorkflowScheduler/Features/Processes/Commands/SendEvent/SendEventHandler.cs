@@ -1,7 +1,6 @@
 using System.Text.Json;
 using ErrorOr;
 using MediatR;
-using WorkflowScheduler.Common.Abstractions;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Features.Processes.StepStrategies;
@@ -12,18 +11,14 @@ namespace WorkflowScheduler.Features.Processes.Commands.SendEvent;
 public class SendEventHandler(
     AppDbContext db,
     IProcessDefinitionCache cache,
-    IProcessLock processLock,
     StepExecutor stepExecutor)
     : IRequestHandler<SendEventCommand, ErrorOr<Success>>
 {
     public async Task<ErrorOr<Success>> Handle(SendEventCommand request, CancellationToken ct)
     {
-        await using var @lock = await processLock.TryAcquireAsync(request.ProcessInstanceId, ct);
-        if (@lock is null) return ProcessErrors.LockNotAcquired;
-
         var duplicate = await db.EventLogs.AnyAsync(
             e => e.ProcessInstanceId == request.ProcessInstanceId
-                 && e.EventName == request.EventName
+                 && e.EventName == $"event:{request.EventName.ToUpperInvariant()}"
                  && e.CorrelationId == request.CorrelationId,
             ct);
         if (duplicate) return ProcessErrors.DuplicateEvent;
@@ -47,7 +42,7 @@ public class SendEventHandler(
 
         if (stepDefinition.Type != StepType.WaitEvent) return ProcessErrors.StepTypeMismatch;
 
-        var metadata = JsonSerializer.Deserialize<WaitEventMetadata>(stepDefinition.Metadata)!;
+        var metadata = JsonSerializer.Deserialize<WaitEventMetadata>(stepDefinition.Metadata, StepMetadata.Options)!;
         if (!string.Equals(metadata.EventName, request.EventName, StringComparison.OrdinalIgnoreCase))
             return ProcessErrors.EventNameMismatch;
 
@@ -62,7 +57,11 @@ public class SendEventHandler(
 
         if (result.IsError) return result.Errors;
 
-        db.EventLogs.Add(new EventLog(request.ProcessInstanceId, request.EventName, request.CorrelationId));
+        db.EventLogs.Add(
+            new EventLog(
+                request.ProcessInstanceId,
+                $"event:{request.EventName.ToUpperInvariant()}",
+                request.CorrelationId));
 
         return Result.Success;
     }

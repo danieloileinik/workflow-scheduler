@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
@@ -13,7 +14,7 @@ public class ConditionStepStrategy : IStepStrategy
         StepDefinition stepDefinition,
         CancellationToken ct)
     {
-        var condition = JsonSerializer.Deserialize<ConditionMetadata>(stepDefinition.Metadata);
+        var condition = JsonSerializer.Deserialize<ConditionMetadata>(stepDefinition.Metadata, StepMetadata.Options);
         var result = Evaluate(processInstance.InputData, condition);
         var nextStepId = result ? condition.TrueNextStepId : condition.FalseNextStepId;
         return Task.FromResult(new StepExecutionResult(false, nextStepId));
@@ -22,7 +23,8 @@ public class ConditionStepStrategy : IStepStrategy
     private static bool Evaluate(string inputData, ConditionMetadata condition)
     {
         using var doc = JsonDocument.Parse(inputData);
-        if (!doc.RootElement.TryGetProperty(condition.InputKey, out var element)) return false;
+        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+            !doc.RootElement.TryGetProperty(condition.InputKey, out var element)) return false;
 
         var value = element.ValueKind == JsonValueKind.String
             ? element.GetString() ?? string.Empty
@@ -38,7 +40,11 @@ public class ConditionStepStrategy : IStepStrategy
 
     private static bool CompareNumeric(string left, string op, string right)
     {
-        if (!double.TryParse(left, out var l) || !double.TryParse(right, out var r)) return false;
+        if (!decimal.TryParse(left, NumberStyles.Float, CultureInfo.InvariantCulture, out var l) || !decimal.TryParse(
+                right,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var r)) return false;
         return op switch
         {
             "gt" => l > r,

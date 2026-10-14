@@ -14,6 +14,6 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.ProcessedAt);
         builder.Property(m => m.Error).HasMaxLength(2048);
-        builder.HasIndex(m => m.ProcessedAt).HasFilter("processed_at IS NULL");
+        builder.HasIndex(m => m.ProcessedAt).HasFilter("\"ProcessedAt\" IS NULL");
     }
 }

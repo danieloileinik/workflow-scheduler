@@ -9,7 +9,9 @@ public class StepDefinitionConfiguration : IEntityTypeConfiguration<StepDefiniti
     {
         builder.ToTable("step_definitions");
         builder.HasKey(s => s.Id);
+        builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.ProcessDefinitionId).IsRequired();
+        builder.Property(s => s.Position).IsRequired();
         builder.Property(s => s.Name).HasMaxLength(256).IsRequired();
         builder.Property(s => s.Type).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(s => s.Metadata).IsRequired();

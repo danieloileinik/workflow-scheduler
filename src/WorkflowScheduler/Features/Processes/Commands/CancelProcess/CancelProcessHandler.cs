@@ -1,48 +1,33 @@
 using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Domain.Processes;
+using WorkflowScheduler.Domain.Steps;
+using WorkflowScheduler.Features.Processes.StepStrategies;
 using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 
-public class CancelProcessHandler(AppDbContext db, IProcessDefinitionCache cache)
+public class CancelProcessHandler(AppDbContext db, SagaCoordinator saga)
     : IRequestHandler<CancelProcessCommand, ErrorOr<Success>>
 {
     public async Task<ErrorOr<Success>> Handle(CancelProcessCommand request, CancellationToken ct)
     {
         var instance = await db
             .ProcessInstances
-            .Include(i => i.Steps)
-            .FirstOrDefaultAsync(i => i.Id == request.ProcessInstanceId, ct);
-
+            .Include(x => x.Steps)
+            .FirstOrDefaultAsync(x => x.Id == request.ProcessInstanceId, ct);
         if (instance is null) return ProcessErrors.NotFound;
-
-        if (instance.Status is ProcessStatus.Completed or ProcessStatus.Cancelled)
-            return ProcessErrors.AlreadyCompleted;
-
-        var definition = await GetDefinitionAsync(instance.DefinitionId, ct);
-
-        instance.Cancel();
-
-        if (definition is null) return Result.Success;
-        foreach (var step in instance.GetCompletedSteps().Reverse())
-        {
-            var stepDef = definition.FindStep(step.StepDefinitionId);
-            if (stepDef?.CompensationStepId is null) continue;
-            db.SagaCompensationLogs.Add(new SagaCompensationLog(instance.Id, stepDef.Id));
-        }
-
-        return Result.Success;
-    }
-
-    private async Task<ProcessDefinition?> GetDefinitionAsync(Guid id, CancellationToken ct)
-    {
-        var cached = await cache.GetAsync(id, ct);
-        if (cached is not null) return cached;
-
-        return await db
+        var result = instance.Cancel();
+        if (result.IsError) return result;
+        foreach (var step in instance.Steps.Where(x => !x.IsCompensation
+                                                       && x.Status is StepStatus.Pending or StepStatus.Running
+                                                           or StepStatus.Waiting))
+            step.Cancel();
+        var definition = await db
             .ProcessDefinitions
-            .Include(d => d.Steps)
-            .FirstOrDefaultAsync(d => d.Id == id, ct);
+            .Include(x => x.Steps)
+            .FirstOrDefaultAsync(x => x.Id == instance.DefinitionId, ct);
+        if (definition is null) return ProcessErrors.DefinitionNotFound;
+        return await saga.ScheduleAsync(instance, definition, ct);
     }
 }

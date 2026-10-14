@@ -9,6 +9,9 @@ public class StepInstanceConfiguration : IEntityTypeConfiguration<StepInstance>
     {
         builder.ToTable("step_instances");
         builder.HasKey(s => s.Id);
+        builder.Property(s => s.Id).ValueGeneratedNever();
+        builder.Property(s => s.Sequence).IsRequired();
+        builder.Property(s => s.IsCompensation).IsRequired();
         builder.Property(s => s.ProcessInstanceId).IsRequired();
         builder.Property(s => s.StepDefinitionId).IsRequired();
         builder.Property(s => s.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
@@ -21,6 +24,6 @@ public class StepInstanceConfiguration : IEntityTypeConfiguration<StepInstance>
         builder.Property(s => s.OutputData);
         builder.Property(s => s.Error).HasMaxLength(2048);
         builder.HasIndex(s => new { s.ProcessInstanceId, s.StepDefinitionId });
-        builder.HasIndex(s => s.NextRetryAt).HasFilter("next_retry_at IS NOT NULL");
+        builder.HasIndex(s => s.NextRetryAt).HasFilter("\"NextRetryAt\" IS NOT NULL");
     }
 }

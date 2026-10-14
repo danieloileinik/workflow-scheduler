@@ -22,7 +22,7 @@ public class GetProcessStatusHandler(AppDbContext db)
                 i.UpdatedAt,
                 i
                     .Steps
-                    .OrderBy(s => s.StartedAt)
+                    .OrderBy(s => s.Sequence)
                     .Select(s => new StepHistoryDto(
                         s.Id,
                         s.StepDefinitionId,

@@ -20,6 +20,8 @@ public class StepDefinition(
     {
     }
 
+    public int Position { get; private set; }
+
     public Guid Id { get; init; } = id;
     public Guid ProcessDefinitionId { get; init; } = processDefinitionId;
     public string Name { get; init; } = name;
@@ -27,4 +29,9 @@ public class StepDefinition(
     public string Metadata { get; init; } = metadata;
     public Guid? NextStepId { get; init; } = nextStepId;
     public Guid? CompensationStepId { get; init; } = compensationStepId;
+
+    public void SetPosition(int position)
+    {
+        Position = position;
+    }
 }

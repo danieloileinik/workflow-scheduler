@@ -8,5 +8,6 @@ public enum StepStatus
     Completed,
     Failed,
     TimedOut,
+    Cancelled,
     Compensated
 }
