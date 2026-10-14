@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>true</IsPackable>
+        <PackageId>WorkflowScheduler.Client</PackageId>
+        <Version>0.1.0</Version>
+        <Description>Fluent workflow definitions and a typed gRPC client for Workflow Scheduler.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8"/>
+        <ProjectReference Include="../WorkflowScheduler.Contracts.Grpc/WorkflowScheduler.Contracts.Grpc.csproj"/>
+        <None Include="README.md" Pack="true" PackagePath="/"/>
+    </ItemGroup>
+</Project>
