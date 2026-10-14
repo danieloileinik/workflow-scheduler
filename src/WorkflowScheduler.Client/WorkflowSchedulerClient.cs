@@ -1,0 +1,302 @@
+using System.Globalization;
+using System.Text.Json;
+using Grpc.Core;
+using Grpc.Net.Client;
+using WorkflowScheduler.Grpc;
+
+namespace WorkflowScheduler.Client;
+
+public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposable
+{
+    private readonly Processes.ProcessesClient _grpc;
+    private readonly Func<Metadata>? _headers;
+    private readonly JsonSerializerOptions _json;
+    private readonly GrpcChannel? _ownedChannel;
+    private readonly TimeSpan _timeout;
+    private bool _disposed;
+
+    public WorkflowSchedulerClient(WorkflowClientOptions options)
+    {
+        ValidateOptions(options, true);
+        _json = CopyJsonOptions(options.JsonSerializerOptions);
+        _timeout = options.RequestTimeout;
+        _headers = options.HeadersFactory;
+        _ownedChannel = options.ChannelOptions is null
+            ? GrpcChannel.ForAddress(options.Address!)
+            : GrpcChannel.ForAddress(options.Address!, options.ChannelOptions);
+        _grpc = new Processes.ProcessesClient(_ownedChannel);
+    }
+
+    /// <summary>Uses a caller-owned gRPC client/channel, allowing custom interceptors and transport configuration.</summary>
+    public WorkflowSchedulerClient(Processes.ProcessesClient grpc, WorkflowClientOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(grpc);
+        options ??= new WorkflowClientOptions();
+        ValidateOptions(options, false);
+        _grpc = grpc;
+        _json = CopyJsonOptions(options.JsonSerializerOptions);
+        _timeout = options.RequestTimeout;
+        _headers = options.HeadersFactory;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _ownedChannel?.Dispose();
+    }
+
+    public Task<RegisteredWorkflow> RegisterAsync(WorkflowDefinition definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        var request = new RegisterProcessDefinitionRequest { Name = definition.Name, Version = definition.Version };
+        foreach (var step in definition.Steps)
+            request.Steps.Add(
+                new StepDefinitionMessage
+                {
+                    Id = step.Id.ToString(), Name = step.Name, Metadata = step.Metadata,
+                    StepType = step.Kind switch
+                    {
+                        WorkflowStepKind.Call => StepTypeMessage.Call,
+                        WorkflowStepKind.WaitEvent => StepTypeMessage.WaitEvent,
+                        WorkflowStepKind.Condition => StepTypeMessage.Condition,
+                        _ => throw new ArgumentOutOfRangeException(nameof(definition))
+                    },
+                    NextStepId = step.NextStepId?.ToString() ?? "",
+                    CompensationStepId = step.CompensationStepId?.ToString() ?? ""
+                });
+        return InvokeAsync(
+            nameof(RegisterAsync),
+            async options =>
+            {
+                using var call = _grpc.RegisterProcessDefinitionAsync(request, options);
+                var response = await call.ResponseAsync.ConfigureAwait(false);
+                return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), definition.Name, definition.Version);
+            },
+            cancellationToken);
+    }
+
+    public Task<Guid> StartAsync<TInput>(RegisteredWorkflow definition,
+        TInput input,
+        string businessKey,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return StartAsync(definition.Id, input, businessKey, idempotencyKey, cancellationToken);
+    }
+
+    public Task<Guid> StartAsync<TInput>(Guid definitionId,
+        TInput input,
+        string businessKey,
+        Guid idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Id(definitionId, nameof(definitionId));
+        Guard.Id(idempotencyKey, nameof(idempotencyKey));
+        Guard.Text(businessKey, nameof(businessKey), 512);
+        var json = JsonSerializer.Serialize(input, _json);
+        using (var document = JsonDocument.Parse(json))
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                throw new ArgumentException("Workflow input must serialize to a JSON object.", nameof(input));
+        }
+
+        var request = new StartProcessRequest
+        {
+            DefinitionId = definitionId.ToString(), InputData = json, BusinessKey = businessKey,
+            IdempotencyKey = idempotencyKey.ToString()
+        };
+        return InvokeAsync(
+            nameof(StartAsync),
+            async options =>
+            {
+                using var call = _grpc.StartProcessAsync(request, options);
+                return Guid.Parse((await call.ResponseAsync.ConfigureAwait(false)).ProcessInstanceId);
+            },
+            cancellationToken);
+    }
+
+    public Task SendEventAsync<TPayload>(Guid processInstanceId,
+        string eventName,
+        TPayload payload,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Id(processInstanceId, nameof(processInstanceId));
+        Guard.Text(eventName, nameof(eventName), 250);
+        Guard.Text(correlationId, nameof(correlationId), 256);
+        var request = new SendEventRequest
+        {
+            ProcessInstanceId = processInstanceId.ToString(), EventName = eventName,
+            Payload = SerializeOptional(payload), CorrelationId = correlationId
+        };
+        return InvokeAsync(
+            nameof(SendEventAsync),
+            async options =>
+            {
+                using var call = _grpc.SendEventAsync(request, options);
+                await call.ResponseAsync.ConfigureAwait(false);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    public Task CompleteStepAsync<TOutput>(StepExecution execution,
+        TOutput output,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        return CompleteAsync(execution, true, SerializeOptional(output), correlationId, cancellationToken);
+    }
+
+    public Task FailStepAsync(StepExecution execution,
+        string error,
+        string correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Text(error, nameof(error));
+        return CompleteAsync(execution, false, error, correlationId, cancellationToken);
+    }
+
+    public Task CancelAsync(Guid processInstanceId, CancellationToken cancellationToken = default)
+    {
+        Guard.Id(processInstanceId, nameof(processInstanceId));
+        return InvokeAsync(
+            nameof(CancelAsync),
+            async options =>
+            {
+                using var call = _grpc.CancelProcessAsync(
+                    new CancelProcessRequest
+                        { ProcessInstanceId = processInstanceId.ToString() },
+                    options);
+                await call.ResponseAsync.ConfigureAwait(false);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkflowProcessSnapshot> GetStatusAsync(Guid processInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Id(processInstanceId, nameof(processInstanceId));
+        return InvokeAsync(
+            nameof(GetStatusAsync),
+            async options =>
+            {
+                using var call = _grpc.GetProcessStatusAsync(
+                    new GetProcessStatusRequest
+                        { ProcessInstanceId = processInstanceId.ToString() },
+                    options);
+                var response = await call.ResponseAsync.ConfigureAwait(false);
+                var history = response
+                    .StepHistory
+                    .Select(step => new WorkflowStepHistory(
+                        Guid.Parse(step.Id),
+                        Guid.Parse(step.StepDefinitionId),
+                        Enum.Parse<WorkflowStepStatus>(step.Status),
+                        ParseTime(step.StartedAt),
+                        string.IsNullOrEmpty(step.CompletedAt) ? null : ParseTime(step.CompletedAt),
+                        NullIfEmpty(step.OutputData),
+                        NullIfEmpty(step.Error),
+                        step.RetryCount))
+                    .ToArray();
+                return new WorkflowProcessSnapshot(
+                    Guid.Parse(response.Id),
+                    Guid.Parse(response.DefinitionId),
+                    response.BusinessKey,
+                    Enum.Parse<WorkflowProcessStatus>(response.Status),
+                    string.IsNullOrEmpty(response.CurrentStepId) ? null : Guid.Parse(response.CurrentStepId),
+                    ParseTime(response.CreatedAt),
+                    ParseTime(response.UpdatedAt),
+                    Array.AsReadOnly(history));
+            },
+            cancellationToken);
+    }
+
+    internal static void ValidateOptions(WorkflowClientOptions options, bool requiresAddress)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.JsonSerializerOptions);
+        if (requiresAddress && (options.Address is not { IsAbsoluteUri: true } address
+                                || address.Scheme is not ("http" or "https")))
+            throw new ArgumentException("Address must be an absolute HTTP or HTTPS URI.", nameof(options));
+        if (options.RequestTimeout != Timeout.InfiniteTimeSpan && options.RequestTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "RequestTimeout must be positive or infinite.");
+    }
+
+    private Task CompleteAsync(StepExecution execution,
+        bool success,
+        string output,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+        Guard.Id(execution.ProcessInstanceId, nameof(execution.ProcessInstanceId));
+        Guard.Id(execution.StepDefinitionId, nameof(execution.StepDefinitionId));
+        Guard.Id(execution.StepInstanceId, nameof(execution.StepInstanceId));
+        ArgumentOutOfRangeException.ThrowIfNegative(execution.Attempt);
+        Guard.Text(correlationId, nameof(correlationId), 256);
+        var request = new CompleteStepRequest
+        {
+            ProcessInstanceId = execution.ProcessInstanceId.ToString(),
+            StepDefinitionId = execution.StepDefinitionId.ToString(),
+            StepInstanceId = execution.StepInstanceId.ToString(), Attempt = execution.Attempt,
+            Success = success, OutputData = output, CorrelationId = correlationId
+        };
+        return InvokeAsync(
+            success ? nameof(CompleteStepAsync) : nameof(FailStepAsync),
+            async options =>
+            {
+                using var call = _grpc.CompleteStepAsync(request, options);
+                await call.ResponseAsync.ConfigureAwait(false);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    private async Task<T> InvokeAsync<T>(string operation, Func<CallOptions, Task<T>> action, CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ct.ThrowIfCancellationRequested();
+        var options = new CallOptions(
+            _headers?.Invoke(),
+            cancellationToken: ct,
+            deadline: _timeout == Timeout.InfiniteTimeSpan ? null : DateTime.UtcNow.Add(_timeout));
+        try
+        {
+            return await action(options).ConfigureAwait(false);
+        }
+        catch (RpcException exception) when (exception.StatusCode == StatusCode.Cancelled && ct.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("Workflow request was cancelled.", exception, ct);
+        }
+        catch (RpcException exception)
+        {
+            throw new WorkflowClientException(operation, exception);
+        }
+    }
+
+    private string SerializeOptional<T>(T value)
+    {
+        return value is null ? "" : JsonSerializer.Serialize(value, _json);
+    }
+
+    private static string? NullIfEmpty(string value)
+    {
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private static DateTimeOffset ParseTime(string value)
+    {
+        return DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+    }
+
+    private static JsonSerializerOptions CopyJsonOptions(JsonSerializerOptions original)
+    {
+        var options = new JsonSerializerOptions(original);
+        options.MakeReadOnly(true);
+        return options;
+    }
+}

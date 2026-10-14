@@ -1,5 +1,6 @@
 <Solution>
     <Folder Name="/src/">
+        <Project Path="src/WorkflowScheduler.Client/WorkflowScheduler.Client.csproj"/>
         <Project Path="src/WorkflowScheduler.Contracts.Events/WorkflowScheduler.Contracts.Events.csproj"/>
         <Project Path="src/WorkflowScheduler.Contracts.Grpc/WorkflowScheduler.Contracts.Grpc.csproj"/>
         <Project Path="src/WorkflowScheduler/WorkflowScheduler.csproj"/>

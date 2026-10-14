@@ -17,5 +17,6 @@
         <PackageReference Include="Testcontainers.Redis" Version="4.16.0"/>
         <PackageReference Include="Testcontainers.Kafka" Version="4.16.0"/>
         <ProjectReference Include="../../src/WorkflowScheduler/WorkflowScheduler.csproj"/>
+        <ProjectReference Include="../../src/WorkflowScheduler.Client/WorkflowScheduler.Client.csproj"/>
     </ItemGroup>
 </Project>
