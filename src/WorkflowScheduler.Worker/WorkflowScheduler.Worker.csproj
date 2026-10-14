@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>true</IsPackable>
+        <PackageId>WorkflowScheduler.Worker</PackageId>
+        <Version>0.1.0</Version>
+        <Description>Typed Kafka command handlers and reliable callbacks for Workflow Scheduler.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Confluent.Kafka" Version="2.6.1" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8" />
+        <ProjectReference Include="../WorkflowScheduler.Client/WorkflowScheduler.Client.csproj" />
+        <ProjectReference Include="../WorkflowScheduler.Contracts.Events/WorkflowScheduler.Contracts.Events.csproj" />
+        <InternalsVisibleTo Include="WorkflowScheduler.Tests" />
+        <None Include="README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
+</Project>
