@@ -1,6 +1,5 @@
 using FluentValidation;
 using StackExchange.Redis;
-using WorkflowScheduler.Common.Abstractions;
 using WorkflowScheduler.Common.Behaviors;
 using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Features.Processes.StepStrategies;
@@ -20,15 +19,25 @@ public static class DependencyInjection
             opt.UseNpgsql(configuration.GetConnectionString("Postgres")));
 
         services.AddSingleton<IConnectionMultiplexer>(_ =>
-            ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis")!));
+        {
+            var options = ConfigurationOptions.Parse(configuration.GetConnectionString("Redis")!);
+            options.AbortOnConnectFail = false;
+            return ConnectionMultiplexer.Connect(options);
+        });
 
         services.Configure<KafkaOptions>(configuration.GetSection("Kafka"));
-        services.AddSingleton<KafkaPublisher>();
+        services.AddSingleton<IMessagePublisher, KafkaPublisher>();
+        services.AddScoped<OutboxDispatcher>();
         services.AddHostedService<OutboxWorker>();
 
-        services.AddScoped<IProcessLock, DistributedLock>();
-        services.AddScoped<IIdempotencyCache, IdempotencyCache>();
         services.AddScoped<IProcessDefinitionCache, ProcessDefinitionCache>();
+        services.AddHostedService<RetryWorker>();
+        return services.AddWorkflowApplication();
+    }
+
+    public static IServiceCollection AddWorkflowApplication(this IServiceCollection services)
+    {
+        services.AddScoped<SagaCoordinator>();
 
         services.AddScoped<IStepStrategy, CallStepStrategy>();
         services.AddScoped<IStepStrategy, WaitEventStepStrategy>();
@@ -41,7 +50,6 @@ public static class DependencyInjection
         {
             cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
-            cfg.AddOpenBehavior(typeof(IdempotencyBehavior<,>));
             cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
         });
 

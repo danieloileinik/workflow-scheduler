@@ -25,8 +25,8 @@ public partial class ProcessService
                     s.Name,
                     MapStepType(s.StepType),
                     s.Metadata,
-                    string.IsNullOrEmpty(s.NextStepId) ? null : Guid.Parse(s.NextStepId),
-                    string.IsNullOrEmpty(s.CompensationStepId) ? null : Guid.Parse(s.CompensationStepId)));
+                    ParseOptionalId(s.NextStepId),
+                    ParseOptionalId(s.CompensationStepId)));
         }
 
         try
@@ -41,6 +41,13 @@ public partial class ProcessService
         {
             throw ex.ToRpcException();
         }
+    }
+
+    private static Guid? ParseOptionalId(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        if (Guid.TryParse(value, out var id) && id != Guid.Empty) return id;
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"Invalid step reference: {value}"));
     }
 
     private static StepType MapStepType(GrpcStepTypeMessage type)

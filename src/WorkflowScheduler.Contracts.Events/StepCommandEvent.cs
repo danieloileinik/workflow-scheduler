@@ -6,4 +6,6 @@ public sealed record StepCommandEvent(
     Guid StepInstanceId,
     string Command,
     string? InputData,
-    string CorrelationId);
+    string CorrelationId,
+    int Attempt = 0,
+    bool IsCompensation = false);

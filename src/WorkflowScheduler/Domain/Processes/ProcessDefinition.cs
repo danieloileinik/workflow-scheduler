@@ -14,18 +14,19 @@ public class ProcessDefinition(Guid id, string name, int version)
     public Guid Id { get; } = id;
     public string Name { get; } = name;
     public int Version { get; } = version;
-    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public IEnumerable<StepDefinition> Steps => _steps;
 
     public void AddStep(StepDefinition step)
     {
+        step.SetPosition(_steps.Count);
         _steps.Add(step);
     }
 
     public ErrorOr<StepDefinition> GetFirstStep()
     {
         if (_steps.Count == 0) return ProcessErrors.NoStepsDefined;
-        return _steps[0];
+        return _steps.MinBy(s => s.Position)!;
     }
 
     public StepDefinition? FindStep(Guid stepId)

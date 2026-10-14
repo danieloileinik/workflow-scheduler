@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WorkflowScheduler.Contracts.Events;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
@@ -16,16 +17,18 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
         StepDefinition stepDefinition,
         CancellationToken ct)
     {
-        var metadata = JsonSerializer.Deserialize<CallMetadata>(stepDefinition.Metadata)!;
+        var metadata = JsonSerializer.Deserialize<CallMetadata>(stepDefinition.Metadata, StepMetadata.Options)!;
 
         var payload = JsonSerializer.Serialize(
-            new StepCommandMessage(
+            new StepCommandEvent(
                 instance.Id,
                 stepDefinition.Id,
                 stepInstance.Id,
                 metadata.Command,
                 instance.InputData,
-                stepInstance.Id.ToString()));
+                stepInstance.Id.ToString(),
+                stepInstance.RetryCount,
+                stepInstance.IsCompensation));
 
         db.OutboxMessages.Add(
             new OutboxMessage
@@ -38,12 +41,4 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
     }
 
     private record CallMetadata(string ServiceName, string Command);
-
-    private record StepCommandMessage(
-        Guid ProcessInstanceId,
-        Guid StepDefinitionId,
-        Guid StepInstanceId,
-        string Command,
-        string? InputData,
-        string CorrelationId);
 }

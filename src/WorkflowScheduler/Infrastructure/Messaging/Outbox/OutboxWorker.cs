@@ -1,54 +1,33 @@
-using WorkflowScheduler.Infrastructure.Persistence;
-
 namespace WorkflowScheduler.Infrastructure.Messaging.Outbox;
 
-public class OutboxWorker(IServiceScopeFactory scopeFactory, KafkaPublisher publisher, ILogger<OutboxWorker> logger)
-    : BackgroundService
+public class OutboxWorker(IServiceScopeFactory scopes, ILogger<OutboxWorker> logger) : BackgroundService
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await ProcessBatchAsync(stoppingToken);
+                await using var scope = scopes.CreateAsyncScope();
+                await scope.ServiceProvider.GetRequiredService<OutboxDispatcher>().DispatchAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Outbox dispatch cycle failed");
             }
 
-            await Task.Delay(PollInterval, stoppingToken);
-        }
-    }
-
-    private async Task ProcessBatchAsync(CancellationToken ct)
-    {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var pending = await db
-            .OutboxMessages
-            .Where(m => m.ProcessedAt == null)
-            .OrderBy(m => m.CreatedAt)
-            .Take(100)
-            .ToListAsync(ct);
-
-        if (pending.Count == 0) return;
-
-        foreach (var message in pending)
             try
             {
-                await publisher.PublishAsync(message.Type, message.Id.ToString(), message.Payload, ct);
-                message.ProcessedAt = DateTime.UtcNow;
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                message.Error = ex.Message;
+                break;
             }
-
-        await db.SaveChangesAsync(ct);
+        }
     }
 }

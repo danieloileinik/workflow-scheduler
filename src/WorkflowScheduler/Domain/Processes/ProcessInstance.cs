@@ -75,10 +75,21 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
         return Result.Success;
     }
 
-    public void Cancel()
+    public ErrorOr<Success> Cancel()
     {
+        if (Status == ProcessStatus.Completed) return ProcessErrors.AlreadyCompleted;
+        if (Status == ProcessStatus.Cancelled) return ProcessErrors.AlreadyCancelled;
         Status = ProcessStatus.Cancelled;
         UpdatedAt = DateTime.UtcNow;
+        return Result.Success;
+    }
+
+    public StepInstance AddCompensationStep(Guid stepDefinitionId)
+    {
+        var step = new StepInstance(Id, stepDefinitionId);
+        step.SetSequence(_steps.Count, true);
+        _steps.Add(step);
+        return step;
     }
 
     public StepInstance? GetCurrentStepInstance()
@@ -88,12 +99,13 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
 
     public IEnumerable<StepInstance> GetCompletedSteps()
     {
-        return _steps.Where(s => s.Status == StepStatus.Completed);
+        return _steps.Where(s => !s.IsCompensation && s.Status == StepStatus.Completed).OrderBy(s => s.Sequence);
     }
 
     private StepInstance CreateStepInstance(Guid stepId)
     {
         var step = new StepInstance(Id, stepId);
+        step.SetSequence(_steps.Count);
         _steps.Add(step);
         return step;
     }

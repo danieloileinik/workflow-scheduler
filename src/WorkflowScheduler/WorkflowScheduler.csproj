@@ -20,6 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\WorkflowScheduler.Contracts.Events\WorkflowScheduler.Contracts.Events.csproj"/>
         <ProjectReference Include="..\WorkflowScheduler.Contracts.Grpc\WorkflowScheduler.Contracts.Grpc.csproj"/>
     </ItemGroup>
 

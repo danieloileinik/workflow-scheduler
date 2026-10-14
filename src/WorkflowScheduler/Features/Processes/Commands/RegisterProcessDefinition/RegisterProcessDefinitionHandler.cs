@@ -18,6 +18,11 @@ public class RegisterProcessDefinitionHandler(AppDbContext db)
 
         if (exists) return ProcessErrors.DefinitionVersionConflict;
 
+        var stepIds = request.Steps.Select(s => s.Id).ToArray();
+        if (await db.StepDefinitions.AnyAsync(s => stepIds.Contains(s.Id), ct))
+            return Error.Conflict(
+                "ProcessDefinition.StepIdConflict",
+                "Step ids are already used by another definition");
         var processDefinition = new ProcessDefinition(request.Name, request.Version);
 
         foreach (var dto in request.Steps)

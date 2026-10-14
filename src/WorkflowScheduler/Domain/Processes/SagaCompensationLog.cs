@@ -2,30 +2,33 @@ namespace WorkflowScheduler.Domain.Processes;
 
 public class SagaCompensationLog
 {
-    public SagaCompensationLog(Guid processInstanceId, Guid stepDefinitionId)
-        : this(Guid.NewGuid(), processInstanceId, stepDefinitionId)
+    private SagaCompensationLog()
     {
     }
 
-    private SagaCompensationLog(Guid id, Guid processInstanceId, Guid stepDefinitionId)
+    public SagaCompensationLog(Guid processInstanceId, Guid stepDefinitionId, Guid originalStepInstanceId, int sequence)
     {
-        Id = id;
+        Id = Guid.NewGuid();
         ProcessInstanceId = processInstanceId;
         StepDefinitionId = stepDefinitionId;
-        Status = CompensationStatus.Pending;
-        StartedAt = DateTime.UtcNow;
+        OriginalStepInstanceId = originalStepInstanceId;
+        Sequence = sequence;
     }
 
-    public Guid Id { get; init; }
-    public Guid ProcessInstanceId { get; init; }
-    public Guid StepDefinitionId { get; init; }
-    public CompensationStatus Status { get; private set; }
-    public DateTime StartedAt { get; init; }
+    public Guid Id { get; private set; }
+    public Guid ProcessInstanceId { get; private set; }
+    public Guid StepDefinitionId { get; private set; }
+    public Guid OriginalStepInstanceId { get; private set; }
+    public Guid? StepInstanceId { get; private set; }
+    public int Sequence { get; private set; }
+    public CompensationStatus Status { get; private set; } = CompensationStatus.Pending;
+    public DateTime StartedAt { get; private set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; private set; }
     public string? Error { get; private set; }
 
-    public void MarkRunning()
+    public void MarkRunning(Guid stepInstanceId)
     {
+        StepInstanceId = stepInstanceId;
         Status = CompensationStatus.Running;
     }
 

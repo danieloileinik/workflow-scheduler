@@ -1,4 +1,7 @@
+using System.Globalization;
+using System.Text.Json;
 using FluentValidation;
+using WorkflowScheduler.Domain.Steps;
 
 namespace WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
 
@@ -14,7 +17,111 @@ public class RegisterProcessDefinitionValidator : AbstractValidator<RegisterProc
             {
                 step.RuleFor(s => s.Id).NotEmpty();
                 step.RuleFor(s => s.Name).NotEmpty().MaximumLength(256);
-                step.RuleFor(s => s.Metadata).NotEmpty();
+                step.RuleFor(s => s.Type).IsInEnum();
             });
+        RuleFor(x => x).Custom(ValidateGraph);
+    }
+
+    private static void ValidateGraph(RegisterProcessDefinitionCommand command,
+        ValidationContext<RegisterProcessDefinitionCommand> context)
+    {
+        if (command.Steps is null || command.Steps.Count == 0) return;
+        var steps = new Dictionary<Guid, StepDefinitionDto>();
+        foreach (var step in command.Steps)
+            if (!steps.TryAdd(step.Id, step))
+                context.AddFailure("Steps", "Step ids must be unique");
+        if (steps.Count != command.Steps.Count) return;
+        var edges = steps.Keys.ToDictionary(id => id, _ => new List<Guid>());
+        foreach (var step in command.Steps)
+        {
+            if (step.NextStepId is Guid next) edges[step.Id].Add(next);
+            if (step.CompensationStepId is Guid compensation)
+                if (step.Type != StepType.Call || !steps.TryGetValue(compensation, out var target)
+                                               || target.Type != StepType.Call || target.NextStepId is not null
+                                               || target.CompensationStepId is not null || target.Id == step.Id)
+                    context.AddFailure("Steps", "Compensation must reference a separate terminal Call step");
+            try
+            {
+                using var doc = JsonDocument.Parse(step.Metadata);
+                var metadata = doc.RootElement;
+                if (metadata.ValueKind != JsonValueKind.Object) throw new FormatException();
+                switch (step.Type)
+                {
+                    case StepType.Call:
+                        RequiredString(metadata, "ServiceName");
+                        RequiredString(metadata, "Command");
+                        break;
+                    case StepType.WaitEvent:
+                        RequiredString(metadata, "EventName");
+                        break;
+                    case StepType.Condition:
+                        RequiredString(metadata, "InputKey");
+                        var op = RequiredString(metadata, "Operator");
+                        var value = RequiredString(metadata, "Value", true);
+                        if (op is not ("eq" or "ne" or "gt" or "lt" or "gte" or "lte")) throw new FormatException();
+                        if (op is not ("eq" or "ne") && !decimal.TryParse(
+                                value,
+                                NumberStyles.Float,
+                                CultureInfo.InvariantCulture,
+                                out _))
+                            throw new FormatException();
+                        edges[step.Id].Add(Guid.Parse(RequiredString(metadata, "TrueNextStepId")));
+                        edges[step.Id].Add(Guid.Parse(RequiredString(metadata, "FalseNextStepId")));
+                        break;
+                }
+            }
+            catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException
+                                           or ArgumentNullException)
+            {
+                context.AddFailure("Steps", $"Invalid metadata for step {step.Name}");
+            }
+        }
+
+        foreach (var targets in edges.Values)
+            if (targets.Any(id => !steps.ContainsKey(id)))
+                context.AddFailure("Steps", "All step references must belong to this definition");
+        if (edges.Values.SelectMany(x => x).Any(id => !steps.ContainsKey(id))) return;
+        // Only Condition-only cycles spin without yielding. Call/WaitEvent loops are valid.
+        // Kahn's algorithm checks the induced automatic graph without recursion.
+        var automaticEdges = steps.Keys.ToDictionary(
+            id => id,
+            id =>
+                steps[id].Type == StepType.Condition
+                    ? [.. edges[id].Where(next => steps[next].Type == StepType.Condition)]
+                    : new List<Guid>());
+        var degree = steps.Keys.ToDictionary(id => id, _ => 0);
+        foreach (var id in automaticEdges.Values.SelectMany(x => x)) degree[id]++;
+        var ready = new Queue<Guid>(degree.Where(x => x.Value == 0).Select(x => x.Key));
+        var count = 0;
+        while (ready.TryDequeue(out var id))
+        {
+            count++;
+            foreach (var next in automaticEdges[id])
+                if (--degree[next] == 0)
+                    ready.Enqueue(next);
+        }
+
+        if (count != steps.Count) context.AddFailure("Steps", "Automatic condition chains must be acyclic");
+        var compensationIds = command
+            .Steps
+            .Where(x => x.CompensationStepId.HasValue)
+            .Select(x => x.CompensationStepId!.Value)
+            .ToHashSet();
+        if (compensationIds.Contains(command.Steps[0].Id)
+            || edges.Values.SelectMany(x => x).Any(compensationIds.Contains))
+            context.AddFailure("Steps", "Compensation steps cannot be on the forward execution path");
+    }
+
+    private static string RequiredString(JsonElement metadata, string name, bool allowEmpty = false)
+    {
+        foreach (var property in metadata.EnumerateObject())
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind == JsonValueKind.String)
+            {
+                var value = property.Value.GetString()!;
+                if (allowEmpty || !string.IsNullOrWhiteSpace(value)) return value;
+            }
+
+        throw new FormatException();
     }
 }

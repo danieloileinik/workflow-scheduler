@@ -55,6 +55,8 @@ message CompleteStepRequest {
   bool success = 3;
   string output_data = 4;
   string correlation_id = 5;
+  string step_instance_id = 6;
+  int32 attempt = 7;
 }
 
 message CompleteStepResponse {

@@ -6,6 +6,7 @@ namespace WorkflowScheduler.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<StartRequest> StartRequests => Set<StartRequest>();
     public DbSet<ProcessDefinition> ProcessDefinitions => Set<ProcessDefinition>();
     public DbSet<ProcessInstance> ProcessInstances => Set<ProcessInstance>();
     public DbSet<StepDefinition> StepDefinitions => Set<StepDefinition>();
