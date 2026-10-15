@@ -10,7 +10,7 @@ namespace WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 
 public class CompleteStepHandler(
     AppDbContext db,
-    IProcessDefinitionCache cache,
+    CachedProcessDefinitionProvider definitions,
     StepExecutor executor,
     SagaCoordinator saga)
     : IRequestHandler<CompleteStepCommand, ErrorOr<Success>>
@@ -33,11 +33,7 @@ public class CompleteStepHandler(
             return Error.Conflict("ProcessStep.StaleCallback", "Step is not running this attempt");
         if (!step.IsCompensation && (instance.Status != ProcessStatus.Waiting || instance.CurrentStepId != step.Id))
             return ProcessErrors.NotWaiting;
-        var definition = await cache.GetAsync(instance.DefinitionId, ct)
-                         ?? await db
-                             .ProcessDefinitions
-                             .Include(x => x.Steps)
-                             .FirstOrDefaultAsync(x => x.Id == instance.DefinitionId, ct);
+        var definition = await definitions.GetOrLoadAsync(instance.DefinitionId, ct);
         if (definition is null) return ProcessErrors.DefinitionNotFound;
         var stepDefinition = definition.FindStep(step.StepDefinitionId);
         if (stepDefinition is null) return ProcessErrors.StepNotFound;

@@ -10,7 +10,7 @@ namespace WorkflowScheduler.Features.Processes.Commands.SendEvent;
 
 public class SendEventHandler(
     AppDbContext db,
-    IProcessDefinitionCache cache,
+    CachedProcessDefinitionProvider definitions,
     StepExecutor stepExecutor)
     : IRequestHandler<SendEventCommand, ErrorOr<Success>>
 {
@@ -34,7 +34,7 @@ public class SendEventHandler(
         var stepInstance = processInstance.GetCurrentStepInstance();
         if (stepInstance is null) return ProcessErrors.StepNotFound;
 
-        var processDefinition = await GetDefinitionAsync(processInstance.DefinitionId, ct);
+        var processDefinition = await definitions.GetOrLoadAsync(processInstance.DefinitionId, ct);
         if (processDefinition is null) return ProcessErrors.DefinitionNotFound;
 
         var stepDefinition = processDefinition.FindStep(stepInstance.StepDefinitionId);
@@ -65,22 +65,6 @@ public class SendEventHandler(
                 request.CorrelationId));
 
         return Result.Success;
-    }
-
-    private async Task<ProcessDefinition?> GetDefinitionAsync(Guid id, CancellationToken ct)
-    {
-        var cached = await cache.GetAsync(id, ct);
-        if (cached is not null) return cached;
-
-        var definition = await db
-            .ProcessDefinitions
-            .Include(d => d.Steps)
-            .FirstOrDefaultAsync(d => d.Id == id, ct);
-
-        if (definition is not null)
-            await cache.SetAsync(definition, ct);
-
-        return definition;
     }
 
     private record WaitEventMetadata(string EventName);

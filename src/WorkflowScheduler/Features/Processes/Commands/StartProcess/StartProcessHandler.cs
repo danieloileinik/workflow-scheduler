@@ -11,7 +11,7 @@ namespace WorkflowScheduler.Features.Processes.Commands.StartProcess;
 
 public class StartProcessHandler(
     AppDbContext db,
-    IProcessDefinitionCache cache,
+    CachedProcessDefinitionProvider definitions,
     StepExecutor executor)
     : IRequestHandler<StartProcessCommand, ErrorOr<StartProcessResponse>>
 {
@@ -26,7 +26,7 @@ public class StartProcessHandler(
             return previous.RequestHash == hash
                 ? new StartProcessResponse(previous.ProcessInstanceId)
                 : Error.Conflict("Process.IdempotencyKeyConflict", "Idempotency key was used with a different request");
-        var processDefinition = await GetDefinitionAsync(request.DefinitionId, ct);
+        var processDefinition = await definitions.GetOrLoadAsync(request.DefinitionId, ct);
         if (processDefinition is null) return ProcessErrors.DefinitionNotFound;
 
         var firstStepResult = processDefinition.GetFirstStep();
@@ -55,21 +55,5 @@ public class StartProcessHandler(
             });
 
         return new StartProcessResponse(processInstance.Id);
-    }
-
-    private async Task<ProcessDefinition?> GetDefinitionAsync(Guid id, CancellationToken ct)
-    {
-        var cached = await cache.GetAsync(id, ct);
-        if (cached is not null) return cached;
-
-        var definition = await db
-            .ProcessDefinitions
-            .Include(d => d.Steps)
-            .FirstOrDefaultAsync(d => d.Id == id, ct);
-
-        if (definition is not null)
-            await cache.SetAsync(definition, ct);
-
-        return definition;
     }
 }
