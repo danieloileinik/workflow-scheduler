@@ -1,3 +1,5 @@
+using ErrorOr;
+
 namespace WorkflowScheduler.Domain.Steps;
 
 public class StepInstance(
@@ -46,26 +48,35 @@ public class StepInstance(
         IsCompensation = isCompensation;
     }
 
-    public void MarkRunning()
+    public ErrorOr<Success> MarkRunning()
     {
+        if (Status != StepStatus.Pending) return StepErrors.InvalidTransition(Status, StepStatus.Running);
         Status = StepStatus.Running;
         NextRetryAt = null;
+        return Result.Success;
     }
 
-    public void MarkWaiting()
+    public ErrorOr<Success> MarkWaiting()
     {
+        if (Status != StepStatus.Running) return StepErrors.InvalidTransition(Status, StepStatus.Waiting);
         Status = StepStatus.Waiting;
+        return Result.Success;
     }
 
-    public void Complete(string? outputData = null)
+    public ErrorOr<Success> Complete(string? outputData = null)
     {
+        if (Status is not (StepStatus.Running or StepStatus.Waiting))
+            return StepErrors.InvalidTransition(Status, StepStatus.Completed);
         Status = StepStatus.Completed;
         OutputData = outputData;
         CompletedAt = DateTime.UtcNow;
+        return Result.Success;
     }
 
-    public bool TryScheduleRetry(TimeSpan delay)
+    public ErrorOr<bool> TryScheduleRetry(TimeSpan delay)
     {
+        if (Status is not (StepStatus.Running or StepStatus.Failed or StepStatus.TimedOut))
+            return StepErrors.InvalidTransition(Status, StepStatus.Pending);
         if (RetryCount >= MaxRetries) return false;
         RetryCount++;
         Status = StepStatus.Pending;
@@ -75,30 +86,41 @@ public class StepInstance(
         return true;
     }
 
-    public void Fail(string error)
+    public ErrorOr<Success> Fail(string error)
     {
+        if (Status is not (StepStatus.Running or StepStatus.Waiting))
+            return StepErrors.InvalidTransition(Status, StepStatus.Failed);
         Status = StepStatus.Failed;
         Error = error;
         CompletedAt = DateTime.UtcNow;
+        return Result.Success;
     }
 
-    public void MarkTimedOut()
+    public ErrorOr<Success> MarkTimedOut()
     {
+        if (Status is not (StepStatus.Running or StepStatus.Waiting))
+            return StepErrors.InvalidTransition(Status, StepStatus.TimedOut);
         Status = StepStatus.TimedOut;
         Error = "Step execution timed out";
         CompletedAt = DateTime.UtcNow;
+        return Result.Success;
     }
 
-    public void Cancel()
+    public ErrorOr<Success> Cancel()
     {
+        if (Status is not (StepStatus.Pending or StepStatus.Running or StepStatus.Waiting))
+            return StepErrors.InvalidTransition(Status, StepStatus.Cancelled);
         Status = StepStatus.Cancelled;
         NextRetryAt = null;
         CompletedAt = DateTime.UtcNow;
+        return Result.Success;
     }
 
-    public void MarkCompensated()
+    public ErrorOr<Success> MarkCompensated()
     {
+        if (Status != StepStatus.Completed) return StepErrors.InvalidTransition(Status, StepStatus.Compensated);
         Status = StepStatus.Compensated;
+        return Result.Success;
     }
 
     public bool IsTimedOut()

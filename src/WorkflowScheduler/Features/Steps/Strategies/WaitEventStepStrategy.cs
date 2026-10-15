@@ -12,6 +12,6 @@ public class WaitEventStepStrategy : IStepStrategy
         StepDefinition stepDefinition,
         CancellationToken ct)
     {
-        return Task.FromResult(new StepExecutionResult(true));
+        return Task.FromResult(new StepExecutionResult(StepExecutionState.Waiting));
     }
 }

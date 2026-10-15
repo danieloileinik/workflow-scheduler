@@ -57,7 +57,7 @@ public class ConditionStepStrategyTests
                 CancellationToken.None);
 
             // Assert
-            Assert.False(result.ShouldWait);
+            Assert.Equal(StepExecutionState.Completed, result.State);
             Assert.Equal(expected ? trueStepId : falseStepId, result.OverrideNextStepId);
         }
         finally
@@ -98,7 +98,7 @@ public class ConditionStepStrategyTests
             CancellationToken.None);
 
         // Assert
-        Assert.False(result.ShouldWait);
+        Assert.Equal(StepExecutionState.Completed, result.State);
         Assert.Equal(falseStepId, result.OverrideNextStepId);
     }
 }

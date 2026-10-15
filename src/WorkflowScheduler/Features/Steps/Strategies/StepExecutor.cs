@@ -33,16 +33,20 @@ public class StepExecutor(IEnumerable<IStepStrategy> strategies)
                 return Error.Validation("ProcessDefinition.Cycle", "Automatic step chain contains a cycle");
             var strategy = strategies.FirstOrDefault(s => s.StepType == stepDefinition.Type);
             if (strategy is null) return ProcessErrors.StepTypeMismatch;
-            step.MarkRunning();
+            var start = step.MarkRunning();
+            if (start.IsError) return start;
             var result = await strategy.ExecuteAsync(instance, step, stepDefinition, ct);
-            if (step.IsCompensation) return Result.Success;
-            if (result.ShouldWait)
+            var execution = result.State switch
             {
-                if (stepDefinition.Type == StepType.WaitEvent) step.MarkWaiting();
-                return instance.Wait();
-            }
+                StepExecutionState.Completed => step.Complete(),
+                StepExecutionState.Running => Result.Success,
+                StepExecutionState.Waiting => step.MarkWaiting(),
+                _ => Error.Validation("ProcessStep.InvalidExecutionState", "Unknown step execution state")
+            };
+            if (execution.IsError) return execution;
+            if (step.IsCompensation) return Result.Success;
+            if (result.State != StepExecutionState.Completed) return instance.Wait();
 
-            step.Complete();
             var nextId = result.OverrideNextStepId ?? stepDefinition.NextStepId;
             if (nextId is null) return instance.Complete();
             var next = definition.FindStep(nextId.Value);

@@ -37,7 +37,7 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
                 Payload = payload
             });
 
-        return Task.FromResult(new StepExecutionResult(true));
+        return Task.FromResult(new StepExecutionResult(StepExecutionState.Running));
     }
 
     private record CallMetadata(string ServiceName, string Command);

@@ -21,7 +21,11 @@ public class CancelProcessHandler(AppDbContext db, SagaCoordinator saga)
         foreach (var step in instance.Steps.Where(x => !x.IsCompensation
                                                        && x.Status is StepStatus.Pending or StepStatus.Running
                                                            or StepStatus.Waiting))
-            step.Cancel();
+        {
+            var cancel = step.Cancel();
+            if (cancel.IsError) return cancel;
+        }
+
         var definition = await db
             .ProcessDefinitions
             .Include(x => x.Steps)
