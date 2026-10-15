@@ -48,12 +48,14 @@ public class RegisterProcessDefinitionValidator : AbstractValidator<RegisterProc
                 if (metadata.ValueKind != JsonValueKind.Object) throw new FormatException();
                 var properties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var property in metadata.EnumerateObject())
-                    if (!properties.Add(property.Name)) throw new FormatException();
+                    if (!properties.Add(property.Name))
+                        throw new FormatException();
                 switch (step.Type)
                 {
                     case StepType.Call:
-                        if (!WorkflowProtocol.IsValidTopic(WorkflowProtocol.CommandTopic(
-                                RequiredString(metadata, "ServiceName")))
+                        if (!WorkflowProtocol.IsValidTopic(
+                                WorkflowProtocol.CommandTopic(
+                                    RequiredString(metadata, "ServiceName")))
                             || RequiredString(metadata, "Command").Length > WorkflowProtocol.MaxCommandLength)
                             throw new FormatException();
                         break;

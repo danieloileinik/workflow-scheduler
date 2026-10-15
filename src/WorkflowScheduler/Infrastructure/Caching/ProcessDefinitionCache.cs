@@ -29,11 +29,18 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
             foreach (var step in snapshot.Steps)
             {
                 if (step is null) return null;
-                steps.Add(new StepDefinitionDto(step.Id, step.Name, step.Type, step.Metadata,
-                    step.NextStepId, step.CompensationStepId));
+                steps.Add(
+                    new StepDefinitionDto(
+                        step.Id,
+                        step.Name,
+                        step.Type,
+                        step.Metadata,
+                        step.NextStepId,
+                        step.CompensationStepId));
             }
 
-            if (!Validator.Validate(new RegisterProcessDefinitionCommand(snapshot.Name, snapshot.Version, steps)).IsValid)
+            if (!Validator.Validate(new RegisterProcessDefinitionCommand(snapshot.Name, snapshot.Version, steps))
+                    .IsValid)
                 return null;
             var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version)
                 { CreatedAt = snapshot.CreatedAt };

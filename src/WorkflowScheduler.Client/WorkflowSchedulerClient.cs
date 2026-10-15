@@ -88,18 +88,22 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         return StartAsync(definition.Id, input, businessKey, idempotencyKey, cancellationToken);
     }
 
-    public Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
+    public Task<RegisteredWorkflow> GetDefinitionAsync(string name,
+        int version,
         CancellationToken cancellationToken = default)
     {
         Guard.Text(name, nameof(name), 256);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(version);
         var request = new GetProcessDefinitionRequest { Name = name, Version = version };
-        return InvokeAsync(nameof(GetDefinitionAsync), async options =>
-        {
-            using var call = _grpc.GetProcessDefinitionAsync(request, options);
-            var response = await call.ResponseAsync.ConfigureAwait(false);
-            return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), name, version);
-        }, cancellationToken);
+        return InvokeAsync(
+            nameof(GetDefinitionAsync),
+            async options =>
+            {
+                using var call = _grpc.GetProcessDefinitionAsync(request, options);
+                var response = await call.ResponseAsync.ConfigureAwait(false);
+                return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), name, version);
+            },
+            cancellationToken);
     }
 
     public Task<Guid> StartAsync<TInput>(Guid definitionId,
@@ -198,24 +202,56 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
-        return GetStatusAsync(new GetProcessStatusRequest { ProcessInstanceId = processInstanceId.ToString() },
-            nameof(GetStatusAsync), cancellationToken);
+        return GetStatusAsync(
+            new GetProcessStatusRequest { ProcessInstanceId = processInstanceId.ToString() },
+            nameof(GetStatusAsync),
+            cancellationToken);
     }
 
-    public Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId, int offset = 0, int pageSize = 100,
-        bool includeOutputs = false, CancellationToken cancellationToken = default)
+    public Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId,
+        int offset = 0,
+        int pageSize = 100,
+        bool includeOutputs = false,
+        CancellationToken cancellationToken = default)
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         if (pageSize is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(pageSize));
-        return GetStatusAsync(new GetProcessStatusRequest
-        {
-            ProcessInstanceId = processInstanceId.ToString(), HistoryOffset = offset,
-            HistoryPageSize = pageSize, OmitOutputData = !includeOutputs
-        }, nameof(GetStatusPageAsync), cancellationToken);
+        return GetStatusAsync(
+            new GetProcessStatusRequest
+            {
+                ProcessInstanceId = processInstanceId.ToString(), HistoryOffset = offset,
+                HistoryPageSize = pageSize, OmitOutputData = !includeOutputs
+            },
+            nameof(GetStatusPageAsync),
+            cancellationToken);
     }
 
-    private Task<WorkflowProcessSnapshot> GetStatusAsync(GetProcessStatusRequest request, string operation,
+    public Task<bool> IsStepActiveAsync(StepExecution execution,
+        bool isCompensation = false,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateExecution(execution);
+        var request = new IsStepActiveRequest
+        {
+            ProcessInstanceId = execution.ProcessInstanceId.ToString(),
+            StepDefinitionId = execution.StepDefinitionId.ToString(),
+            StepInstanceId = execution.StepInstanceId.ToString(),
+            Attempt = execution.Attempt,
+            IsCompensation = isCompensation
+        };
+        return InvokeAsync(
+            nameof(IsStepActiveAsync),
+            async options =>
+            {
+                using var call = _grpc.IsStepActiveAsync(request, options);
+                return (await call.ResponseAsync.ConfigureAwait(false)).Active;
+            },
+            cancellationToken);
+    }
+
+    private Task<WorkflowProcessSnapshot> GetStatusAsync(GetProcessStatusRequest request,
+        string operation,
         CancellationToken cancellationToken)
     {
         return InvokeAsync(
@@ -261,25 +297,6 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             throw new ArgumentException("Address must be an absolute HTTP or HTTPS URI.", nameof(options));
         if (options.RequestTimeout != Timeout.InfiniteTimeSpan && options.RequestTimeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options), "RequestTimeout must be positive or infinite.");
-    }
-
-    public Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateExecution(execution);
-        var request = new IsStepActiveRequest
-        {
-            ProcessInstanceId = execution.ProcessInstanceId.ToString(),
-            StepDefinitionId = execution.StepDefinitionId.ToString(),
-            StepInstanceId = execution.StepInstanceId.ToString(),
-            Attempt = execution.Attempt,
-            IsCompensation = isCompensation
-        };
-        return InvokeAsync(nameof(IsStepActiveAsync), async options =>
-        {
-            using var call = _grpc.IsStepActiveAsync(request, options);
-            return (await call.ResponseAsync.ConfigureAwait(false)).Active;
-        }, cancellationToken);
     }
 
     private static void ValidateExecution(StepExecution execution)

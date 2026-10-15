@@ -1,6 +1,6 @@
+using System.Text;
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
-using System.Text;
 using WorkflowScheduler.Contracts;
 
 namespace WorkflowScheduler.Infrastructure.Messaging;

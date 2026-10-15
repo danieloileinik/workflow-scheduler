@@ -84,8 +84,12 @@ public class OutboxTests(TestInfrastructure infrastructure)
             await app.WithDb(async db =>
             {
                 await using var transaction = await db.Database.BeginTransactionAsync(timeout.Token);
-                var messages = await db.OutboxMessages.FromSqlRaw(
-                    "SELECT * FROM outbox_messages FOR UPDATE NOWAIT").AsNoTracking().ToListAsync(timeout.Token);
+                var messages = await db
+                    .OutboxMessages
+                    .FromSqlRaw(
+                        "SELECT * FROM outbox_messages FOR UPDATE NOWAIT")
+                    .AsNoTracking()
+                    .ToListAsync(timeout.Token);
                 Assert.Equal(4, messages.Count);
                 return 0;
             });
@@ -122,10 +126,14 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var process = await app.Start(await app.Register(TestWorkflow.Call()));
         await app.WithDb(async db =>
         {
-            db.OutboxMessages.AddRange(Enumerable.Range(0, 100).Select(_ => new OutboxMessage
-            {
-                Type = "process.commands.billing", Payload = "{invalid-json", CreatedAt = DateTime.UtcNow.AddDays(-1)
-            }));
+            db.OutboxMessages.AddRange(
+                Enumerable
+                    .Range(0, 100)
+                    .Select(_ => new OutboxMessage
+                    {
+                        Type = "process.commands.billing", Payload = "{invalid-json",
+                        CreatedAt = DateTime.UtcNow.AddDays(-1)
+                    }));
             return await db.SaveChangesAsync();
         });
 
@@ -157,7 +165,10 @@ public class OutboxTests(TestInfrastructure infrastructure)
                 await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
                     update.SetProperty(candidate => candidate.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
             }
-            else Assert.NotNull(message.FailedAt);
+            else
+            {
+                Assert.NotNull(message.FailedAt);
+            }
         }
 
         app.Publisher.Fail = false;
@@ -171,7 +182,8 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var app = await infrastructure.CreateHarnessAsync();
         await app.Start(await app.Register(TestWorkflow.Call()));
         await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update.SetProperty(message => message.ClaimId, Guid.NewGuid())
+            update
+                .SetProperty(message => message.ClaimId, Guid.NewGuid())
                 .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))));
         Assert.Equal(0, await app.Dispatch());
         await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
@@ -194,7 +206,8 @@ public class OutboxTests(TestInfrastructure infrastructure)
         await app.WithDb(async db =>
         {
             var original = await db.OutboxMessages.AsNoTracking().SingleAsync();
-            await db.Database.ExecuteSqlRawAsync("""
+            await db.Database.ExecuteSqlRawAsync(
+                """
                 ALTER TABLE outbox_messages DROP COLUMN "Attempts", DROP COLUMN "NextAttemptAt",
                     DROP COLUMN "FailedAt", DROP COLUMN "ClaimId", DROP COLUMN "ClaimedUntil"
                 """);
@@ -243,7 +256,8 @@ public class OutboxTests(TestInfrastructure infrastructure)
         await app.Start(await app.Register(TestWorkflow.Call()));
         var newOwner = Guid.NewGuid();
         app.Publisher.BeforePublishAsync = _ => app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update.SetProperty(message => message.ClaimId, newOwner)
+            update
+                .SetProperty(message => message.ClaimId, newOwner)
                 .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))));
 
         await app.Dispatch();
@@ -251,6 +265,7 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var pending = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
         Assert.Equal(newOwner, pending.ClaimId);
         Assert.Null(pending.ProcessedAt);
-        Assert.Empty(await app.WithDb(db => db.OutboxMessages.Where(message => message.FailedAt != null).ToListAsync()));
+        Assert.Empty(
+            await app.WithDb(db => db.OutboxMessages.Where(message => message.FailedAt != null).ToListAsync()));
     }
 }

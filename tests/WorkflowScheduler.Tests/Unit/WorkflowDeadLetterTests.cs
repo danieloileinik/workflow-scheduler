@@ -18,7 +18,8 @@ public class WorkflowDeadLetterTests
 
         Assert.Equal(letter, restored);
         var (topic, partition, offset, key, payload, error) = restored!;
-        Assert.Equal(("commands", 1, 42L, "key", "{bad-json", "Invalid JSON"),
+        Assert.Equal(
+            ("commands", 1, 42L, "key", "{bad-json", "Invalid JSON"),
             (topic, partition, offset, key, payload, error));
     }
 
@@ -28,7 +29,12 @@ public class WorkflowDeadLetterTests
     public void OversizedMessage_FitsLimitAndPreservesSourceIdentityAndPayloadFingerprint(int limit)
     {
         var payload = new string('"', 700_000);
-        var letter = new WorkflowDeadLetter("commands", 1, 42, new string('"', 200_000), payload,
+        var letter = new WorkflowDeadLetter(
+            "commands",
+            1,
+            42,
+            new string('"', 200_000),
+            payload,
             new string('"', 10_000));
 
         var json = letter.Serialize(limit);

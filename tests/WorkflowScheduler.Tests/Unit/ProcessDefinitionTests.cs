@@ -18,6 +18,7 @@ public class ProcessDefinitionTests
         Assert.Same(second, definition.FindStep(second.Id));
         Assert.Null(definition.FindStep(Guid.NewGuid()));
     }
+
     [Fact]
     public void GetFirstStep_WhenCollectionOrderDiffersFromPositions_ReturnsLowestPosition()
     {

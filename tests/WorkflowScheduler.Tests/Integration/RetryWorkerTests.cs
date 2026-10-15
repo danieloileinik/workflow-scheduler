@@ -31,23 +31,29 @@ public class RetryWorkerTests(TestInfrastructure infrastructure)
         {
             var inner = new Mediator(provider);
             var mediator = Substitute.For<IMediator>();
-            mediator.Send(Arg.Any<RetryStepsCommand>(), Arg.Any<CancellationToken>()).Returns(callInfo =>
-            {
-                var command = callInfo.Arg<RetryStepsCommand>();
-                if (command.ProcessInstanceId != bad) return inner.Send(command, callInfo.Arg<CancellationToken>());
-                return throws
-                    ? Task.FromException<ErrorOr<Success>>(new InvalidOperationException("Injected retry failure"))
-                    : Task.FromResult<ErrorOr<Success>>(Error.Failure("Retry.Failed", "Injected rejection"));
-            });
+            mediator
+                .Send(Arg.Any<RetryStepsCommand>(), Arg.Any<CancellationToken>())
+                .Returns(callInfo =>
+                {
+                    var command = callInfo.Arg<RetryStepsCommand>();
+                    if (command.ProcessInstanceId != bad) return inner.Send(command, callInfo.Arg<CancellationToken>());
+                    return throws
+                        ? Task.FromException<ErrorOr<Success>>(new InvalidOperationException("Injected retry failure"))
+                        : Task.FromResult<ErrorOr<Success>>(Error.Failure("Retry.Failed", "Injected rejection"));
+                });
             return mediator;
         });
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
-        var worker = new RetryWorker(provider.GetRequiredService<IServiceScopeFactory>(), NullLogger<RetryWorker>.Instance);
+        var worker = new RetryWorker(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<RetryWorker>.Instance);
 
         Assert.Equal(2, await worker.DispatchAsync(CancellationToken.None));
 
-        var rejected = await app.WithDb(db => db.StepInstances.AsNoTracking().SingleAsync(step => step.ProcessInstanceId == bad));
-        var dispatched = await app.WithDb(db => db.StepInstances.AsNoTracking().SingleAsync(step => step.ProcessInstanceId == good));
+        var rejected = await app.WithDb(db =>
+            db.StepInstances.AsNoTracking().SingleAsync(step => step.ProcessInstanceId == bad));
+        var dispatched = await app.WithDb(db =>
+            db.StepInstances.AsNoTracking().SingleAsync(step => step.ProcessInstanceId == good));
         Assert.Equal(StepStatus.Pending, rejected.Status);
         Assert.True(rejected.NextRetryAt > DateTime.UtcNow);
         Assert.Equal(StepStatus.Running, dispatched.Status);

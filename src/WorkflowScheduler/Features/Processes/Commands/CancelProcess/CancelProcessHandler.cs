@@ -18,9 +18,9 @@ public class CancelProcessHandler(AppDbContext db, CachedProcessDefinitionProvid
         if (instance is null) return ProcessErrors.NotFound;
         var result = instance.Cancel();
         if (result.IsError) return result;
-        foreach (var step in instance.Steps.Where(x => !x.IsCompensation
-                                                       && x.Status is StepStatus.Pending or StepStatus.Running
-                                                           or StepStatus.Waiting))
+        foreach (var step in instance.Steps.Where(x => x is { IsCompensation: false, Status: StepStatus.Pending or StepStatus.Running
+                     or StepStatus.Waiting
+                 }))
         {
             var cancel = step.Cancel();
             if (cancel.IsError) return cancel;

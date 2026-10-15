@@ -12,7 +12,8 @@ public class StartProcessValidator : AbstractValidator<StartProcessCommand>
         RuleFor(x => x.DefinitionId).NotEmpty();
         RuleFor(x => x.BusinessKey).NotEmpty().MaximumLength(512);
         RuleFor(x => x.InputData).Must(ValidInput).WithMessage("InputData must be a JSON object");
-        RuleFor(x => x.InputData).Must(input => input is not null && WorkflowProtocol.InputFitsMessage(input))
+        RuleFor(x => x.InputData)
+            .Must(input => input is not null && WorkflowProtocol.InputFitsMessage(input))
             .WithMessage("InputData exceeds the command message size limit after JSON escaping");
     }
 

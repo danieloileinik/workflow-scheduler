@@ -139,7 +139,11 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
             Assert.Equal(700_000, letter.OriginalPayloadBytes);
             Assert.NotEmpty(letter.PayloadSha256!);
         }
-        else Assert.Equal(invalid, letter.Payload);
+        else
+        {
+            Assert.Equal(invalid, letter.Payload);
+        }
+
         Assert.Equal(worker.Topic + ":0:0", record.Message.Key);
         Assert.NotEmpty(letter.Error);
         Assert.Empty(client.ReceivedCalls());

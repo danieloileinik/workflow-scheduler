@@ -43,7 +43,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         var process = await client.StartAsync(definition, new Input(42), "order-42", Guid.NewGuid());
         var waiting = await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
-            state => state.StepHistory.Count == 2 && state.StepHistory[1].Status == WorkflowStepStatus.Waiting,
+            state => state.StepHistory is [_, { Status: WorkflowStepStatus.Waiting }],
             "Worker finished Charge and process is waiting for Approved");
         var first = Assert.Single(handled).Context;
         await worker.PublishAsync(
@@ -104,7 +104,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         var process = await client.StartAsync(definition, new Input(42), "order", Guid.NewGuid());
         var pending = await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
-            state => state.StepHistory.Count == 1 && state.StepHistory[0].Status == WorkflowStepStatus.Pending,
+            state => state.StepHistory is [{ Status: WorkflowStepStatus.Pending }],
             "Worker failure scheduled a retry");
         await app.WithDb(db => db
             .StepInstances
@@ -159,12 +159,12 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         var process = await client.StartAsync(definition, new Input(42), "order", Guid.NewGuid());
         await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
-            state => state.StepHistory.Count == 2 && state.StepHistory[1].Status == WorkflowStepStatus.Waiting,
+            state => state.StepHistory is [_, { Status: WorkflowStepStatus.Waiting }],
             "Forward call is complete");
         await client.CancelAsync(process);
         var cancelled = await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
-            state => state.StepHistory.Count == 3 && state.StepHistory[0].Status == WorkflowStepStatus.Compensated,
+            state => state.StepHistory is [{ Status: WorkflowStepStatus.Compensated }, _, _],
             "Worker completed compensation");
         await worker.WaitForOffsetAsync(2);
 
@@ -203,22 +203,25 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         Assert.Equal(1, await app.WithDb(db => db.EventLogs.CountAsync(log => log.EventName == "CompleteStep")));
     }
 
-    public sealed record Input(int OrderId);
-
     [Fact]
     public async Task LargeAccumulatedOutputs_DoNotPreventFollowingCommandsFromRunning()
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
-        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        using var client =
+            new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var output = new string('a', 1_100_000);
         var effects = 0;
-        await using var worker = await WorkerTestHost.StartAsync(infrastructure, client,
-            builder => builder.Handle<Input, string>("Large", (_, _, _) =>
-            {
-                Interlocked.Increment(ref effects);
-                return Task.FromResult(output);
-            }));
+        await using var worker = await WorkerTestHost.StartAsync(
+            infrastructure,
+            client,
+            builder => builder.Handle<Input, string>(
+                "Large",
+                (_, _, _) =>
+                {
+                    Interlocked.Increment(ref effects);
+                    return Task.FromResult(output);
+                }));
         var workflow = Workflow.Define("large-history-" + Guid.NewGuid());
         for (var index = 0; index < 5; index++) workflow.Call(worker.ServiceName, "Large");
         var definition = await client.RegisterAsync(workflow.Build());
@@ -227,8 +230,13 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         await worker.WaitForOffsetAsync(5);
 
         Assert.Equal(5, effects);
-        Assert.Equal(ProcessStatus.Completed, await app.WithDb(db => db.ProcessInstances
-            .Where(instance => instance.Id == process).Select(instance => instance.Status).SingleAsync()));
+        Assert.Equal(
+            ProcessStatus.Completed,
+            await app.WithDb(db => db
+                .ProcessInstances
+                .Where(instance => instance.Id == process)
+                .Select(instance => instance.Status)
+                .SingleAsync()));
         var tooLarge = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetStatusAsync(process));
         Assert.Equal(StatusCode.ResourceExhausted, tooLarge.StatusCode);
         var page = await client.GetStatusPageAsync(process);
@@ -238,6 +246,8 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         var outputPage = await client.GetStatusPageAsync(process, pageSize: 1, includeOutputs: true);
         Assert.Equal(output, outputPage.StepHistory.Single().ReadOutput<string>());
     }
+
+    public sealed record Input(int OrderId);
 
     public sealed record Output(int OrderId, string Command);
 
@@ -308,15 +318,27 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
             return inner.GetStatusAsync(processInstanceId, cancellationToken);
         }
 
-        public Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
-            CancellationToken cancellationToken = default) =>
-            inner.IsStepActiveAsync(execution, isCompensation, cancellationToken);
+        public Task<bool> IsStepActiveAsync(StepExecution execution,
+            bool isCompensation = false,
+            CancellationToken cancellationToken = default)
+        {
+            return inner.IsStepActiveAsync(execution, isCompensation, cancellationToken);
+        }
 
-        public Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
-            CancellationToken cancellationToken = default) => inner.GetDefinitionAsync(name, version, cancellationToken);
+        public Task<RegisteredWorkflow> GetDefinitionAsync(string name,
+            int version,
+            CancellationToken cancellationToken = default)
+        {
+            return inner.GetDefinitionAsync(name, version, cancellationToken);
+        }
 
-        public Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId, int offset = 0, int pageSize = 100,
-            bool includeOutputs = false, CancellationToken cancellationToken = default) =>
-            inner.GetStatusPageAsync(processInstanceId, offset, pageSize, includeOutputs, cancellationToken);
+        public Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId,
+            int offset = 0,
+            int pageSize = 100,
+            bool includeOutputs = false,
+            CancellationToken cancellationToken = default)
+        {
+            return inner.GetStatusPageAsync(processInstanceId, offset, pageSize, includeOutputs, cancellationToken);
+        }
     }
 }
