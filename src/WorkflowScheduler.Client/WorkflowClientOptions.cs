@@ -12,5 +12,5 @@ public sealed class WorkflowClientOptions
     public GrpcChannelOptions? ChannelOptions { get; set; }
 
     /// <summary>Called for each RPC; can supply authorization metadata with a refreshed token.</summary>
-    public Func<Metadata>? HeadersFactory { get; init; }
+    public Func<Metadata>? HeadersFactory { get; set; }
 }

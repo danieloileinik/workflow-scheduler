@@ -11,11 +11,11 @@ public sealed class WorkflowWorkerOptions
     public string? DeadLetterTopic { get; set; }
     public int MaxDeliveryAttempts { get; set; } = 5;
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
-    public TimeSpan RpcTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan RpcTimeout { get; set; } = TimeSpan.FromSeconds(10);
     public TimeSpan HandlerTimeout { get; set; } = TimeSpan.FromMinutes(1);
-    public JsonSerializerOptions JsonSerializerOptions { get; init; } = new(JsonSerializerDefaults.Web);
-    public ConsumerConfig ConsumerConfig { get; init; } = new();
-    public ProducerConfig DeadLetterProducerConfig { get; init; } = new();
+    public JsonSerializerOptions JsonSerializerOptions { get; set; } = new(JsonSerializerDefaults.Web);
+    public ConsumerConfig ConsumerConfig { get; set; } = new();
+    public ProducerConfig DeadLetterProducerConfig { get; set; } = new();
 
     internal string Topic => "process.commands." + ServiceName;
 

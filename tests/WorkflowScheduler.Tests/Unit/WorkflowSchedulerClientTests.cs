@@ -222,7 +222,11 @@ public class WorkflowSchedulerClientTests
             options.Address = new Uri("http://localhost");
             options.RequestTimeout = TimeSpan.Zero;
         }));
-        services.AddWorkflowSchedulerClient(options => options.Address = new Uri("http://localhost:5010"));
+        services.AddWorkflowSchedulerClient(options =>
+        {
+            options.Address = new Uri("http://localhost:5010");
+            options.HeadersFactory = () => new Metadata { { "authorization", "token" } };
+        });
         using var provider = services.BuildServiceProvider();
         Assert.Same(
             provider.GetRequiredService<IWorkflowSchedulerClient>(),

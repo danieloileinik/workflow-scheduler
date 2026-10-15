@@ -382,6 +382,8 @@ public class WorkflowWorkerTests
         {
             Configure(options);
             original = options;
+            options.RpcTimeout = TimeSpan.FromSeconds(2);
+            options.ConsumerConfig = new() { EnableAutoOffsetStore = true, EnableAutoCommit = false };
             options.ConsumerConfig.EnableAutoOffsetStore = true;
             options.ConsumerConfig.EnableAutoCommit = false;
         });
@@ -394,6 +396,7 @@ public class WorkflowWorkerTests
         var snapshot = provider.GetRequiredService<WorkerRegistration>().Options;
         Assert.Equal("process.commands.billing", snapshot.Topic);
         Assert.Equal("workflow-billing", snapshot.GroupId);
+        Assert.Equal(TimeSpan.FromSeconds(2), snapshot.RpcTimeout);
         Assert.True(snapshot.ConsumerConfig.EnableAutoCommit);
         Assert.False(snapshot.ConsumerConfig.EnableAutoOffsetStore);
         Assert.True(snapshot.JsonSerializerOptions.IsReadOnly);
