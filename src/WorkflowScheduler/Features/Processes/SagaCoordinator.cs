@@ -16,10 +16,11 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
             .SagaCompensationLogs
             .Where(x => x.ProcessInstanceId == instance.Id)
             .ToListAsync(ct);
+        var scheduled = existing.Select(log => log.OriginalStepInstanceId).ToHashSet();
         foreach (var step in instance.GetCompletedSteps().Reverse())
         {
             var compensationId = definition.FindStep(step.StepDefinitionId)?.CompensationStepId;
-            if (compensationId is null || existing.Any(x => x.OriginalStepInstanceId == step.Id)) continue;
+            if (compensationId is null || !scheduled.Add(step.Id)) continue;
             var log = new SagaCompensationLog(instance.Id, compensationId.Value, step.Id, existing.Count);
             db.SagaCompensationLogs.Add(log);
             existing.Add(log);

@@ -7,24 +7,32 @@ namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public class ConditionStepStrategy : IStepStrategy
 {
+    private string? _inputData;
+    private JsonElement _input;
     public StepType StepType => StepType.Condition;
 
-    public Task<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
+    public ValueTask<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
         StepInstance stepInstance,
         StepDefinition stepDefinition,
         CancellationToken ct)
     {
         var condition = JsonSerializer.Deserialize<ConditionMetadata>(stepDefinition.Metadata, StepMetadata.Options);
-        var result = Evaluate(processInstance.InputData, condition);
+        // Strategies are scoped to one sequential command execution; retain its immutable parsed input.
+        if (!ReferenceEquals(_inputData, processInstance.InputData))
+        {
+            _input = JsonElement.Parse(processInstance.InputData);
+            _inputData = processInstance.InputData;
+        }
+
+        var result = Evaluate(_input, condition);
         var nextStepId = result ? condition.TrueNextStepId : condition.FalseNextStepId;
-        return Task.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
+        return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
     }
 
-    private static bool Evaluate(string inputData, ConditionMetadata condition)
+    private static bool Evaluate(JsonElement input, ConditionMetadata condition)
     {
-        using var doc = JsonDocument.Parse(inputData);
-        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
-            !doc.RootElement.TryGetProperty(condition.InputKey, out var element)) return false;
+        if (input.ValueKind != JsonValueKind.Object ||
+            !input.TryGetProperty(condition.InputKey, out var element)) return false;
 
         var value = element.ValueKind == JsonValueKind.String
             ? element.GetString() ?? string.Empty

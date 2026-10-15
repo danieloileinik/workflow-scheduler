@@ -7,7 +7,7 @@ public interface IStepStrategy
 {
     StepType StepType { get; }
 
-    Task<StepExecutionResult> ExecuteAsync(
+    ValueTask<StepExecutionResult> ExecuteAsync(
         ProcessInstance processInstance,
         StepInstance stepInstance,
         StepDefinition stepDefinition,

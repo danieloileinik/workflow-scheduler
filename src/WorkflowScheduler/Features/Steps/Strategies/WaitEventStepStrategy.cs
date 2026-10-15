@@ -7,11 +7,11 @@ public class WaitEventStepStrategy : IStepStrategy
 {
     public StepType StepType => StepType.WaitEvent;
 
-    public Task<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
+    public ValueTask<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
         StepInstance stepInstance,
         StepDefinition stepDefinition,
         CancellationToken ct)
     {
-        return Task.FromResult(new StepExecutionResult(StepExecutionState.Waiting));
+        return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Waiting));
     }
 }

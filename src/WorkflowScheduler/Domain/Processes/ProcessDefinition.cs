@@ -6,6 +6,8 @@ namespace WorkflowScheduler.Domain.Processes;
 public class ProcessDefinition(Guid id, string name, int version)
 {
     private readonly List<StepDefinition> _steps = [];
+    private Dictionary<Guid, StepDefinition>? _stepsById;
+    private int _indexedStepCount;
 
     public ProcessDefinition(string name, int version) : this(Guid.NewGuid(), name, version)
     {
@@ -31,6 +33,13 @@ public class ProcessDefinition(Guid id, string name, int version)
 
     public StepDefinition? FindStep(Guid stepId)
     {
-        return _steps.FirstOrDefault(s => s.Id == stepId);
+        if (_stepsById is null || _indexedStepCount != _steps.Count)
+        {
+            _stepsById = new Dictionary<Guid, StepDefinition>(_steps.Count);
+            foreach (var step in _steps) _stepsById.TryAdd(step.Id, step);
+            _indexedStepCount = _steps.Count;
+        }
+
+        return _stepsById.GetValueOrDefault(stepId);
     }
 }
