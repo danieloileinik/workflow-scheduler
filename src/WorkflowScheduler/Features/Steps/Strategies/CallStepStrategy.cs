@@ -11,7 +11,7 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
 {
     public StepType StepType => StepType.Call;
 
-    public Task<StepExecutionResult> ExecuteAsync(
+    public ValueTask<StepExecutionResult> ExecuteAsync(
         ProcessInstance instance,
         StepInstance stepInstance,
         StepDefinition stepDefinition,
@@ -37,7 +37,7 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
                 Payload = payload
             });
 
-        return Task.FromResult(new StepExecutionResult(StepExecutionState.Running));
+        return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Running));
     }
 
     private record CallMetadata(string ServiceName, string Command);

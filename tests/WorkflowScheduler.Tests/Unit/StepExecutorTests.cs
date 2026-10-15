@@ -132,13 +132,13 @@ public class StepExecutorTests
     {
         public StepType StepType => StepType.Condition;
 
-        public Task<StepExecutionResult> ExecuteAsync(
+        public ValueTask<StepExecutionResult> ExecuteAsync(
             ProcessInstance processInstance,
             StepInstance stepInstance,
             StepDefinition stepDefinition,
             CancellationToken ct)
         {
-            return Task.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
+            return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
         }
     }
 
@@ -147,13 +147,13 @@ public class StepExecutorTests
         public int Executions { get; private set; }
         public StepType StepType => type;
 
-        public Task<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
+        public ValueTask<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
             StepInstance stepInstance,
             StepDefinition stepDefinition,
             CancellationToken ct)
         {
             Executions++;
-            return Task.FromResult(new StepExecutionResult(state));
+            return ValueTask.FromResult(new StepExecutionResult(state));
         }
     }
 }

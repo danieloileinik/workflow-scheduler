@@ -49,7 +49,7 @@ public sealed record WorkflowStepHistory(
             ? default
             : JsonSerializer.Deserialize<T>(
                 OutputData,
-                options ?? new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                options ?? JsonSerializerOptions.Web);
     }
 }
 

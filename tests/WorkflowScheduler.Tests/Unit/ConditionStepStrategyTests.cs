@@ -7,6 +7,26 @@ namespace WorkflowScheduler.Tests.Unit;
 [Trait("Category", "Unit")]
 public class ConditionStepStrategyTests
 {
+    [Fact]
+    public async Task ReusedStrategy_UsesEachProcessesInputWithoutReturningAStaleBranch()
+    {
+        var yes = Guid.NewGuid();
+        var no = Guid.NewGuid();
+        var definition = new StepDefinition(Guid.NewGuid(), "condition", StepType.Condition,
+            JsonSerializer.Serialize(new { inputKey = "amount", @operator = "eq", value = "yes",
+                trueNextStepId = yes, falseNextStepId = no }));
+        var strategy = new ConditionStepStrategy();
+        foreach (var (input, expected) in new[] { ("yes", yes), ("yes", yes), ("no", no), ("yes", yes) })
+        {
+            var process = new ProcessInstance(definition.ProcessDefinitionId, "order",
+                JsonSerializer.Serialize(new { amount = input }));
+            var step = new StepInstance(process.Id, definition.Id);
+
+            var result = await strategy.ExecuteAsync(process, step, definition, CancellationToken.None);
+
+            Assert.Equal(expected, result.OverrideNextStepId);
+        }
+    }
     [Theory]
     [InlineData("eq", "12.5", "12.5", true)]
     [InlineData("ne", "12.5", "10", true)]
