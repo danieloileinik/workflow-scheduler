@@ -1,0 +1,141 @@
+name: workflow-order-demo
+
+x-scheduler-environment: &scheduler-environment
+  ConnectionStrings__Postgres: Host=postgres;Database=workflow;Username=demo;Password=demo;GSS Encryption Mode=Disable
+  ConnectionStrings__Redis: redis:6379
+  Kafka__BootstrapServers: kafka:9092
+  Logging__LogLevel__Default: Warning
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d workflow"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  kafka-data-init:
+    image: apache/kafka:3.9.1
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["chown 1000:1000 /data"]
+    volumes:
+      - kafka-data:/data
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+    depends_on:
+      kafka-data-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+  kafka-init:
+    image: apache/kafka:3.9.1
+    depends_on:
+      kafka: {condition: service_healthy}
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        for service in demo-inventory demo-payments; do
+          for suffix in "" .dead-letter; do
+            /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+              --create --if-not-exists --topic "process.commands.$$service$$suffix" \
+              --partitions 1 --replication-factor 1
+          done
+        done
+  scheduler-init:
+    image: workflow-order-demo-scheduler
+    build:
+      context: ../..
+      dockerfile: samples/order-demo/Dockerfile
+      target: scheduler
+    environment: *scheduler-environment
+    command: ["--initialize-database"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  scheduler:
+    image: workflow-order-demo-scheduler
+    pull_policy: never
+    environment:
+      <<: *scheduler-environment
+      Kestrel__Endpoints__Grpc__Url: http://0.0.0.0:8080
+      Kestrel__Endpoints__Grpc__Protocols: Http2
+    depends_on:
+      scheduler-init: {condition: service_completed_successfully}
+      kafka-init: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  inventory:
+    build:
+      context: ../..
+      dockerfile: samples/order-demo/Dockerfile
+      target: inventory
+    environment:
+      ConnectionStrings__Database: Host=postgres;Database=inventory;Username=demo;Password=demo;GSS Encryption Mode=Disable
+      Scheduler__Address: http://scheduler:8080
+      Kafka__BootstrapServers: kafka:9092
+      Logging__LogLevel__Default: Warning
+    depends_on:
+      scheduler: {condition: service_started}
+  payments:
+    build:
+      context: ../..
+      dockerfile: samples/order-demo/Dockerfile
+      target: payments
+    environment:
+      ConnectionStrings__Database: Host=postgres;Database=payments;Username=demo;Password=demo;GSS Encryption Mode=Disable
+      Scheduler__Address: http://scheduler:8080
+      Kafka__BootstrapServers: kafka:9092
+      Logging__LogLevel__Default: Warning
+    depends_on:
+      scheduler: {condition: service_started}
+  orders:
+    build:
+      context: ../..
+      dockerfile: samples/order-demo/Dockerfile
+      target: orders
+    ports: ["127.0.0.1:${ORDER_DEMO_PORT:-5080}:8080"]
+    environment:
+      ConnectionStrings__Database: Host=postgres;Database=orders;Username=demo;Password=demo;GSS Encryption Mode=Disable
+      Scheduler__Address: http://scheduler:8080
+      Services__inventory: http://inventory:8080/
+      Services__payments: http://payments:8080/
+      Logging__LogLevel__Default: Warning
+    depends_on:
+      inventory: {condition: service_started}
+      payments: {condition: service_started}
+
+volumes:
+  postgres-data:
+  kafka-data:
