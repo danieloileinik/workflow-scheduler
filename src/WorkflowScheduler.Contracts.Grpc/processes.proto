@@ -6,6 +6,7 @@ package workflow;
 
 service Processes {
   rpc RegisterProcessDefinition (RegisterProcessDefinitionRequest) returns (RegisterProcessDefinitionResponse);
+  rpc GetProcessDefinition (GetProcessDefinitionRequest) returns (GetProcessDefinitionResponse);
   rpc StartProcess (StartProcessRequest) returns (StartProcessResponse);
   rpc CompleteStep (CompleteStepRequest) returns (CompleteStepResponse);
   rpc SendEvent (SendEventRequest) returns (SendEventResponse);
@@ -36,6 +37,15 @@ message RegisterProcessDefinitionRequest {
 }
 
 message RegisterProcessDefinitionResponse {
+  string definition_id = 1;
+}
+
+message GetProcessDefinitionRequest {
+  string name = 1;
+  int32 version = 2;
+}
+
+message GetProcessDefinitionResponse {
   string definition_id = 1;
 }
 

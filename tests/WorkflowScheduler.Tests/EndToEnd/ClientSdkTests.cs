@@ -99,4 +99,24 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
             command.StepInstanceId,
             command.Attempt);
     }
+
+    [Fact]
+    public async Task LostRegistrationResponse_CanRecoverDefinitionIdByNameAndVersion()
+    {
+        await using var app = await infrastructure.CreateGrpcAppAsync();
+        app.StartServer();
+        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        var definition = Workflow.Define("recover-registration-" + Guid.NewGuid(), 3).WaitFor("Approved").Build();
+        await client.RegisterAsync(definition);
+        var conflict = await Assert.ThrowsAsync<WorkflowClientException>(() => client.RegisterAsync(definition));
+
+        var recovered = await client.GetDefinitionAsync(definition.Name, definition.Version);
+        var process = await client.StartAsync(recovered, new { }, "order", Guid.NewGuid());
+
+        Assert.Equal(StatusCode.FailedPrecondition, conflict.StatusCode);
+        Assert.Equal(recovered.Id, (await client.GetStatusAsync(process)).DefinitionId);
+        Assert.Equal(1, await app.WithDb(db => db.ProcessDefinitions.CountAsync()));
+        var missing = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetDefinitionAsync(definition.Name, 4));
+        Assert.Equal(StatusCode.NotFound, missing.StatusCode);
+    }
 }

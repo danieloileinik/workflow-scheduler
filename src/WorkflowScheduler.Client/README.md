@@ -46,7 +46,9 @@ stable step IDs for the same definition name, version and construction sequence.
 version. Loops and arbitrary graph editing are not exposed by this first builder.
 
 Registration is not an upsert: the server rejects an existing name/version. Persist the returned definition ID and reuse
-it for subsequent starts; the current API cannot look up definitions by name. Supply and persist the same idempotency
+it for subsequent starts. If a registration response is lost, recover the ID with
+`GetDefinitionAsync(name, version, cancellationToken)`; missing definitions return `NotFound`.
+Supply and persist the same idempotency
 key
 when retrying a start and the same correlation ID when retrying an event/callback. The SDK does not automatically retry
 mutating RPCs or generate new request identities. Input is serialized as a JSON object using web/camelCase defaults;

@@ -305,5 +305,8 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         public Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
             CancellationToken cancellationToken = default) =>
             inner.IsStepActiveAsync(execution, isCompensation, cancellationToken);
+
+        public Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
+            CancellationToken cancellationToken = default) => inner.GetDefinitionAsync(name, version, cancellationToken);
     }
 }
