@@ -17,7 +17,7 @@ public class ConditionStepStrategy : IStepStrategy
         var condition = JsonSerializer.Deserialize<ConditionMetadata>(stepDefinition.Metadata, StepMetadata.Options);
         var result = Evaluate(processInstance.InputData, condition);
         var nextStepId = result ? condition.TrueNextStepId : condition.FalseNextStepId;
-        return Task.FromResult(new StepExecutionResult(false, nextStepId));
+        return Task.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
     }
 
     private static bool Evaluate(string inputData, ConditionMetadata condition)

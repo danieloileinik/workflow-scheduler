@@ -45,7 +45,8 @@ public class CompleteStepHandler(
         ErrorOr<Success> result = Result.Success;
         if (request.Success)
         {
-            step.Complete(request.OutputData);
+            var complete = step.Complete(request.OutputData);
+            if (complete.IsError) return complete;
             if (step.IsCompensation)
             {
                 result = await saga.CompleteAsync(instance, definition, step, ct);
@@ -59,26 +60,39 @@ public class CompleteStepHandler(
                     : await executor.ExecuteAsync(definition, instance, stepDefinition.NextStepId.Value, ct);
             }
         }
-        else if (!step.TryScheduleRetry(TimeSpan.FromSeconds(30)))
+        else
         {
-            var error = request.OutputData ?? "Step failed after max retries";
-            step.Fail(error[..Math.Min(error.Length, 2048)]);
-            if (step.IsCompensation)
-            {
-                var log = await db.SagaCompensationLogs.FirstOrDefaultAsync(x => x.StepInstanceId == step.Id, ct);
-                if (log is null) return ProcessErrors.StepNotFound;
-                log.Fail(step.Error!);
-            }
-            else
-            {
-                var fail = instance.Fail();
-                if (fail.IsError) return fail;
-                result = await saga.ScheduleAsync(instance, definition, ct);
-            }
+            result = await HandleFailureAsync(instance, definition, step, request.OutputData, ct);
         }
 
         if (result.IsError) return result;
         db.EventLogs.Add(new EventLog(instance.Id, "CompleteStep", request.CorrelationId));
         return Result.Success;
+    }
+
+    private async Task<ErrorOr<Success>> HandleFailureAsync(ProcessInstance instance,
+        ProcessDefinition definition,
+        StepInstance step,
+        string? outputData,
+        CancellationToken ct)
+    {
+        var retry = step.TryScheduleRetry(TimeSpan.FromSeconds(30));
+        if (retry.IsError) return retry.Errors;
+        if (retry.Value) return Result.Success;
+
+        var error = outputData ?? "Step failed after max retries";
+        var failStep = step.Fail(error[..Math.Min(error.Length, 2048)]);
+        if (failStep.IsError) return failStep;
+        if (step.IsCompensation)
+        {
+            var log = await db.SagaCompensationLogs.FirstOrDefaultAsync(x => x.StepInstanceId == step.Id, ct);
+            if (log is null) return ProcessErrors.StepNotFound;
+            log.Fail(step.Error!);
+            return Result.Success;
+        }
+
+        var fail = instance.Fail();
+        if (fail.IsError) return fail;
+        return await saga.ScheduleAsync(instance, definition, ct);
     }
 }

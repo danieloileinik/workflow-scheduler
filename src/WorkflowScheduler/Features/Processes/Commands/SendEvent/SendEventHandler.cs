@@ -46,7 +46,8 @@ public class SendEventHandler(
         if (!string.Equals(metadata.EventName, request.EventName, StringComparison.OrdinalIgnoreCase))
             return ProcessErrors.EventNameMismatch;
 
-        stepInstance.Complete(request.Payload);
+        var completeResult = stepInstance.Complete(request.Payload);
+        if (completeResult.IsError) return completeResult;
 
         var resumeResult = processInstance.Resume();
         if (resumeResult.IsError) return resumeResult.Errors;

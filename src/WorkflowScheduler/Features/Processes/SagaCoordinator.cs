@@ -39,8 +39,9 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
             .ToListAsync(ct);
         var log = logs.FirstOrDefault(x => x.StepInstanceId == step.Id);
         if (log is null || log.Status != CompensationStatus.Running) return ProcessErrors.StepNotFound;
+        var compensate = instance.Steps.First(x => x.Id == log.OriginalStepInstanceId).MarkCompensated();
+        if (compensate.IsError) return compensate;
         log.Complete();
-        instance.Steps.First(x => x.Id == log.OriginalStepInstanceId).MarkCompensated();
         return await StartNextAsync(instance, definition, logs, ct);
     }
 
