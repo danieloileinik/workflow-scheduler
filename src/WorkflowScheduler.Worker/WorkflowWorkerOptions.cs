@@ -19,6 +19,8 @@ public sealed class WorkflowWorkerOptions
     public ProducerConfig DeadLetterProducerConfig { get; set; } = new();
 
     internal string Topic => WorkflowProtocol.CommandTopic(ServiceName);
+    internal int DeadLetterMaxValueBytes => Math.Min(WorkflowProtocol.MaxKafkaValueBytes,
+        DeadLetterProducerConfig.MessageMaxBytes!.Value - 1024);
 
     internal WorkflowWorkerOptions CopyAndValidate()
     {
@@ -61,6 +63,10 @@ public sealed class WorkflowWorkerOptions
             BootstrapServers = BootstrapServers, EnableIdempotence = true, Acks = Acks.All
         };
         producer.MessageTimeoutMs ??= (int)RpcTimeout.TotalMilliseconds;
+        producer.MessageMaxBytes ??= 1_000_000;
+        if (producer.MessageMaxBytes < 8192)
+            throw new ArgumentException("Dead-letter MessageMaxBytes must be at least 8192 bytes.",
+                nameof(DeadLetterProducerConfig));
         var json = new JsonSerializerOptions(JsonSerializerOptions);
         json.MakeReadOnly(true);
         return new WorkflowWorkerOptions

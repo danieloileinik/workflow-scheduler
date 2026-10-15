@@ -105,8 +105,10 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task MalformedRecord_IsCommittedOnlyAfterDeadLetterWasPublished()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MalformedRecord_IsCommittedOnlyAfterDeadLetterWasPublished(bool oversizedEnvelope)
     {
         var client = Substitute.For<IWorkflowSchedulerClient>();
         await using var worker = await WorkerTestHost.StartAsync(
@@ -121,7 +123,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 EnableAutoCommit = false
             }).Build();
         consumer.Assign(new TopicPartitionOffset(worker.Topic + ".dead-letter", new Partition(0), Offset.Beginning));
-        const string invalid = "{not-json";
+        var invalid = oversizedEnvelope ? new string('"', 700_000) : "{not-json";
 
         await worker.PublishRawAsync("bad-key", invalid);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -133,7 +135,13 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         Assert.Equal(0, letter.Partition);
         Assert.Equal(0, letter.Offset);
         Assert.Equal("bad-key", letter.Key);
-        Assert.Equal(invalid, letter.Payload);
+        if (oversizedEnvelope)
+        {
+            Assert.True(letter.PayloadTruncated);
+            Assert.Equal(700_000, letter.OriginalPayloadBytes);
+            Assert.NotEmpty(letter.PayloadSha256!);
+        }
+        else Assert.Equal(invalid, letter.Payload);
         Assert.Equal(worker.Topic + ":0:0", record.Message.Key);
         Assert.NotEmpty(letter.Error);
         Assert.Empty(client.ReceivedCalls());

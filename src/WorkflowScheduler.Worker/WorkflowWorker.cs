@@ -69,12 +69,11 @@ internal sealed class WorkflowWorker(
                     var message = new Message<string, string>
                     {
                         Key = $"{record.Topic}:{record.Partition.Value}:{record.Offset.Value}",
-                        Value = JsonSerializer.Serialize(letter)
+                        Value = letter.Serialize(options.DeadLetterMaxValueBytes)
                     };
                     await retry.RunAsync(
                         "Kafka dead-letter",
-                        async ct =>
-                            await deadLetters.ProduceAsync(options.DeadLetterTopic!, message, ct),
+                        ct => deadLetters.ProduceAsync(options.DeadLetterTopic!, message, ct),
                         stoppingToken);
                     logger.LogWarning(
                         "Malformed command sent to {DeadLetterTopic} from {Position}",
