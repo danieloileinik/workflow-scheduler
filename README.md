@@ -14,6 +14,7 @@ does not execute arbitrary scripts, run parallel branches, or provide a visual w
 
 - [Architecture](#architecture)
 - [Running locally](#running-locally)
+- [Runnable sample](#runnable-sample)
 - [Process definitions and metadata](#process-definitions-and-metadata)
 - [gRPC API](#grpc-api)
 - [Client SDK](#client-sdk)
@@ -103,6 +104,11 @@ dotnet run --project src/WorkflowScheduler --no-launch-profile
 
 Outside development, provide these settings explicitly. Configure TLS/authentication at the deployment boundary before
 exposing the service to untrusted clients.
+
+## Runnable sample
+
+The [order demo README](samples/order-demo/README.md) explains a runnable system with Order, Inventory and Payment
+services: the internal SDK calls, Kafka commands, gRPC callbacks, HTTP examples, retries and compensation.
 
 ## Process definitions and metadata
 

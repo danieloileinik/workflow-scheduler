@@ -1,0 +1,17 @@
+services:
+  scheduler-init:
+    build:
+      network: host
+      entitlements: [network.host]
+  inventory:
+    build:
+      network: host
+      entitlements: [network.host]
+  payments:
+    build:
+      network: host
+      entitlements: [network.host]
+  orders:
+    build:
+      network: host
+      entitlements: [network.host]
