@@ -110,4 +110,23 @@ public class ConcurrencyTests(TestInfrastructure infrastructure)
         Assert.Equal(1, await app.WithDb(db => db.ProcessDefinitions.CountAsync()));
         Assert.Equal(1, await app.WithDb(db => db.StepDefinitions.CountAsync()));
     }
+
+    [Fact]
+    public async Task ConcurrentDefinitions_WithSharedStepIds_ReturnBusinessConflictsWithoutDeadlock()
+    {
+        var app = await infrastructure.CreateHarnessAsync();
+        var first = TestWorkflow.Call();
+        var second = TestWorkflow.Call();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(index =>
+            app.Send(new RegisterProcessDefinitionCommand("definition-" + index, 1,
+                index % 2 == 0 ? [first, second] : [second, first]), timeout.Token)));
+
+        Assert.Single(results, result => !result.IsError);
+        Assert.All(results.Where(result => result.IsError), result =>
+            Assert.Equal("ProcessDefinition.StepIdConflict", result.FirstError.Code));
+        Assert.Equal(1, await app.WithDb(db => db.ProcessDefinitions.CountAsync()));
+        Assert.Equal(2, await app.WithDb(db => db.StepDefinitions.CountAsync()));
+    }
 }
