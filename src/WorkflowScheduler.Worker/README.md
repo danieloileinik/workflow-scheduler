@@ -95,6 +95,11 @@ the
 broker acknowledges the dead letter. Valid commands with no registered handler report failure to the scheduler.
 Provision both topics with the required partitions, replication and ACLs before running the worker.
 
+If escaping would exceed the producer's message limit, the dead letter contains a payload prefix,
+`PayloadTruncated`, `OriginalPayloadBytes` and `PayloadSha256`. Oversized keys are shortened and marked
+with `KeyTruncated`. The source topic, partition and offset remain intact. Small messages retain the complete payload.
+`DeadLetterProducerConfig.MessageMaxBytes` must be at least 8192; broker/topic limits must also permit that size.
+
 Shutdown cancels the current handler/RPC, waits for it to finish and closes the consumer. An unfinished record remains
 unacknowledged. Handlers must honor their cancellation token. Exhausted transient retries, authentication errors and
 other unexpected infrastructure failures fault the background service. Generic Host's default behavior stops the host;
