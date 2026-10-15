@@ -1,10 +1,10 @@
 name: Order sample
 on:
   push:
-    branches: [main]
-    paths: ['src/**', 'database/**', 'samples/**', '.github/workflows/order-sample.yml']
+    branches: [ main ]
+    paths: [ 'src/**', 'database/**', 'samples/**', '.github/workflows/order-sample.yml' ]
   pull_request:
-    paths: ['src/**', 'database/**', 'samples/**', '.github/workflows/order-sample.yml']
+    paths: [ 'src/**', 'database/**', 'samples/**', '.github/workflows/order-sample.yml' ]
 permissions:
   contents: read
 jobs:
