@@ -37,10 +37,9 @@ does not execute arbitrary scripts, run parallel branches, or provide a visual w
 | `Infrastructure/Persistence`         | EF Core mappings and PostgreSQL persistence                                                                |
 | `Infrastructure/Caching`             | Optional Redis cache for immutable definitions                                                             |
 | `Infrastructure/Messaging`           | Kafka publication and durable outbox/retry workers                                                         |
-| `WorkflowScheduler.Contracts.Grpc`   | Protocol definitions and generated clients/server types                                                    |
+| `WorkflowScheduler.Contracts.Grpc`   | gRPC protocol types and the shared Kafka command envelope                                                  |
 | `WorkflowScheduler.Client`           | Fluent workflow definitions, typed payloads/statuses and a reusable gRPC client                             |
 | `WorkflowScheduler.Worker`           | Typed Kafka command handlers, scoped execution, retries for callbacks and safe offset acknowledgement       |
-| `WorkflowScheduler.Contracts.Events` | Public event types, including the command envelope used on Kafka                                           |
 
 A command passes through validation and the transaction behavior before its handler runs. Successful commands persist
 their state changes, event receipt, and outbox records in one transaction. Rejected commands roll back. Read queries do
@@ -430,8 +429,9 @@ Kafka records are keyed by process-instance ID. The command `CorrelationId` rema
 distinguishes an intentional retry from transport redelivery. Compensation commands set `IsCompensation: true` and have
 distinct execution IDs.
 
-`ProcessStartedEvent`, `ProcessCompletedEvent`, and `StepCompletedEvent` are currently contract definitions only; this
-service does not publish or consume them. Callback ingestion is via gRPC.
+`WorkflowScheduler.Contracts.Grpc` contains both the gRPC protocol types and the Kafka command envelope shared by the
+scheduler and Worker SDK. Callbacks and external events are submitted through gRPC. Process-lifecycle events are not
+published.
 
 ## Reliability and consistency
 

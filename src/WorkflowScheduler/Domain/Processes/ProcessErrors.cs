@@ -22,17 +22,11 @@ public static class ProcessErrors
     public static Error AlreadyCancelled =>
         Error.Conflict("Process.AlreadyCancelled", "Process is already cancelled");
 
-    public static Error StepAlreadyCompleted =>
-        Error.Conflict("ProcessStep.AlreadyCompleted", "Step is already completed");
-
     public static Error DuplicateEvent =>
         Error.Conflict("Process.DuplicateEvent", "Event with this correlation id was already processed");
 
     public static Error DefinitionVersionConflict =>
         Error.Conflict("ProcessDefinition.VersionConflict", "A definition with this name and version already exists");
-
-    public static Error LockNotAcquired =>
-        Error.Conflict("Process.LockNotAcquired", "Could not acquire lock, another operation is in progress");
 
     public static Error NotWaiting =>
         Error.Conflict("Process.NotWaiting", "Process is not in waiting state");
