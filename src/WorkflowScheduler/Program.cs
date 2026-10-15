@@ -15,7 +15,7 @@ public class Program
         {
             await using var scope = app.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.EnsureCreatedAsync();
+            await DatabaseInitializer.InitializeAsync(db);
             return;
         }
 
