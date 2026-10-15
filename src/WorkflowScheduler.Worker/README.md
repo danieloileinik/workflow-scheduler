@@ -82,6 +82,10 @@ committed by librdkafka in batches, including on a clean close. This follows the
 The handler runs sequentially in each worker, preserving partition order. More topic partitions and service replicas
 provide concurrency. The consumer, producer and gRPC channel are reused throughout the host lifetime.
 
+Before execution and when reconciling a lost callback response, the worker calls `IsStepActive` for the exact step,
+attempt and compensation flag. This query does not load execution history or previous outputs. Deploy a scheduler
+supporting this RPC before updating workers.
+
 Delivery is at least once. A restart after a business side effect and before its callback can execute the handler again.
 Persist/deduplicate the operation and its result in the domain service using `context.IdempotencyKey`; the package does
 not impose a database or claim exactly-once business effects. Keep a business-level idempotency key too when an

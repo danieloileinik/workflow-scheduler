@@ -23,12 +23,10 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         var callback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(_ =>
                 Task.FromResult(
-                    Volatile.Read(ref acknowledged) == 0
-                        ? Active(command)
-                        : Active(command) with { Status = WorkflowProcessStatus.Completed }));
+                    Volatile.Read(ref acknowledged) == 0));
         client
             .CompleteStepAsync(
                 Arg.Any<StepExecution>(),
@@ -213,32 +211,9 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
     {
         var client = Substitute.For<IWorkflowSchedulerClient>();
         client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Active(command)));
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(true));
         return client;
-    }
-
-    private static WorkflowProcessSnapshot Active(StepCommandEvent command)
-    {
-        return new WorkflowProcessSnapshot(
-            command.ProcessInstanceId,
-            Guid.NewGuid(),
-            "order",
-            WorkflowProcessStatus.Waiting,
-            command.StepInstanceId,
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow,
-            [
-                new WorkflowStepHistory(
-                    command.StepInstanceId,
-                    command.StepDefinitionId,
-                    WorkflowStepStatus.Running,
-                    DateTimeOffset.UtcNow,
-                    null,
-                    null,
-                    null,
-                    command.Attempt)
-            ]);
     }
 
     private sealed record Input(int OrderId);

@@ -119,25 +119,17 @@ internal sealed class WorkflowMessageProcessor(
 
     private async Task<bool> IsActiveAsync(StepCommandEvent command, CancellationToken ct)
     {
-        WorkflowProcessSnapshot status;
         try
         {
-            status = await _retry.RunAsync(
+            return await _retry.RunAsync(
                 "Workflow status",
-                token => client.GetStatusAsync(command.ProcessInstanceId, token),
+                token => client.IsStepActiveAsync(new StepExecution(command.ProcessInstanceId,
+                    command.StepDefinitionId, command.StepInstanceId, command.Attempt), command.IsCompensation, token),
                 ct);
         }
         catch (WorkflowClientException exception) when (exception.StatusCode == StatusCode.NotFound)
         {
             return false;
         }
-
-        var step = status.StepHistory.FirstOrDefault(step => step.Id == command.StepInstanceId);
-        if (status.Id != command.ProcessInstanceId || step is null || step.StepDefinitionId != command.StepDefinitionId
-            || step.Status != WorkflowStepStatus.Running || step.RetryCount != command.Attempt)
-            return false;
-        return command.IsCompensation
-            ? status.Status is WorkflowProcessStatus.Cancelled or WorkflowProcessStatus.Failed
-            : status.Status == WorkflowProcessStatus.Waiting && status.CurrentStepId == command.StepInstanceId;
     }
 }
