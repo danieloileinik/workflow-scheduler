@@ -4,6 +4,8 @@ public interface IWorkflowSchedulerClient
 {
     Task<RegisteredWorkflow> RegisterAsync(WorkflowDefinition definition,
         CancellationToken cancellationToken = default);
+    Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
+        CancellationToken cancellationToken = default);
 
     Task<Guid> StartAsync<TInput>(Guid definitionId,
         TInput input,

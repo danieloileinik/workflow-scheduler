@@ -88,6 +88,20 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         return StartAsync(definition.Id, input, businessKey, idempotencyKey, cancellationToken);
     }
 
+    public Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Text(name, nameof(name), 256);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(version);
+        var request = new GetProcessDefinitionRequest { Name = name, Version = version };
+        return InvokeAsync(nameof(GetDefinitionAsync), async options =>
+        {
+            using var call = _grpc.GetProcessDefinitionAsync(request, options);
+            var response = await call.ResponseAsync.ConfigureAwait(false);
+            return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), name, version);
+        }, cancellationToken);
+    }
+
     public Task<Guid> StartAsync<TInput>(Guid definitionId,
         TInput input,
         string businessKey,
