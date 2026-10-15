@@ -8,4 +8,9 @@ public class OutboxMessage
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime? ProcessedAt { get; set; }
     public string? Error { get; set; }
+    public int Attempts { get; set; }
+    public DateTime? NextAttemptAt { get; set; }
+    public DateTime? FailedAt { get; set; }
+    public Guid? ClaimId { get; set; }
+    public DateTime? ClaimedUntil { get; set; }
 }

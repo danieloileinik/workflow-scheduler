@@ -453,10 +453,20 @@ Cache writes are best-effort. A Redis outage cannot erase start receipts or rele
 
 ### Transactional outbox
 
-The scheduler writes a command to `outbox_messages` in the same transaction as its process changes. The worker polls
-every two seconds, claims up to 100 messages, publishes them, and records delivery. PostgreSQL `FOR UPDATE SKIP LOCKED`
-prevents concurrent workers from claiming the same batch. Publication failures retain the message and a bounded error
-string; a later successful delivery clears that error.
+The scheduler writes a command to `outbox_messages` in the same transaction as its process changes. A dispatcher claims
+up to 100 due messages using `FOR UPDATE SKIP LOCKED`, commits a one-minute lease, then publishes outside the database
+transaction. Process statuses are loaded once per batch. Each publish has a ten-second timeout; unfinished claims are
+released, and a crashed dispatcher's claims become available after lease expiry. Ownership checks fence delivery updates.
+Full batches drain immediately; otherwise the worker polls every two seconds.
+
+Failures retain a bounded error and retry after 2, 4, 8, 16, 32, then 60 seconds. Malformed/oversized messages and messages
+that fail eight attempts are quarantined with `FailedAt`; they do not block newer commands. Inspect the error and fix its
+cause before resetting `FailedAt`, `NextAttemptAt` and `Attempts` for the affected message. Quarantine does not fail or
+complete its workflow automatically. A successful delivery clears the error.
+
+Before deploying this version to an existing database, stop old scheduler instances and run
+`dotnet run --project src/WorkflowScheduler -- --initialize-database`. This preserves existing rows and applies the
+idempotent [outbox schema upgrade](database/001_outbox_delivery.sql). The SQL can also be applied by deployment tooling.
 
 Delivery is **at least once**. A crash after Kafka acknowledges a record but before PostgreSQL records `ProcessedAt` may
 cause redelivery. Kafka producer idempotence does not make the database/broker boundary exactly once. Domain-service
