@@ -9,7 +9,10 @@ public class OutboxWorker(IServiceScopeFactory scopes, ILogger<OutboxWorker> log
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
-                var count = await scope.ServiceProvider.GetRequiredService<OutboxDispatcher>().DispatchAsync(stoppingToken);
+                var count = await scope
+                    .ServiceProvider
+                    .GetRequiredService<OutboxDispatcher>()
+                    .DispatchAsync(stoppingToken);
                 if (count == OutboxDispatcher.BatchSize) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

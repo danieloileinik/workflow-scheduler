@@ -6,8 +6,8 @@ namespace WorkflowScheduler.Domain.Processes;
 public class ProcessDefinition(Guid id, string name, int version)
 {
     private readonly List<StepDefinition> _steps = [];
-    private Dictionary<Guid, StepDefinition>? _stepsById;
     private int _indexedStepCount;
+    private Dictionary<Guid, StepDefinition>? _stepsById;
 
     public ProcessDefinition(string name, int version) : this(Guid.NewGuid(), name, version)
     {

@@ -105,7 +105,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
 
     public IEnumerable<StepInstance> GetCompletedSteps()
     {
-        return _steps.Where(s => !s.IsCompensation && s.Status == StepStatus.Completed).OrderBy(s => s.Sequence);
+        return _steps.Where(s => s is { IsCompensation: false, Status: StepStatus.Completed }).OrderBy(s => s.Sequence);
     }
 
     private StepInstance CreateStepInstance(Guid stepId)

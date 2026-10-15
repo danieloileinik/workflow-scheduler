@@ -44,11 +44,15 @@ public sealed record WorkflowDeadLetter(
             Error = Prefix(Error, 256)!,
             PayloadTruncated = Payload is not null,
             OriginalPayloadBytes = Payload is null ? null : Encoding.UTF8.GetByteCount(Payload),
-            PayloadSha256 = Payload is null ? null : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Payload)))
+            PayloadSha256 = Payload is null
+                ? null
+                : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Payload)))
         };
         var overhead = Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(reduced));
         if (overhead > maxBytes)
-            throw new ArgumentException("Dead-letter message limit cannot hold the diagnostic envelope.", nameof(maxBytes));
+            throw new ArgumentException(
+                "Dead-letter message limit cannot hold the diagnostic envelope.",
+                nameof(maxBytes));
 
         // A UTF-16 code unit requires at most six bytes when escaped by the default JSON encoder.
         reduced = reduced with { Payload = Prefix(Payload, Math.Max(0, (maxBytes - overhead - 2) / 6)) };

@@ -43,7 +43,8 @@ public class StartProcessValidatorTests
         var input = "{\"value\":\"" + new string(character, count) + "\"}";
         var command = new StartProcessCommand(Guid.NewGuid(), Guid.NewGuid(), "order", input);
 
-        Assert.Contains(new StartProcessValidator().Validate(command).Errors,
+        Assert.Contains(
+            new StartProcessValidator().Validate(command).Errors,
             error => error.PropertyName == nameof(command.InputData));
     }
 }

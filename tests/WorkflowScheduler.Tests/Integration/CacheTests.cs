@@ -23,7 +23,10 @@ public class CacheTests(TestInfrastructure infrastructure)
         var process = await app.Start(definition);
         var redis = app.Services.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
         var key = $"proc-def:v2:{definition}";
-        if (corruption == "missing") await redis.KeyDeleteAsync(key);
+        if (corruption == "missing")
+        {
+            await redis.KeyDeleteAsync(key);
+        }
         else
         {
             var snapshot = corruption switch

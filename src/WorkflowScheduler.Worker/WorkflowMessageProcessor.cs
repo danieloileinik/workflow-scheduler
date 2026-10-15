@@ -123,8 +123,14 @@ internal sealed class WorkflowMessageProcessor(
         {
             return await _retry.RunAsync(
                 "Workflow status",
-                token => client.IsStepActiveAsync(new StepExecution(command.ProcessInstanceId,
-                    command.StepDefinitionId, command.StepInstanceId, command.Attempt), command.IsCompensation, token),
+                token => client.IsStepActiveAsync(
+                    new StepExecution(
+                        command.ProcessInstanceId,
+                        command.StepDefinitionId,
+                        command.StepInstanceId,
+                        command.Attempt),
+                    command.IsCompensation,
+                    token),
                 ct);
         }
         catch (WorkflowClientException exception) when (exception.StatusCode == StatusCode.NotFound)

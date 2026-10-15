@@ -16,7 +16,8 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         builder.Property(m => m.Error).HasMaxLength(2048);
         builder.Property(m => m.Attempts).HasDefaultValue(0);
         builder.HasIndex(m => m.ClaimId).HasFilter("\"ClaimId\" IS NOT NULL");
-        builder.HasIndex(m => new { m.NextAttemptAt, m.CreatedAt, m.Id })
+        builder
+            .HasIndex(m => new { m.NextAttemptAt, m.CreatedAt, m.Id })
             .HasFilter("\"ProcessedAt\" IS NULL AND \"FailedAt\" IS NULL");
     }
 }

@@ -13,10 +13,14 @@ public partial class ProcessService
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid process instance id"));
 
         if (request.HistoryOffset < 0 || request.HistoryPageSize is < 0 or > 100
-            || request.HistoryOffset > 0 && request.HistoryPageSize == 0)
-            throw new RpcException(new Status(StatusCode.InvalidArgument, "History page size must be 1..100 with a nonnegative offset"));
+                                      || request is { HistoryOffset: > 0, HistoryPageSize: 0 })
+            throw new RpcException(
+                new Status(StatusCode.InvalidArgument, "History page size must be 1..100 with a nonnegative offset"));
 
-        var query = new GetProcessStatusQuery(instanceId, request.HistoryOffset, request.HistoryPageSize,
+        var query = new GetProcessStatusQuery(
+            instanceId,
+            request.HistoryOffset,
+            request.HistoryPageSize,
             request.OmitOutputData);
         var result = await mediator.Send(query, context.CancellationToken);
 

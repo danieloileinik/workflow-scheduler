@@ -7,8 +7,8 @@ namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public class ConditionStepStrategy : IStepStrategy
 {
-    private string? _inputData;
     private JsonElement _input;
+    private string? _inputData;
     public StepType StepType => StepType.Condition;
 
     public ValueTask<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Confluent.Kafka;
 using Grpc.Core;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
@@ -109,7 +110,9 @@ public class WorkflowWorkerTests
         await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
-        await client.Received(2).IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
+        await client
+            .Received(2)
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
         await client
             .Received(2)
             .CompleteStepAsync(
@@ -173,7 +176,9 @@ public class WorkflowWorkerTests
         await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
-        await client.Received(2).IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
+        await client
+            .Received(2)
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -181,7 +186,8 @@ public class WorkflowWorkerTests
     {
         var command = Command();
         var client = Client(command);
-        client.IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
+        client
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(false));
         var effects = 0;
         await using var provider = Provider(
@@ -318,7 +324,9 @@ public class WorkflowWorkerTests
                 "Command handler timed out.",
                 Arg.Any<string>(),
                 Arg.Any<CancellationToken>());
-        await client.Received(1).IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
+        await client
+            .Received(1)
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -362,7 +370,7 @@ public class WorkflowWorkerTests
             Configure(options);
             original = options;
             options.RpcTimeout = TimeSpan.FromSeconds(2);
-            options.ConsumerConfig = new() { EnableAutoOffsetStore = true, EnableAutoCommit = false };
+            options.ConsumerConfig = new ConsumerConfig { EnableAutoOffsetStore = true, EnableAutoCommit = false };
             options.ConsumerConfig.EnableAutoOffsetStore = true;
             options.ConsumerConfig.EnableAutoCommit = false;
         });

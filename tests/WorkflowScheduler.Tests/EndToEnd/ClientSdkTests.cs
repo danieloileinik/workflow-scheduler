@@ -1,6 +1,7 @@
 using Grpc.Core;
 using WorkflowScheduler.Client;
 using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Grpc;
 using WorkflowScheduler.Tests.Support;
 
 namespace WorkflowScheduler.Tests.EndToEnd;
@@ -105,7 +106,8 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
-        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        using var client =
+            new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var definition = Workflow.Define("recover-registration-" + Guid.NewGuid(), 3).WaitFor("Approved").Build();
         await client.RegisterAsync(definition);
         var conflict = await Assert.ThrowsAsync<WorkflowClientException>(() => client.RegisterAsync(definition));
@@ -116,7 +118,8 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         Assert.Equal(StatusCode.FailedPrecondition, conflict.StatusCode);
         Assert.Equal(recovered.Id, (await client.GetStatusAsync(process)).DefinitionId);
         Assert.Equal(1, await app.WithDb(db => db.ProcessDefinitions.CountAsync()));
-        var missing = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetDefinitionAsync(definition.Name, 4));
+        var missing =
+            await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetDefinitionAsync(definition.Name, 4));
         Assert.Equal(StatusCode.NotFound, missing.StatusCode);
     }
 
@@ -125,7 +128,8 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
-        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        using var client =
+            new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var workflow = Workflow.Define("paged-history-" + Guid.NewGuid());
         for (var index = 0; index < 5; index++) workflow.WaitFor("Approved");
         var definition = await client.RegisterAsync(workflow.Build());
@@ -134,22 +138,23 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
             await client.SendEventAsync(process, "Approved", new { index }, "approval-" + index);
 
         var first = await client.GetStatusPageAsync(process, pageSize: 2);
-        var second = await client.GetStatusPageAsync(process, offset: 2, pageSize: 2);
-        var last = await client.GetStatusPageAsync(process, offset: 4, pageSize: 2);
+        var second = await client.GetStatusPageAsync(process, 2, 2);
+        var last = await client.GetStatusPageAsync(process, 4, 2);
         var full = await client.GetStatusAsync(process);
 
         Assert.Equal(5, first.TotalStepCount);
         Assert.Equal(0, first.HistoryOffset);
         Assert.Equal(2, second.HistoryOffset);
         Assert.Equal(4, last.HistoryOffset);
-        Assert.Equal(full.StepHistory.Select(step => step.Id),
+        Assert.Equal(
+            full.StepHistory.Select(step => step.Id),
             first.StepHistory.Concat(second.StepHistory).Concat(last.StepHistory).Select(step => step.Id));
         Assert.All(first.StepHistory, step => Assert.Null(step.OutputData));
         var withOutputs = await client.GetStatusPageAsync(process, pageSize: 2, includeOutputs: true);
         Assert.All(withOutputs.StepHistory, step => Assert.NotNull(step.OutputData));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => client.GetStatusPageAsync(process, pageSize: 101));
         var invalid = await Assert.ThrowsAsync<RpcException>(() => app.Client.GetProcessStatusAsync(
-            new WorkflowScheduler.Grpc.GetProcessStatusRequest { ProcessInstanceId = process.ToString(), HistoryPageSize = 101 })
+                new GetProcessStatusRequest { ProcessInstanceId = process.ToString(), HistoryPageSize = 101 })
             .ResponseAsync);
         Assert.Equal(StatusCode.InvalidArgument, invalid.StatusCode);
     }

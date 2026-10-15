@@ -3,7 +3,10 @@ using WorkflowScheduler.Common.Abstractions;
 
 namespace WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
 
-public record GetProcessStatusQuery(Guid ProcessInstanceId, int HistoryOffset = 0, int HistoryPageSize = 0,
+public record GetProcessStatusQuery(
+    Guid ProcessInstanceId,
+    int HistoryOffset = 0,
+    int HistoryPageSize = 0,
     bool OmitOutputData = false)
     : IRequest<GetProcessStatusResponse?>, IQuery;
 

@@ -31,13 +31,19 @@ public class TransactionBehavior<TRequest, TResponse>(AppDbContext db)
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})", ct);
             if (request is RegisterProcessDefinitionCommand registration)
             {
-                var stepLocks = registration.Steps.Select(step =>
-                        BinaryPrimitives.ReadInt64BigEndian(SHA256.HashData(
-                            Encoding.UTF8.GetBytes($"step-definition:{step.Id}"))))
-                    .Distinct().Order().ToArray();
+                var stepLocks = registration
+                    .Steps
+                    .Select(step =>
+                        BinaryPrimitives.ReadInt64BigEndian(
+                            SHA256.HashData(
+                                Encoding.UTF8.GetBytes($"step-definition:{step.Id}"))))
+                    .Distinct()
+                    .Order()
+                    .ToArray();
                 // Acquire shared step identities in a stable order across different definitions.
                 await db.Database.ExecuteSqlInterpolatedAsync(
-                    $"SELECT pg_advisory_xact_lock(lock_id) FROM unnest({stepLocks}) AS locks(lock_id) ORDER BY lock_id", ct);
+                    $"SELECT pg_advisory_xact_lock(lock_id) FROM unnest({stepLocks}) AS locks(lock_id) ORDER BY lock_id",
+                    ct);
             }
         }
 

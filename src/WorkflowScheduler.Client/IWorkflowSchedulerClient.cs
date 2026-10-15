@@ -4,7 +4,9 @@ public interface IWorkflowSchedulerClient
 {
     Task<RegisteredWorkflow> RegisterAsync(WorkflowDefinition definition,
         CancellationToken cancellationToken = default);
-    Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
+
+    Task<RegisteredWorkflow> GetDefinitionAsync(string name,
+        int version,
         CancellationToken cancellationToken = default);
 
     Task<Guid> StartAsync<TInput>(Guid definitionId,
@@ -37,8 +39,14 @@ public interface IWorkflowSchedulerClient
 
     Task CancelAsync(Guid processInstanceId, CancellationToken cancellationToken = default);
     Task<WorkflowProcessSnapshot> GetStatusAsync(Guid processInstanceId, CancellationToken cancellationToken = default);
-    Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId, int offset = 0, int pageSize = 100,
-        bool includeOutputs = false, CancellationToken cancellationToken = default);
-    Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
+
+    Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId,
+        int offset = 0,
+        int pageSize = 100,
+        bool includeOutputs = false,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> IsStepActiveAsync(StepExecution execution,
+        bool isCompensation = false,
         CancellationToken cancellationToken = default);
 }

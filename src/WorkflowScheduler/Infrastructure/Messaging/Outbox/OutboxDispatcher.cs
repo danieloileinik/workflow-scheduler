@@ -27,7 +27,9 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
             foreach (var message in pending)
                 try
                 {
-                    commands.Add(message.Id, JsonSerializer.Deserialize<StepCommandEvent>(message.Payload)
+                    commands.Add(
+                        message.Id,
+                        JsonSerializer.Deserialize<StepCommandEvent>(message.Payload)
                         ?? throw new JsonException("Outbox command is null"));
                 }
                 catch (JsonException ex)
@@ -36,7 +38,9 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                 }
 
             var processIds = commands.Values.Select(command => command.ProcessInstanceId).Distinct().ToArray();
-            var statuses = await db.ProcessInstances.Where(instance => processIds.AsEnumerable().Contains(instance.Id))
+            var statuses = await db
+                .ProcessInstances
+                .Where(instance => processIds.AsEnumerable().Contains(instance.Id))
                 .Select(instance => new { instance.Id, instance.Status })
                 .ToDictionaryAsync(instance => instance.Id, instance => instance.Status, ct);
 
@@ -49,25 +53,34 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                 try
                 {
                     var suppressed = !statuses.TryGetValue(command.ProcessInstanceId, out var status)
-                        || !command.IsCompensation && status is ProcessStatus.Cancelled or ProcessStatus.Failed
-                            or ProcessStatus.Completed;
+                                     || (!command.IsCompensation && status is ProcessStatus.Cancelled
+                                         or ProcessStatus.Failed
+                                         or ProcessStatus.Completed);
                     if (!suppressed)
                     {
                         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                         timeout.CancelAfter(PublishTimeout);
-                        await publisher.PublishAsync(message.Type, command.ProcessInstanceId.ToString(), message.Payload,
+                        await publisher.PublishAsync(
+                            message.Type,
+                            command.ProcessInstanceId.ToString(),
+                            message.Payload,
                             timeout.Token);
                     }
 
-                    await db.OutboxMessages.Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
-                        .ExecuteUpdateAsync(update => update
-                            .SetProperty(candidate => candidate.ProcessedAt, DateTime.UtcNow)
-                            .SetProperty(candidate => candidate.Error,
-                                suppressed ? "Suppressed because the process is terminal or missing" : null)
-                            .SetProperty(candidate => candidate.Attempts, message.Attempts + (suppressed ? 0 : 1))
-                            .SetProperty(candidate => candidate.NextAttemptAt, (DateTime?)null)
-                            .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
-                            .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null), ct);
+                    await db
+                        .OutboxMessages
+                        .Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
+                        .ExecuteUpdateAsync(
+                            update => update
+                                .SetProperty(candidate => candidate.ProcessedAt, DateTime.UtcNow)
+                                .SetProperty(
+                                    candidate => candidate.Error,
+                                    suppressed ? "Suppressed because the process is terminal or missing" : null)
+                                .SetProperty(candidate => candidate.Attempts, message.Attempts + (suppressed ? 0 : 1))
+                                .SetProperty(candidate => candidate.NextAttemptAt, (DateTime?)null)
+                                .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
+                                .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null),
+                            ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -86,60 +99,96 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             try
             {
-                await db.OutboxMessages.Where(message => message.ClaimId == claimId)
-                    .ExecuteUpdateAsync(update => update.SetProperty(message => message.ClaimId, (Guid?)null)
-                        .SetProperty(message => message.ClaimedUntil, (DateTime?)null), cleanup.Token);
+                await db
+                    .OutboxMessages
+                    .Where(message => message.ClaimId == claimId)
+                    .ExecuteUpdateAsync(
+                        update => update
+                            .SetProperty(message => message.ClaimId, (Guid?)null)
+                            .SetProperty(message => message.ClaimedUntil, (DateTime?)null),
+                        cleanup.Token);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Outbox claim {ClaimId} could not be released; it expires at {ClaimedUntil}",
-                    claimId, claimedUntil);
+                logger.LogWarning(
+                    ex,
+                    "Outbox claim {ClaimId} could not be released; it expires at {ClaimedUntil}",
+                    claimId,
+                    claimedUntil);
             }
         }
     }
 
-    private async Task<List<OutboxMessage>> ClaimAsync(Guid claimId, DateTime now, DateTime claimedUntil,
+    private async Task<List<OutboxMessage>> ClaimAsync(Guid claimId,
+        DateTime now,
+        DateTime claimedUntil,
         CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var pending = await db.OutboxMessages.FromSqlInterpolated($"""
-                SELECT * FROM outbox_messages
-                WHERE "ProcessedAt" IS NULL AND "FailedAt" IS NULL
-                  AND ("NextAttemptAt" IS NULL OR "NextAttemptAt" <= {now})
-                  AND ("ClaimedUntil" IS NULL OR "ClaimedUntil" <= {now})
-                ORDER BY COALESCE("NextAttemptAt", "CreatedAt"), "CreatedAt", "Id"
-                LIMIT {BatchSize} FOR UPDATE SKIP LOCKED
-                """)
-            .AsNoTracking().ToListAsync(ct);
+        var pending = await db
+            .OutboxMessages
+            .FromSqlInterpolated(
+                $"""
+                 SELECT * FROM outbox_messages
+                 WHERE "ProcessedAt" IS NULL AND "FailedAt" IS NULL
+                   AND ("NextAttemptAt" IS NULL OR "NextAttemptAt" <= {now})
+                   AND ("ClaimedUntil" IS NULL OR "ClaimedUntil" <= {now})
+                 ORDER BY COALESCE("NextAttemptAt", "CreatedAt"), "CreatedAt", "Id"
+                 LIMIT {BatchSize} FOR UPDATE SKIP LOCKED
+                 """)
+            .AsNoTracking()
+            .ToListAsync(ct);
         if (pending.Count > 0)
         {
             var ids = pending.Select(message => message.Id).ToArray();
-            await db.OutboxMessages.Where(message => ids.AsEnumerable().Contains(message.Id))
-                .ExecuteUpdateAsync(update => update.SetProperty(message => message.ClaimId, claimId)
-                    .SetProperty(message => message.ClaimedUntil, claimedUntil), ct);
+            await db
+                .OutboxMessages
+                .Where(message => ids.AsEnumerable().Contains(message.Id))
+                .ExecuteUpdateAsync(
+                    update => update
+                        .SetProperty(message => message.ClaimId, claimId)
+                        .SetProperty(message => message.ClaimedUntil, claimedUntil),
+                    ct);
         }
 
         await transaction.CommitAsync(ct);
         return pending;
     }
 
-    private async Task RecordFailureAsync(OutboxMessage message, Guid claimId, Exception exception, CancellationToken ct)
+    private async Task RecordFailureAsync(OutboxMessage message,
+        Guid claimId,
+        Exception exception,
+        CancellationToken ct)
     {
         var attempts = message.Attempts + 1;
         var failed = attempts >= MaxAttempts || exception is JsonException or ArgumentException
-            || exception is KafkaException { Error.Code: ErrorCode.MsgSizeTooLarge };
+                                             || exception is KafkaException { Error.Code: ErrorCode.MsgSizeTooLarge };
         var now = DateTime.UtcNow;
         var nextAttempt = failed ? (DateTime?)null : now.AddSeconds(Math.Min(60, 1 << attempts));
         var error = exception.Message[..Math.Min(exception.Message.Length, 2048)];
-        await db.OutboxMessages.Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
-            .ExecuteUpdateAsync(update => update.SetProperty(candidate => candidate.Attempts, attempts)
-                .SetProperty(candidate => candidate.Error, error)
-                .SetProperty(candidate => candidate.NextAttemptAt, nextAttempt)
-                .SetProperty(candidate => candidate.FailedAt, failed ? now : (DateTime?)null)
-                .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
-                .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null), ct);
-        if (failed) logger.LogError(exception, "Outbox message {MessageId} quarantined after {Attempts} attempts",
-            message.Id, attempts);
-        else logger.LogWarning(exception, "Outbox message {MessageId} will retry at {NextAttemptAt}", message.Id, nextAttempt);
+        await db
+            .OutboxMessages
+            .Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(candidate => candidate.Attempts, attempts)
+                    .SetProperty(candidate => candidate.Error, error)
+                    .SetProperty(candidate => candidate.NextAttemptAt, nextAttempt)
+                    .SetProperty(candidate => candidate.FailedAt, failed ? now : null)
+                    .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
+                    .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null),
+                ct);
+        if (failed)
+            logger.LogError(
+                exception,
+                "Outbox message {MessageId} quarantined after {Attempts} attempts",
+                message.Id,
+                attempts);
+        else
+            logger.LogWarning(
+                exception,
+                "Outbox message {MessageId} will retry at {NextAttemptAt}",
+                message.Id,
+                nextAttempt);
     }
 }
