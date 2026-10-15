@@ -1,9 +1,10 @@
 using ErrorOr;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
+using WorkflowScheduler.Features.Steps.Strategies;
 using WorkflowScheduler.Infrastructure.Persistence;
 
-namespace WorkflowScheduler.Features.Processes.StepStrategies;
+namespace WorkflowScheduler.Features.Processes;
 
 public class SagaCoordinator(AppDbContext db, StepExecutor executor)
 {

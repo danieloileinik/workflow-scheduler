@@ -2,6 +2,7 @@ using System.Text.Json;
 using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using WorkflowScheduler.Contracts.Events;
 
 namespace WorkflowScheduler.Worker;
 
@@ -33,14 +34,15 @@ internal sealed class WorkflowWorker(
                     consumeFailures = 0;
                 }
                 catch (KafkaException exception) when (!exception.Error.IsFatal
-                    && ++consumeFailures < options.MaxDeliveryAttempts)
+                                                       && ++consumeFailures < options.MaxDeliveryAttempts)
                 {
                     logger.LogWarning(exception, "Kafka consume failed; retry {Attempt}", consumeFailures);
                     await Task.Delay(options.RetryDelay, stoppingToken);
                     continue;
                 }
+
                 if (record.IsPartitionEOF) continue;
-                WorkflowScheduler.Contracts.Events.StepCommandEvent? command = null;
+                StepCommandEvent? command = null;
                 string? malformed = null;
                 try
                 {
@@ -50,24 +52,36 @@ internal sealed class WorkflowWorker(
                 {
                     malformed = exception.Message;
                 }
+
                 if (command is not null)
                 {
                     await processor.ProcessAsync(command, stoppingToken);
                 }
                 else
                 {
-                    var letter = new WorkflowDeadLetter(record.Topic, record.Partition.Value, record.Offset.Value,
-                        record.Message?.Key, record.Message?.Value, malformed!);
+                    var letter = new WorkflowDeadLetter(
+                        record.Topic,
+                        record.Partition.Value,
+                        record.Offset.Value,
+                        record.Message?.Key,
+                        record.Message?.Value,
+                        malformed!);
                     var message = new Message<string, string>
                     {
                         Key = $"{record.Topic}:{record.Partition.Value}:{record.Offset.Value}",
                         Value = JsonSerializer.Serialize(letter)
                     };
-                    await retry.RunAsync("Kafka dead-letter", async ct =>
-                        await deadLetters.ProduceAsync(options.DeadLetterTopic!, message, ct), stoppingToken);
-                    logger.LogWarning("Malformed command sent to {DeadLetterTopic} from {Position}",
-                        options.DeadLetterTopic, record.TopicPartitionOffset);
+                    await retry.RunAsync(
+                        "Kafka dead-letter",
+                        async ct =>
+                            await deadLetters.ProduceAsync(options.DeadLetterTopic!, message, ct),
+                        stoppingToken);
+                    logger.LogWarning(
+                        "Malformed command sent to {DeadLetterTopic} from {Position}",
+                        options.DeadLetterTopic,
+                        record.TopicPartitionOffset);
                 }
+
                 stoppingToken.ThrowIfCancellationRequested();
                 try
                 {
@@ -75,7 +89,9 @@ internal sealed class WorkflowWorker(
                 }
                 catch (KafkaException exception) when (exception.Error.Code == ErrorCode.Local_State)
                 {
-                    logger.LogWarning(exception, "Partition ownership lost at {Position}; record may be redelivered",
+                    logger.LogWarning(
+                        exception,
+                        "Partition ownership lost at {Position}; record may be redelivered",
                         record.TopicPartitionOffset);
                 }
             }

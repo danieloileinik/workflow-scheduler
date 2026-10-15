@@ -1,7 +1,7 @@
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 
-namespace WorkflowScheduler.Features.Processes.StepStrategies;
+namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public interface IStepStrategy
 {

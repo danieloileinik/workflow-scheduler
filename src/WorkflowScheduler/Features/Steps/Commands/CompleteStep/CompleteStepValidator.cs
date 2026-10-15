@@ -1,6 +1,6 @@
 using FluentValidation;
 
-namespace WorkflowScheduler.Features.Processes.Commands.CompleteStep;
+namespace WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 
 public class CompleteStepValidator : AbstractValidator<CompleteStepCommand>
 {

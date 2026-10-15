@@ -1,5 +1,5 @@
-using WorkflowScheduler.Features.Processes.Endpoints;
 using WorkflowScheduler.Infrastructure.Persistence;
+using ProcessService = WorkflowScheduler.Features.Processes.Endpoints.ProcessService;
 
 namespace WorkflowScheduler;
 

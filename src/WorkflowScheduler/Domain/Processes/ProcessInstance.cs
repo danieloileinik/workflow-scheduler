@@ -77,8 +77,14 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
 
     public ErrorOr<Success> Cancel()
     {
-        if (Status == ProcessStatus.Completed) return ProcessErrors.AlreadyCompleted;
-        if (Status == ProcessStatus.Cancelled) return ProcessErrors.AlreadyCancelled;
+        switch (Status)
+        {
+            case ProcessStatus.Completed:
+                return ProcessErrors.AlreadyCompleted;
+            case ProcessStatus.Cancelled:
+                return ProcessErrors.AlreadyCancelled;
+        }
+
         Status = ProcessStatus.Cancelled;
         UpdatedAt = DateTime.UtcNow;
         return Result.Success;

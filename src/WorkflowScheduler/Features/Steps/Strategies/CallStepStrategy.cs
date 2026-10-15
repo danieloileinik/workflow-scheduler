@@ -5,7 +5,7 @@ using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
 using WorkflowScheduler.Infrastructure.Persistence;
 
-namespace WorkflowScheduler.Features.Processes.StepStrategies;
+namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public class CallStepStrategy(AppDbContext db) : IStepStrategy
 {

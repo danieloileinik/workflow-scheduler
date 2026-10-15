@@ -2,10 +2,11 @@ using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
-using WorkflowScheduler.Features.Processes.StepStrategies;
+using WorkflowScheduler.Features.Processes;
+using WorkflowScheduler.Features.Steps.Strategies;
 using WorkflowScheduler.Infrastructure.Persistence;
 
-namespace WorkflowScheduler.Features.Processes.Commands.CompleteStep;
+namespace WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 
 public class CompleteStepHandler(
     AppDbContext db,

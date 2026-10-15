@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
+using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 using WorkflowScheduler.Infrastructure.Messaging;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
 
@@ -99,7 +100,7 @@ internal sealed class TestHarness : IAsyncDisposable
 internal sealed class RecordingPublisher(IMessagePublisher inner) : IMessagePublisher
 {
     private readonly ConcurrentQueue<(string Topic, string Key, string Payload)> _messages = new();
-    public IReadOnlyList<(string Topic, string Key, string Payload)> Messages => _messages.ToArray();
+    public IReadOnlyList<(string Topic, string Key, string Payload)> Messages => [.. _messages];
     public bool Fail { get; set; }
     public Func<CancellationToken, Task>? BeforePublishAsync { get; set; }
 

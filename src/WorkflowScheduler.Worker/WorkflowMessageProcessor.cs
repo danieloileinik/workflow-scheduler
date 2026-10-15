@@ -32,13 +32,22 @@ internal sealed class WorkflowMessageProcessor(
     {
         if (!await IsActiveAsync(command, ct))
         {
-            logger.LogInformation("Skipping inactive execution {StepInstanceId}, attempt {Attempt}",
-                command.StepInstanceId, command.Attempt);
+            logger.LogInformation(
+                "Skipping inactive execution {StepInstanceId}, attempt {Attempt}",
+                command.StepInstanceId,
+                command.Attempt);
             return;
         }
+
         var context = new WorkflowCommandContext(
-            new StepExecution(command.ProcessInstanceId, command.StepDefinitionId, command.StepInstanceId, command.Attempt),
-            command.Command, command.CorrelationId, command.IsCompensation);
+            new StepExecution(
+                command.ProcessInstanceId,
+                command.StepDefinitionId,
+                command.StepInstanceId,
+                command.Attempt),
+            command.Command,
+            command.CorrelationId,
+            command.IsCompensation);
         JsonElement output = default;
         string? failure = null;
         if (!registration.Handlers.TryGetValue(command.Command, out var handler))
@@ -53,8 +62,12 @@ internal sealed class WorkflowMessageProcessor(
             handlerTimeout.CancelAfter(_options.HandlerTimeout);
             try
             {
-                output = await handler(scope.ServiceProvider, command.InputData, context,
-                    _options.JsonSerializerOptions, handlerTimeout.Token);
+                output = await handler(
+                    scope.ServiceProvider,
+                    command.InputData,
+                    context,
+                    _options.JsonSerializerOptions,
+                    handlerTimeout.Token);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -64,33 +77,44 @@ internal sealed class WorkflowMessageProcessor(
             {
                 failure = handlerTimeout.IsCancellationRequested ? "Command handler timed out." : exception.Message;
                 if (string.IsNullOrWhiteSpace(failure)) failure = exception.GetType().Name;
-                logger.LogWarning(exception, "Command {Command} failed for {StepInstanceId}, attempt {Attempt}",
-                    command.Command, command.StepInstanceId, command.Attempt);
+                logger.LogWarning(
+                    exception,
+                    "Command {Command} failed for {StepInstanceId}, attempt {Attempt}",
+                    command.Command,
+                    command.StepInstanceId,
+                    command.Attempt);
             }
         }
-        if (failure is not null) failure = failure[..Math.Min(failure.Length, 2048)];
+
+        failure = failure?[..Math.Min(failure.Length, 2048)];
         ct.ThrowIfCancellationRequested();
 
-        await _retry.RunAsync("Workflow callback", async token =>
-        {
-            try
+        await _retry.RunAsync(
+            "Workflow callback",
+            async token =>
             {
-                if (failure is null)
-                    await client.CompleteStepAsync(context.Execution, output, context.CallbackCorrelationId, token);
-                else
-                    await client.FailStepAsync(context.Execution, failure, context.CallbackCorrelationId, token);
-            }
-            catch (WorkflowClientException exception) when (
-                exception.StatusCode is StatusCode.FailedPrecondition or StatusCode.NotFound)
-            {
-                // The previous RPC may have committed before its response was lost. Reconcile
-                // with persisted state instead of treating every conflict as an acknowledgement.
-                if (await IsActiveAsync(command, ct)) throw;
-                logger.LogInformation("Execution {StepInstanceId}, attempt {Attempt} is no longer active",
-                    command.StepInstanceId, command.Attempt);
-            }
-            return true;
-        }, ct);
+                try
+                {
+                    if (failure is null)
+                        await client.CompleteStepAsync(context.Execution, output, context.CallbackCorrelationId, token);
+                    else
+                        await client.FailStepAsync(context.Execution, failure, context.CallbackCorrelationId, token);
+                }
+                catch (WorkflowClientException exception) when (
+                    exception.StatusCode is StatusCode.FailedPrecondition or StatusCode.NotFound)
+                {
+                    // The previous RPC may have committed before its response was lost. Reconcile
+                    // with persisted state instead of treating every conflict as an acknowledgement.
+                    if (await IsActiveAsync(command, token)) throw;
+                    logger.LogInformation(
+                        "Execution {StepInstanceId}, attempt {Attempt} is no longer active",
+                        command.StepInstanceId,
+                        command.Attempt);
+                }
+
+                return true;
+            },
+            ct);
     }
 
     private async Task<bool> IsActiveAsync(StepCommandEvent command, CancellationToken ct)
@@ -98,13 +122,16 @@ internal sealed class WorkflowMessageProcessor(
         WorkflowProcessSnapshot status;
         try
         {
-            status = await _retry.RunAsync("Workflow status",
-                token => client.GetStatusAsync(command.ProcessInstanceId, token), ct);
+            status = await _retry.RunAsync(
+                "Workflow status",
+                token => client.GetStatusAsync(command.ProcessInstanceId, token),
+                ct);
         }
         catch (WorkflowClientException exception) when (exception.StatusCode == StatusCode.NotFound)
         {
             return false;
         }
+
         var step = status.StepHistory.FirstOrDefault(step => step.Id == command.StepInstanceId);
         if (status.Id != command.ProcessInstanceId || step is null || step.StepDefinitionId != command.StepDefinitionId
             || step.Status != WorkflowStepStatus.Running || step.RetryCount != command.Attempt)

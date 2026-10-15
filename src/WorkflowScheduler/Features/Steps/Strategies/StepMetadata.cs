@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace WorkflowScheduler.Features.Processes.StepStrategies;
+namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public static class StepMetadata
 {

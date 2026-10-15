@@ -1,3 +1,5 @@
+using WorkflowScheduler.Features.Steps.Strategies;
+
 namespace WorkflowScheduler.Tests.Unit;
 
 [Trait("Category", "Unit")]

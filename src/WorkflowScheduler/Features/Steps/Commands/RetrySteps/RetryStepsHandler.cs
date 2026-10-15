@@ -2,10 +2,10 @@ using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
-using WorkflowScheduler.Features.Processes.StepStrategies;
+using WorkflowScheduler.Features.Steps.Strategies;
 using WorkflowScheduler.Infrastructure.Persistence;
 
-namespace WorkflowScheduler.Features.Processes.Commands.RetrySteps;
+namespace WorkflowScheduler.Features.Steps.Commands.RetrySteps;
 
 public class RetryStepsHandler(AppDbContext db, StepExecutor executor)
     : IRequestHandler<RetryStepsCommand, ErrorOr<Success>>

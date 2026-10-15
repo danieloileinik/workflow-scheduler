@@ -18,7 +18,8 @@ public class WorkflowWorkerTests
         var command = Command();
         var second = command with { StepInstanceId = Guid.NewGuid() };
         var client = Client(command);
-        client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+        client
+            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Active(command)), Task.FromResult(Active(second)));
         var trace = new ScopeTrace();
         var services = Services(client);
@@ -28,8 +29,8 @@ public class WorkflowWorkerTests
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var processor = provider.GetRequiredService<WorkflowMessageProcessor>();
 
-        await processor.ProcessAsync(command, default);
-        await processor.ProcessAsync(second, default);
+        await processor.ProcessAsync(command, CancellationToken.None);
+        await processor.ProcessAsync(second, CancellationToken.None);
 
         Assert.Equal(2, trace.Created.Count);
         Assert.Equal(2, trace.Created.Distinct().Count());
@@ -50,22 +51,33 @@ public class WorkflowWorkerTests
         var client = Client(command);
         var unavailable = await RpcFailure(StatusCode.Unavailable);
         var effects = 0;
-        client.CompleteStepAsync(Arg.Any<StepExecution>(), Arg.Any<JsonElement>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        client
+            .CompleteStepAsync(
+                Arg.Any<StepExecution>(),
+                Arg.Any<JsonElement>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException(unavailable), _ => Task.CompletedTask);
-        await using var provider = Provider(client, builder => builder.Handle<Input, Output>("Charge", (input, context, _) =>
-        {
-            effects++;
-            Assert.Equal(command.CorrelationId, context.CorrelationId);
-            Assert.Equal(command.StepInstanceId.ToString("N") + ":2", context.IdempotencyKey);
-            return Task.FromResult(new Output(input.OrderId));
-        }));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, Output>(
+                "Charge",
+                (input, context, _) =>
+                {
+                    effects++;
+                    Assert.Equal(command.CorrelationId, context.CorrelationId);
+                    Assert.Equal(command.StepInstanceId.ToString("N") + ":2", context.IdempotencyKey);
+                    return Task.FromResult(new Output(input.OrderId));
+                }));
 
-        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default);
+        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
         var calls = client.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "CompleteStepAsync").ToList();
         Assert.Equal(2, calls.Count);
-        Assert.Equal(((JsonElement)calls[0].GetArguments()[1]!).GetRawText(), ((JsonElement)calls[1].GetArguments()[1]!).GetRawText());
+        Assert.Equal(
+            ((JsonElement)calls[0].GetArguments()[1]!).GetRawText(),
+            ((JsonElement)calls[1].GetArguments()[1]!).GetRawText());
         Assert.Equal(calls[0].GetArguments()[2], calls[1].GetArguments()[2]);
         Assert.EndsWith(":2", (string)calls[0].GetArguments()[2]!);
     }
@@ -77,18 +89,34 @@ public class WorkflowWorkerTests
         var client = Client(command);
         var unavailable = await RpcFailure(StatusCode.Unavailable);
         var conflict = await RpcFailure(StatusCode.FailedPrecondition);
-        client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Active(command)), Task.FromResult(Active(command) with { Status = WorkflowProcessStatus.Completed }));
-        client.CompleteStepAsync(Arg.Any<StepExecution>(), Arg.Any<JsonElement>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        client
+            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(Active(command)),
+                Task.FromResult(Active(command) with { Status = WorkflowProcessStatus.Completed }));
+        client
+            .CompleteStepAsync(
+                Arg.Any<StepExecution>(),
+                Arg.Any<JsonElement>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException(unavailable), _ => Task.FromException(conflict));
         var effects = 0;
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
 
-        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default);
+        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
         await client.Received(2).GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>());
-        await client.Received(2).CompleteStepAsync(Arg.Any<StepExecution>(), Arg.Any<JsonElement>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await client
+            .Received(2)
+            .CompleteStepAsync(
+                Arg.Any<StepExecution>(),
+                Arg.Any<JsonElement>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -100,17 +128,30 @@ public class WorkflowWorkerTests
         var command = Command();
         var client = Client(command);
         var failure = await RpcFailure(code);
-        client.CompleteStepAsync(Arg.Any<StepExecution>(), Arg.Any<JsonElement>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        client
+            .CompleteStepAsync(
+                Arg.Any<StepExecution>(),
+                Arg.Any<JsonElement>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(Task.FromException(failure));
         var effects = 0;
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
 
         var error = await Assert.ThrowsAsync<WorkflowClientException>(() =>
-            provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default));
+            provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None));
 
         Assert.Same(failure, error);
         Assert.Equal(1, effects);
-        await client.Received(expectedCalls).CompleteStepAsync(Arg.Any<StepExecution>(), Arg.Any<JsonElement>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await client
+            .Received(expectedCalls)
+            .CompleteStepAsync(
+                Arg.Any<StepExecution>(),
+                Arg.Any<JsonElement>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -119,12 +160,17 @@ public class WorkflowWorkerTests
         var command = Command();
         var client = Client(command);
         var unavailable = await RpcFailure(StatusCode.Unavailable);
-        client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromException<WorkflowProcessSnapshot>(unavailable), _ => Task.FromResult(Active(command)));
+        client
+            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .Returns(
+                _ => Task.FromException<WorkflowProcessSnapshot>(unavailable),
+                _ => Task.FromResult(Active(command)));
         var effects = 0;
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
 
-        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default);
+        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
         await client.Received(2).GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>());
@@ -144,19 +190,26 @@ public class WorkflowWorkerTests
         status = reason switch
         {
             "cancelled" => status with { Status = WorkflowProcessStatus.Cancelled },
-            "completed" => status with { StepHistory = [status.StepHistory[0] with { Status = WorkflowStepStatus.Completed }] },
+            "completed" => status with
+            {
+                StepHistory = [status.StepHistory[0] with { Status = WorkflowStepStatus.Completed }]
+            },
             "old-attempt" => status with { StepHistory = [status.StepHistory[0] with { RetryCount = 1 }] },
             "old-step" => status with { CurrentStepId = Guid.NewGuid() },
             _ => status with { StepHistory = [status.StepHistory[0] with { StepDefinitionId = Guid.NewGuid() }] }
         };
         client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>()).Returns(Task.FromResult(status));
         var effects = 0;
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(++effects)));
 
-        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default);
+        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(0, effects);
-        Assert.DoesNotContain(client.ReceivedCalls(), call => call.GetMethodInfo().Name is "CompleteStepAsync" or "FailStepAsync");
+        Assert.DoesNotContain(
+            client.ReceivedCalls(),
+            call => call.GetMethodInfo().Name is "CompleteStepAsync" or "FailStepAsync");
     }
 
     [Fact]
@@ -164,16 +217,23 @@ public class WorkflowWorkerTests
     {
         var command = Command() with { IsCompensation = true };
         var client = Client(command);
-        client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Active(command) with { Status = WorkflowProcessStatus.Cancelled, CurrentStepId = Guid.NewGuid() }));
+        client
+            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(
+                    Active(command) with { Status = WorkflowProcessStatus.Cancelled, CurrentStepId = Guid.NewGuid() }));
         WorkflowCommandContext? seen = null;
-        await using var provider = Provider(client, builder => builder.Handle<Input, bool>("Charge", (_, context, _) =>
-        {
-            seen = context;
-            return Task.FromResult(true);
-        }));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, bool>(
+                "Charge",
+                (_, context, _) =>
+                {
+                    seen = context;
+                    return Task.FromResult(true);
+                }));
 
-        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default);
+        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.True(seen!.IsCompensation);
         Assert.Equal(command.StepInstanceId, seen.Execution.StepInstanceId);
@@ -186,19 +246,39 @@ public class WorkflowWorkerTests
     public async Task BusinessFailureInvalidInputAndMissingHandler_ReportFailure(string cause)
     {
         var command = Command();
-        if (cause == "input") command = command with { InputData = "{bad json" };
-        if (cause == "unknown") command = command with { Command = "NotRegistered" };
-        var client = Client(command);
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", (_, _, _) =>
-            Task.FromException<int>(new InvalidOperationException(new string('x', 3000)))));
+        switch (cause)
+        {
+            case "input":
+                command = command with { InputData = "{bad json" };
+                break;
+            case "unknown":
+                command = command with { Command = "NotRegistered" };
+                break;
+        }
 
-        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, default);
+        var client = Client(command);
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>(
+                "Charge",
+                (_, _, _) =>
+                    Task.FromException<int>(new InvalidOperationException(new string('x', 3000)))));
+
+        await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         var failure = Assert.Single(client.ReceivedCalls(), call => call.GetMethodInfo().Name == "FailStepAsync");
         var message = (string)failure.GetArguments()[1]!;
         Assert.InRange(message.Length, 1, 2048);
-        if (cause == "handler") Assert.Equal(2048, message.Length);
-        if (cause == "unknown") Assert.Contains("NotRegistered", message);
+        switch (cause)
+        {
+            case "handler":
+                Assert.Equal(2048, message.Length);
+                break;
+            case "unknown":
+                Assert.Contains("NotRegistered", message);
+                break;
+        }
+
         Assert.DoesNotContain(client.ReceivedCalls(), call => call.GetMethodInfo().Name == "CompleteStepAsync");
     }
 
@@ -208,20 +288,27 @@ public class WorkflowWorkerTests
         var command = Command();
         var client = Client(command);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", async (_, _, ct) =>
-        {
-            entered.SetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
-            return 1;
-        }));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>(
+                "Charge",
+                async (_, _, ct) =>
+                {
+                    entered.SetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                    return 1;
+                }));
         using var cancellation = new CancellationTokenSource();
-        var processing = provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, cancellation.Token);
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var processing =
+            provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, cancellation.Token);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token);
 
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
 
-        Assert.DoesNotContain(client.ReceivedCalls(), call => call.GetMethodInfo().Name is "CompleteStepAsync" or "FailStepAsync");
+        Assert.DoesNotContain(
+            client.ReceivedCalls(),
+            call => call.GetMethodInfo().Name is "CompleteStepAsync" or "FailStepAsync");
     }
 
     [Fact]
@@ -229,17 +316,29 @@ public class WorkflowWorkerTests
     {
         var command = Command();
         var client = Client(command);
-        await using var provider = Provider(client, builder => builder.Handle<Input, int>("Charge", async (_, _, ct) =>
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
-            return 0;
-        }), options => options.HandlerTimeout = TimeSpan.FromMilliseconds(30));
+        await using var provider = Provider(
+            client,
+            builder => builder.Handle<Input, int>(
+                "Charge",
+                async (_, _, ct) =>
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                    return 0;
+                }),
+            options => options.HandlerTimeout = TimeSpan.FromMilliseconds(30));
         var processor = provider.GetRequiredService<WorkflowMessageProcessor>();
 
-        await processor.ProcessAsync(command, default);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processor.ProcessAsync(command, new CancellationToken(true)));
+        await processor.ProcessAsync(command, CancellationToken.None);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            processor.ProcessAsync(command, new CancellationToken(true)));
 
-        await client.Received(1).FailStepAsync(Arg.Any<StepExecution>(), "Command handler timed out.", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await client
+            .Received(1)
+            .FailStepAsync(
+                Arg.Any<StepExecution>(),
+                "Command handler timed out.",
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>());
         await client.Received(1).GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>());
     }
 
@@ -248,8 +347,10 @@ public class WorkflowWorkerTests
     [InlineData("null")]
     [InlineData("{bad")]
     [InlineData("{}")]
-    public void MalformedEnvelope_IsRejected(string? payload) =>
+    public void MalformedEnvelope_IsRejected(string? payload)
+    {
         Assert.Throws<JsonException>(() => WorkflowMessageProcessor.ReadCommand(payload, Guid.NewGuid().ToString()));
+    }
 
     [Fact]
     public void Envelope_ValidatesKeyIdentityAndAttemptAndAcceptsCaseInsensitiveProperties()
@@ -258,9 +359,17 @@ public class WorkflowWorkerTests
         var payload = JsonSerializer.Serialize(command, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Equal(command, WorkflowMessageProcessor.ReadCommand(payload, command.ProcessInstanceId.ToString()));
         Assert.Throws<JsonException>(() => WorkflowMessageProcessor.ReadCommand(payload, Guid.NewGuid().ToString()));
-        Assert.Throws<JsonException>(() => WorkflowMessageProcessor.ReadCommand(JsonSerializer.Serialize(command with { Attempt = -1 }), command.ProcessInstanceId.ToString()));
-        var a = new WorkflowCommandContext(new StepExecution(command.ProcessInstanceId, command.StepDefinitionId, command.StepInstanceId, 0), "Charge", "correlation", false);
-        Assert.NotEqual(a.CallbackCorrelationId, (a with { Execution = a.Execution with { Attempt = 1 } }).CallbackCorrelationId);
+        Assert.Throws<JsonException>(() => WorkflowMessageProcessor.ReadCommand(
+            JsonSerializer.Serialize(command with { Attempt = -1 }),
+            command.ProcessInstanceId.ToString()));
+        var a = new WorkflowCommandContext(
+            new StepExecution(command.ProcessInstanceId, command.StepDefinitionId, command.StepInstanceId, 0),
+            "Charge",
+            "correlation",
+            false);
+        Assert.NotEqual(
+            a.CallbackCorrelationId,
+            (a with { Execution = a.Execution with { Attempt = 1 } }).CallbackCorrelationId);
     }
 
     [Fact]
@@ -333,11 +442,16 @@ public class WorkflowWorkerTests
         return services;
     }
 
-    private static ServiceProvider Provider(IWorkflowSchedulerClient client, Action<WorkflowWorkerBuilder> handlers,
+    private static ServiceProvider Provider(IWorkflowSchedulerClient client,
+        Action<WorkflowWorkerBuilder> handlers,
         Action<WorkflowWorkerOptions>? configure = null)
     {
         var services = Services(client);
-        var builder = services.AddWorkflowSchedulerWorker(options => { Configure(options); configure?.Invoke(options); });
+        var builder = services.AddWorkflowSchedulerWorker(options =>
+        {
+            Configure(options);
+            configure?.Invoke(options);
+        });
         handlers(builder);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
@@ -350,24 +464,58 @@ public class WorkflowWorkerTests
         options.MaxDeliveryAttempts = 3;
     }
 
-    private static StepCommandEvent Command() => new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Charge", "{\"orderId\":42}", "envelope-correlation");
+    private static StepCommandEvent Command()
+    {
+        return new StepCommandEvent(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Charge",
+            "{\"orderId\":42}",
+            "envelope-correlation");
+    }
 
     private static IWorkflowSchedulerClient Client(StepCommandEvent command)
     {
         var client = Substitute.For<IWorkflowSchedulerClient>();
-        client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>()).Returns(Task.FromResult(Active(command)));
+        client
+            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Active(command)));
         return client;
     }
 
-    private static WorkflowProcessSnapshot Active(StepCommandEvent command) => new(command.ProcessInstanceId, Guid.NewGuid(),
-        "order", WorkflowProcessStatus.Waiting, command.StepInstanceId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
-        [new WorkflowStepHistory(command.StepInstanceId, command.StepDefinitionId, WorkflowStepStatus.Running,
-            DateTimeOffset.UtcNow, null, null, null, command.Attempt)]);
+    private static WorkflowProcessSnapshot Active(StepCommandEvent command)
+    {
+        return new WorkflowProcessSnapshot(
+            command.ProcessInstanceId,
+            Guid.NewGuid(),
+            "order",
+            WorkflowProcessStatus.Waiting,
+            command.StepInstanceId,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            [
+                new WorkflowStepHistory(
+                    command.StepInstanceId,
+                    command.StepDefinitionId,
+                    WorkflowStepStatus.Running,
+                    DateTimeOffset.UtcNow,
+                    null,
+                    null,
+                    null,
+                    command.Attempt)
+            ]);
+    }
 
-    private static Task<WorkflowClientException> RpcFailure(StatusCode code) => WorkerTestHost.ClientFailureAsync(code);
+    private static Task<WorkflowClientException> RpcFailure(StatusCode code)
+    {
+        return WorkerTestHost.ClientFailureAsync(code);
+    }
 
     public sealed record Input(int OrderId);
+
     public sealed record Output(int OrderId);
+
     public sealed class ScopeTrace
     {
         public List<Guid> Created { get; } = [];
@@ -375,14 +523,24 @@ public class WorkflowWorkerTests
         public List<int> Inputs { get; } = [];
         public List<WorkflowCommandContext> Contexts { get; } = [];
     }
+
     public sealed class ScopedDependency(ScopeTrace trace) : IAsyncDisposable
     {
         public Guid Id { get; } = Guid.NewGuid();
-        public ValueTask DisposeAsync() { trace.Disposed.Add(Id); return ValueTask.CompletedTask; }
+
+        public ValueTask DisposeAsync()
+        {
+            trace.Disposed.Add(Id);
+            return ValueTask.CompletedTask;
+        }
     }
-    public sealed class ScopedHandler(ScopedDependency dependency, ScopeTrace trace) : IWorkflowCommandHandler<Input, Output>
+
+    public sealed class ScopedHandler(ScopedDependency dependency, ScopeTrace trace)
+        : IWorkflowCommandHandler<Input, Output>
     {
-        public Task<Output> HandleAsync(Input input, WorkflowCommandContext context, CancellationToken cancellationToken)
+        public Task<Output> HandleAsync(Input input,
+            WorkflowCommandContext context,
+            CancellationToken cancellationToken)
         {
             trace.Created.Add(dependency.Id);
             trace.Inputs.Add(input.OrderId);
