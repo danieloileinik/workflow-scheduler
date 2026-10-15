@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentValidation;
+using WorkflowScheduler.Contracts;
 
 namespace WorkflowScheduler.Features.Processes.Commands.StartProcess;
 
@@ -11,6 +12,8 @@ public class StartProcessValidator : AbstractValidator<StartProcessCommand>
         RuleFor(x => x.DefinitionId).NotEmpty();
         RuleFor(x => x.BusinessKey).NotEmpty().MaximumLength(512);
         RuleFor(x => x.InputData).Must(ValidInput).WithMessage("InputData must be a JSON object");
+        RuleFor(x => x.InputData).Must(input => input is not null && WorkflowProtocol.InputFitsMessage(input))
+            .WithMessage("InputData exceeds the command message size limit after JSON escaping");
     }
 
     private static bool ValidInput(string input)

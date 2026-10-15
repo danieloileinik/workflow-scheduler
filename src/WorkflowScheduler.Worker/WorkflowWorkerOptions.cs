@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using WorkflowScheduler.Contracts;
 
 namespace WorkflowScheduler.Worker;
 
@@ -17,7 +18,7 @@ public sealed class WorkflowWorkerOptions
     public ConsumerConfig ConsumerConfig { get; set; } = new();
     public ProducerConfig DeadLetterProducerConfig { get; set; } = new();
 
-    internal string Topic => "process.commands." + ServiceName;
+    internal string Topic => WorkflowProtocol.CommandTopic(ServiceName);
 
     internal WorkflowWorkerOptions CopyAndValidate()
     {
@@ -74,8 +75,7 @@ public sealed class WorkflowWorkerOptions
 
     private static void ValidateTopic(string topic)
     {
-        if (string.IsNullOrWhiteSpace(topic) || topic.Length > 249 || topic is "." or ".."
-            || topic.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-')))
+        if (!WorkflowProtocol.IsValidTopic(topic))
             throw new ArgumentException(
                 "Kafka topics must contain at most 249 ASCII letters, digits, dots, underscores or hyphens.");
     }

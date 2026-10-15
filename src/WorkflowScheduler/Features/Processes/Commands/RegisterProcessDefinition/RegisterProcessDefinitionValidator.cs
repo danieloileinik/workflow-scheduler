@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using FluentValidation;
+using WorkflowScheduler.Contracts;
 using WorkflowScheduler.Domain.Steps;
 
 namespace WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
@@ -45,14 +46,20 @@ public class RegisterProcessDefinitionValidator : AbstractValidator<RegisterProc
                 using var doc = JsonDocument.Parse(step.Metadata);
                 var metadata = doc.RootElement;
                 if (metadata.ValueKind != JsonValueKind.Object) throw new FormatException();
+                var properties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var property in metadata.EnumerateObject())
+                    if (!properties.Add(property.Name)) throw new FormatException();
                 switch (step.Type)
                 {
                     case StepType.Call:
-                        RequiredString(metadata, "ServiceName");
-                        RequiredString(metadata, "Command");
+                        if (!WorkflowProtocol.IsValidTopic(WorkflowProtocol.CommandTopic(
+                                RequiredString(metadata, "ServiceName")))
+                            || RequiredString(metadata, "Command").Length > WorkflowProtocol.MaxCommandLength)
+                            throw new FormatException();
                         break;
                     case StepType.WaitEvent:
-                        RequiredString(metadata, "EventName");
+                        if (RequiredString(metadata, "EventName").Length > WorkflowProtocol.MaxEventNameLength)
+                            throw new FormatException();
                         break;
                     case StepType.Condition:
                         RequiredString(metadata, "InputKey");
