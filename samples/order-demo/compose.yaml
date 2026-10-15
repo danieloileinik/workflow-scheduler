@@ -17,22 +17,22 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U demo -d workflow"]
+      test: [ "CMD-SHELL", "pg_isready -U demo -d workflow" ]
       interval: 2s
       timeout: 5s
       retries: 30
   redis:
     image: redis:7.4-alpine
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 2s
       timeout: 5s
       retries: 30
   kafka-data-init:
     image: apache/kafka:3.9.1
     user: "0:0"
-    entrypoint: ["/bin/sh", "-ec"]
-    command: ["chown 1000:1000 /data"]
+    entrypoint: [ "/bin/sh", "-ec" ]
+    command: [ "chown 1000:1000 /data" ]
     volumes:
       - kafka-data:/data
   kafka:
@@ -55,17 +55,17 @@ services:
     volumes:
       - kafka-data:/tmp/kraft-combined-logs
     depends_on:
-      kafka-data-init: {condition: service_completed_successfully}
+      kafka-data-init: { condition: service_completed_successfully }
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1"]
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1" ]
       interval: 5s
       timeout: 10s
       retries: 30
   kafka-init:
     image: apache/kafka:3.9.1
     depends_on:
-      kafka: {condition: service_healthy}
-    entrypoint: ["/bin/bash", "-ec"]
+      kafka: { condition: service_healthy }
+    entrypoint: [ "/bin/bash", "-ec" ]
     command:
       - |
         for service in demo-inventory demo-payments; do
@@ -82,9 +82,9 @@ services:
       dockerfile: samples/order-demo/Dockerfile
       target: scheduler
     environment: *scheduler-environment
-    command: ["--initialize-database"]
+    command: [ "--initialize-database" ]
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: { condition: service_healthy }
   scheduler:
     image: workflow-order-demo-scheduler
     pull_policy: never
@@ -93,9 +93,9 @@ services:
       Kestrel__Endpoints__Grpc__Url: http://0.0.0.0:8080
       Kestrel__Endpoints__Grpc__Protocols: Http2
     depends_on:
-      scheduler-init: {condition: service_completed_successfully}
-      kafka-init: {condition: service_completed_successfully}
-      redis: {condition: service_healthy}
+      scheduler-init: { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
   inventory:
     build:
       context: ../..
@@ -107,7 +107,7 @@ services:
       Kafka__BootstrapServers: kafka:9092
       Logging__LogLevel__Default: Warning
     depends_on:
-      scheduler: {condition: service_started}
+      scheduler: { condition: service_started }
   payments:
     build:
       context: ../..
@@ -119,13 +119,13 @@ services:
       Kafka__BootstrapServers: kafka:9092
       Logging__LogLevel__Default: Warning
     depends_on:
-      scheduler: {condition: service_started}
+      scheduler: { condition: service_started }
   orders:
     build:
       context: ../..
       dockerfile: samples/order-demo/Dockerfile
       target: orders
-    ports: ["127.0.0.1:${ORDER_DEMO_PORT:-5080}:8080"]
+    ports: [ "127.0.0.1:${ORDER_DEMO_PORT:-5080}:8080" ]
     environment:
       ConnectionStrings__Database: Host=postgres;Database=orders;Username=demo;Password=demo;GSS Encryption Mode=Disable
       Scheduler__Address: http://scheduler:8080
@@ -133,8 +133,8 @@ services:
       Services__payments: http://payments:8080/
       Logging__LogLevel__Default: Warning
     depends_on:
-      inventory: {condition: service_started}
-      payments: {condition: service_started}
+      inventory: { condition: service_started }
+      payments: { condition: service_started }
 
 volumes:
   postgres-data:

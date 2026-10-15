@@ -46,7 +46,8 @@ Workflow.Define("samples.order-demo", 1)
 `.Call` declares a step. `CompensateWith` attaches compensation to that step; completed steps are compensated in reverse
 order. `WaitFor` pauses the process until an external event arrives.
 
-[OrderEndpoints.cs](OrderDemo.Orders/OrderEndpoints.cs) saves the order, looks up or registers the definition, starts the
+[OrderEndpoints.cs](OrderDemo.Orders/OrderEndpoints.cs) saves the order, looks up or registers the definition, starts
+the
 process and saves its ID:
 
 ```csharp
@@ -110,7 +111,8 @@ curl --fail-with-body "$DEMO_URL/api/orders/$ORDER_ID" | python3 -m json.tool
 ```
 
 Approval returns `204`. Repeat the GET until `process.status` is `Completed` and `inventory.state` is `Shipped`.
-The full response includes `process.stepHistory` and each worker's `operations`: commands, attempts, results and timestamps.
+The full response includes `process.stepHistory` and each worker's `operations`: commands, attempts, results and
+timestamps.
 
 Repeating creation with the same UUID and input recovers the same process; different input returns `409`.
 
@@ -118,12 +120,12 @@ Repeating creation with the same UUID and input recovers the same process; diffe
 
 For each scenario, generate a **new `ORDER_ID`** and repeat creation with the indicated `paymentFailure` value.
 
-| Scenario | Value | What to observe |
-|----------|-------|-----------------|
-| Success | `None` | Reserve → pay → wait for approval → ship |
-| Retry | `Once` | Payment attempt `0` fails; attempt `1` succeeds after 30 seconds, then waits for approval |
-| Exhausted retries | `Always` | Four failed payment attempts over about 90 seconds; process becomes `Failed`, stock is released |
-| Cancellation | `None` | At the approval checkpoint, cancel instead of approving; payment is refunded, then stock is released |
+| Scenario          | Value    | What to observe                                                                                      |
+|-------------------|----------|------------------------------------------------------------------------------------------------------|
+| Success           | `None`   | Reserve → pay → wait for approval → ship                                                             |
+| Retry             | `Once`   | Payment attempt `0` fails; attempt `1` succeeds after 30 seconds, then waits for approval            |
+| Exhausted retries | `Always` | Four failed payment attempts over about 90 seconds; process becomes `Failed`, stock is released      |
+| Cancellation      | `None`   | At the approval checkpoint, cancel instead of approving; payment is refunded, then stock is released |
 
 To cancel a paid order waiting for approval:
 

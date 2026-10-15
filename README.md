@@ -26,21 +26,21 @@ does not execute arbitrary scripts, run parallel branches, or provide a visual w
 
 ## Architecture
 
-| Component                            | Responsibility                                                                                             |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `Domain/Processes`                   | Definition versions, process state, event deduplication, durable start receipts, saga compensation records |
-| `Domain/Steps`                       | Step definitions, execution attempts, results, and history                                                 |
-| `Features/Processes/Commands`        | Registration, start, callbacks, external events, cancellation, due retries                                 |
-| `Features/Processes/Queries`         | Process status and ordered execution history                                                               |
-| `Features/Processes/StepStrategies`  | `Call`, `WaitEvent`, `Condition`, iterative execution, and saga coordination                               |
-| `Features/Processes/Endpoints`       | Six gRPC methods and protocol/domain error mapping                                                         |
-| `Common/Behaviors`                   | Validation and command transaction boundaries                                                              |
-| `Infrastructure/Persistence`         | EF Core mappings and PostgreSQL persistence                                                                |
-| `Infrastructure/Caching`             | Optional Redis cache for immutable definitions                                                             |
-| `Infrastructure/Messaging`           | Kafka publication and durable outbox/retry workers                                                         |
-| `WorkflowScheduler.Contracts.Grpc`   | gRPC protocol types and the shared Kafka command envelope                                                  |
-| `WorkflowScheduler.Client`           | Fluent workflow definitions, typed payloads/statuses and a reusable gRPC client                             |
-| `WorkflowScheduler.Worker`           | Typed Kafka command handlers, scoped execution, retries for callbacks and safe offset acknowledgement       |
+| Component                           | Responsibility                                                                                             |
+|-------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `Domain/Processes`                  | Definition versions, process state, event deduplication, durable start receipts, saga compensation records |
+| `Domain/Steps`                      | Step definitions, execution attempts, results, and history                                                 |
+| `Features/Processes/Commands`       | Registration, start, callbacks, external events, cancellation, due retries                                 |
+| `Features/Processes/Queries`        | Process status and ordered execution history                                                               |
+| `Features/Processes/StepStrategies` | `Call`, `WaitEvent`, `Condition`, iterative execution, and saga coordination                               |
+| `Features/Processes/Endpoints`      | Six gRPC methods and protocol/domain error mapping                                                         |
+| `Common/Behaviors`                  | Validation and command transaction boundaries                                                              |
+| `Infrastructure/Persistence`        | EF Core mappings and PostgreSQL persistence                                                                |
+| `Infrastructure/Caching`            | Optional Redis cache for immutable definitions                                                             |
+| `Infrastructure/Messaging`          | Kafka publication and durable outbox/retry workers                                                         |
+| `WorkflowScheduler.Contracts.Grpc`  | gRPC protocol types and the shared Kafka command envelope                                                  |
+| `WorkflowScheduler.Client`          | Fluent workflow definitions, typed payloads/statuses and a reusable gRPC client                            |
+| `WorkflowScheduler.Worker`          | Typed Kafka command handlers, scoped execution, retries for callbacks and safe offset acknowledgement      |
 
 A command passes through validation and the transaction behavior before its handler runs. Successful commands persist
 their state changes, event receipt, and outbox records in one transaction. Rejected commands roll back. Read queries do
@@ -341,7 +341,8 @@ Workers use `IsStepActive` with process/definition/execution IDs, attempt and co
 without loading history. Deploy the scheduler's new RPCs before updating workers.
 
 `GetProcessDefinition` accepts a definition `name` and positive `version` and returns its `definitionId`, or `NotFound`.
-Use it to recover a committed registration whose response was lost; registration itself still rejects duplicate versions.
+Use it to recover a committed registration whose response was lost; registration itself still rejects duplicate
+versions.
 
 Process statuses: `Created`, `Running`, `Waiting`, `Failed`, `Completed`, `Cancelled`.
 
@@ -385,12 +386,14 @@ var status = await scheduler.GetStatusAsync(processId);
 Registration rejects an existing name/version; save the returned ID and use it for later starts. Keep the same start
 idempotency key or event/callback correlation ID when retrying an operation. The client does not automatically retry
 mutating RPCs. The builder supports sequences, conditional branches with shared continuations and compensations.
-Kafka command handling remains in the domain service. See the [Client package documentation](src/WorkflowScheduler.Client/README.md)
+Kafka command handling remains in the domain service. See
+the [Client package documentation](src/WorkflowScheduler.Client/README.md)
 for branches, callbacks, configuration and local NuGet packaging.
 
 ## Worker SDK
 
-Add `WorkflowScheduler.Worker` to a domain service and register its command handlers. The package runs as a hosted service
+Add `WorkflowScheduler.Worker` to a domain service and register its command handlers. The package runs as a hosted
+service
 in that process and calls the scheduler through `WorkflowScheduler.Client`.
 
 ```csharp
@@ -405,8 +408,10 @@ builder.Services.AddWorkflowSchedulerWorker(options =>
 .Handle<ChargeRequest, ChargeResult, RefundHandler>("Refund");
 ```
 
-Handlers implement `IWorkflowCommandHandler<TInput, TOutput>` and receive the original typed input, execution/attempt IDs,
-an idempotency key, compensation flag and cancellation token. Each message gets a DI scope. The worker checks the current
+Handlers implement `IWorkflowCommandHandler<TInput, TOutput>` and receive the original typed input, execution/attempt
+IDs,
+an idempotency key, compensation flag and cancellation token. Each message gets a DI scope. The worker checks the
+current
 execution before calling business code, reports success/failure through the Client and makes the Kafka offset eligible
 for commit only after acknowledgement. It retries transient callback delivery using the same computed result and
 correlation ID. Malformed envelopes go to a dead-letter topic. Business operations still need durable idempotency in
@@ -475,11 +480,14 @@ Cache writes are best-effort. A Redis outage cannot erase start receipts or rele
 The scheduler writes a command to `outbox_messages` in the same transaction as its process changes. A dispatcher claims
 up to 100 due messages using `FOR UPDATE SKIP LOCKED`, commits a one-minute lease, then publishes outside the database
 transaction. Process statuses are loaded once per batch. Each publish has a ten-second timeout; unfinished claims are
-released, and a crashed dispatcher's claims become available after lease expiry. Ownership checks fence delivery updates.
+released, and a crashed dispatcher's claims become available after lease expiry. Ownership checks fence delivery
+updates.
 Full batches drain immediately; otherwise the worker polls every two seconds.
 
-Failures retain a bounded error and retry after 2, 4, 8, 16, 32, then 60 seconds. Malformed/oversized messages and messages
-that fail eight attempts are quarantined with `FailedAt`; they do not block newer commands. Inspect the error and fix its
+Failures retain a bounded error and retry after 2, 4, 8, 16, 32, then 60 seconds. Malformed/oversized messages and
+messages
+that fail eight attempts are quarantined with `FailedAt`; they do not block newer commands. Inspect the error and fix
+its
 cause before resetting `FailedAt`, `NextAttemptAt` and `Attempts` for the affected message. Quarantine does not fail or
 complete its workflow automatically. A successful delivery clears the error.
 
@@ -527,11 +535,11 @@ dotnet test WorkflowScheduler.slnx \
   --collect:'XPlat Code Coverage' --settings coverage.runsettings
 ```
 
-| Layer | Exercises | Dependencies |
-|-------|-----------|--------------|
-| Unit | Domain transitions, retry limits, condition operators/culture, validation, cache serialization and failure handling | Isolated test doubles |
-| Integration | PostgreSQL transactions/advisory locks, concurrent commands, rollback, retries, saga ordering, Redis cache, outbox recovery/`SKIP LOCKED`, isolation, Worker offsets, duplicate delivery, dead letters and shutdown/redelivery | Real PostgreSQL, Redis and Kafka; decorators inject deterministic publication/callback failures |
-| EndToEnd | gRPC over HTTP/2, Client/Worker typed handlers, concurrent starts, workflow transitions/events, API errors, cancellation, compensation, scheduled retry and lost callback acknowledgements | Kestrel on an ephemeral port, real PostgreSQL/Redis/Kafka, production adapters, outbox/retry workers and the hosted Worker SDK |
+| Layer       | Exercises                                                                                                                                                                                                                      | Dependencies                                                                                                                   |
+|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| Unit        | Domain transitions, retry limits, condition operators/culture, validation, cache serialization and failure handling                                                                                                            | Isolated test doubles                                                                                                          |
+| Integration | PostgreSQL transactions/advisory locks, concurrent commands, rollback, retries, saga ordering, Redis cache, outbox recovery/`SKIP LOCKED`, isolation, Worker offsets, duplicate delivery, dead letters and shutdown/redelivery | Real PostgreSQL, Redis and Kafka; decorators inject deterministic publication/callback failures                                |
+| EndToEnd    | gRPC over HTTP/2, Client/Worker typed handlers, concurrent starts, workflow transitions/events, API errors, cancellation, compensation, scheduled retry and lost callback acknowledgements                                     | Kestrel on an ephemeral port, real PostgreSQL/Redis/Kafka, production adapters, outbox/retry workers and the hosted Worker SDK |
 
 One xUnit collection fixture starts the three containers concurrently once per test process. Schemas and Kafka topics
 are created once. Pinned container images match `compose.yaml`, so development and tests share the local image cache.
@@ -544,7 +552,8 @@ is flushed before each test. Containers are disposed at the end of the collectio
 Each E2E test creates a lightweight Kestrel host and disposes it asynchronously, stopping its production workers before
 the next database reset. Kafka consumers capture each topic's end offset before triggering the test workflow and use
 explicit partition assignment. This avoids historical records and consumer-group rebalances while keeping the broker
-and topics alive. gRPC calls, broker reads and state polling have bounded timeouts. Retry tests advance the persisted retry deadline
+and topics alive. gRPC calls, broker reads and state polling have bounded timeouts. Retry tests advance the persisted
+retry deadline
 so the real worker can run without waiting 30 seconds.
 
 The scheduler runs in the test process with real network connections. Client/Worker scenarios execute the actual hosted
