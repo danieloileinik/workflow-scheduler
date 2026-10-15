@@ -89,8 +89,10 @@ public class ProcessDefinitionCacheTests
         {
             CreatedAt = DateTime.UtcNow.AddDays(-1)
         };
-        var first = new StepDefinition(definition.Id, "first", StepType.Call, "{}");
-        var second = new StepDefinition(definition.Id, "second", StepType.WaitEvent, "{}");
+        const string callMetadata = """{"serviceName":"billing","command":"Execute"}""";
+        const string waitMetadata = """{"eventName":"Approved"}""";
+        var first = new StepDefinition(definition.Id, "first", StepType.Call, callMetadata);
+        var second = new StepDefinition(definition.Id, "second", StepType.WaitEvent, waitMetadata);
         definition.AddStep(first);
         definition.AddStep(second);
         var savedSnapshot = RedisValue.Null;
@@ -118,7 +120,21 @@ public class ProcessDefinitionCacheTests
         Assert.Equal(definition.CreatedAt, result.CreatedAt);
         Assert.Equal(definition.Version, result.Version);
         Assert.Equal([first.Id, second.Id], result.Steps.Select(step => step.Id));
-        Assert.All(result.Steps, step => Assert.Equal("{}", step.Metadata));
+        Assert.Equal([callMetadata, waitMetadata], result.Steps.Select(step => step.Metadata));
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("[null]")]
+    [InlineData("[{}]")]
+    public async Task GetAsync_WithInvalidStepSnapshots_ReturnsCacheMiss(string steps)
+    {
+        var (cache, database) = CreateCache();
+        var id = Guid.NewGuid();
+        RedisValue snapshot = $$"""{"Id":"{{id}}","Name":"workflow","Version":1,"Steps":{{steps}}} """;
+        database.StringGetAsync(Arg.Any<RedisKey>(), Arg.Any<CommandFlags>()).Returns(snapshot);
+
+        Assert.Null(await cache.GetAsync(id));
     }
 
     private static (ProcessDefinitionCache Cache, IDatabase Database) CreateCache()
