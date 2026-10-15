@@ -61,4 +61,8 @@ public sealed record WorkflowProcessSnapshot(
     Guid? CurrentStepId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<WorkflowStepHistory> StepHistory);
+    IReadOnlyList<WorkflowStepHistory> StepHistory)
+{
+    public int TotalStepCount { get; init; }
+    public int HistoryOffset { get; init; }
+}

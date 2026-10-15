@@ -198,14 +198,31 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
+        return GetStatusAsync(new GetProcessStatusRequest { ProcessInstanceId = processInstanceId.ToString() },
+            nameof(GetStatusAsync), cancellationToken);
+    }
+
+    public Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId, int offset = 0, int pageSize = 100,
+        bool includeOutputs = false, CancellationToken cancellationToken = default)
+    {
+        Guard.Id(processInstanceId, nameof(processInstanceId));
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        if (pageSize is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        return GetStatusAsync(new GetProcessStatusRequest
+        {
+            ProcessInstanceId = processInstanceId.ToString(), HistoryOffset = offset,
+            HistoryPageSize = pageSize, OmitOutputData = !includeOutputs
+        }, nameof(GetStatusPageAsync), cancellationToken);
+    }
+
+    private Task<WorkflowProcessSnapshot> GetStatusAsync(GetProcessStatusRequest request, string operation,
+        CancellationToken cancellationToken)
+    {
         return InvokeAsync(
-            nameof(GetStatusAsync),
+            operation,
             async options =>
             {
-                using var call = _grpc.GetProcessStatusAsync(
-                    new GetProcessStatusRequest
-                        { ProcessInstanceId = processInstanceId.ToString() },
-                    options);
+                using var call = _grpc.GetProcessStatusAsync(request, options);
                 var response = await call.ResponseAsync.ConfigureAwait(false);
                 var history = response
                     .StepHistory
@@ -227,7 +244,10 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                     string.IsNullOrEmpty(response.CurrentStepId) ? null : Guid.Parse(response.CurrentStepId),
                     ParseTime(response.CreatedAt),
                     ParseTime(response.UpdatedAt),
-                    Array.AsReadOnly(history));
+                    Array.AsReadOnly(history))
+                {
+                    TotalStepCount = response.TotalStepCount, HistoryOffset = response.HistoryOffset
+                };
             },
             cancellationToken);
     }

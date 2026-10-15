@@ -12,7 +12,12 @@ public partial class ProcessService
         if (!Guid.TryParse(request.ProcessInstanceId, out var instanceId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid process instance id"));
 
-        var query = new GetProcessStatusQuery(instanceId);
+        if (request.HistoryOffset < 0 || request.HistoryPageSize is < 0 or > 100
+            || request.HistoryOffset > 0 && request.HistoryPageSize == 0)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "History page size must be 1..100 with a nonnegative offset"));
+
+        var query = new GetProcessStatusQuery(instanceId, request.HistoryOffset, request.HistoryPageSize,
+            request.OmitOutputData);
         var result = await mediator.Send(query, context.CancellationToken);
 
         if (result is null)
@@ -27,6 +32,8 @@ public partial class ProcessService
             CurrentStepId = result.CurrentStepId?.ToString() ?? string.Empty,
             CreatedAt = result.CreatedAt.ToString("O"),
             UpdatedAt = result.UpdatedAt.ToString("O"),
+            TotalStepCount = result.TotalStepCount,
+            HistoryOffset = result.HistoryOffset,
             StepHistory =
             {
                 result.StepHistory.Select(s => new GrpcStepHistoryEntry

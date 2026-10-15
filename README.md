@@ -119,6 +119,10 @@ references to compensation steps, and cycles made entirely of automatic conditio
 Metadata property names are case-insensitive. The following examples use camelCase. Metadata is a JSON object encoded as
 a string inside a protobuf request.
 
+Duplicate metadata property names, including casing variants, are rejected. Event names are limited to 250 characters,
+commands to 256, and service names must form a valid Kafka command topic. Input is limited to 980,000 UTF-8 bytes after
+JSON string escaping, leaving room for the envelope below the producer's 1,000,000-byte record limit.
+
 ### Call
 
 ```json
@@ -323,6 +327,15 @@ forward steps are automatically compensated. Handling uncertain in-flight outcom
 Returns definition/business identifiers, process status, current step-instance ID, UTC timestamps, and ordered
 `stepHistory`. Each entry includes definition/execution IDs, status, output/error, timestamps, and retry count.
 Compensation executions also appear in the history. A missing process returns `NotFound`.
+
+For bounded history pages, supply `historyOffset`, `historyPageSize` (1..100) and `omitOutputData: true`.
+The response includes `totalStepCount` and `historyOffset`. Omitted paging fields preserve full-history behavior.
+Output-heavy pages may still need a smaller page size or a larger client receive limit.
+Workers use `IsStepActive` with process/definition/execution IDs, attempt and compensation flag to check activity
+without loading history. Deploy the scheduler's new RPCs before updating workers.
+
+`GetProcessDefinition` accepts a definition `name` and positive `version` and returns its `definitionId`, or `NotFound`.
+Use it to recover a committed registration whose response was lost; registration itself still rejects duplicate versions.
 
 Process statuses: `Created`, `Running`, `Waiting`, `Failed`, `Completed`, `Cancelled`.
 
@@ -546,8 +559,8 @@ coverage artifacts.
 - Cancellation does not stop commands already executing in another service.
 - No published process-lifecycle events, broker callback consumer, metrics dashboard, retention policy, or production
   migration history.
-- `EnsureCreated` supports empty development databases only; design/apply migrations before upgrading a populated
-  deployment.
+- The initializer creates empty databases and applies the included outbox upgrade. Other schema changes still require
+  explicit migration scripts; there is no general migration history.
 - Authentication and authorization are not implemented in the gRPC service.
 
 ## License
