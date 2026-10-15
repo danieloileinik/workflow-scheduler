@@ -24,12 +24,13 @@ public sealed record WorkflowDeadLetter(
     long Offset,
     string? Key,
     string? Payload,
-    string Error,
-    bool PayloadTruncated = false,
-    int? OriginalPayloadBytes = null,
-    string? PayloadSha256 = null,
-    bool KeyTruncated = false)
+    string Error)
 {
+    public bool PayloadTruncated { get; init; }
+    public int? OriginalPayloadBytes { get; init; }
+    public string? PayloadSha256 { get; init; }
+    public bool KeyTruncated { get; init; }
+
     internal string Serialize(int maxBytes)
     {
         var json = JsonSerializer.Serialize(this);

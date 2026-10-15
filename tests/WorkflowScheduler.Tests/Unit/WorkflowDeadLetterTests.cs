@@ -17,6 +17,9 @@ public class WorkflowDeadLetterTests
         var restored = JsonSerializer.Deserialize<WorkflowDeadLetter>(letter.Serialize(8192));
 
         Assert.Equal(letter, restored);
+        var (topic, partition, offset, key, payload, error) = restored!;
+        Assert.Equal(("commands", 1, 42L, "key", "{bad-json", "Invalid JSON"),
+            (topic, partition, offset, key, payload, error));
     }
 
     [Theory]
