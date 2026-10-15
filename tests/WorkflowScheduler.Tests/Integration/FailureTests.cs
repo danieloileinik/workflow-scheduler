@@ -1,4 +1,6 @@
 using FluentValidation;
+using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
+using WorkflowScheduler.Features.Steps.Commands.RetrySteps;
 using WorkflowScheduler.Tests.Support;
 
 namespace WorkflowScheduler.Tests.Integration;

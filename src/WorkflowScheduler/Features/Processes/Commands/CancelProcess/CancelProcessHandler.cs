@@ -2,7 +2,6 @@ using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
-using WorkflowScheduler.Features.Processes.StepStrategies;
 using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Features.Processes.Commands.CancelProcess;

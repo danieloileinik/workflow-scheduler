@@ -1,6 +1,7 @@
 # WorkflowScheduler.Worker
 
-.NET 10 library hosted inside a domain service. It consumes `process.commands.<ServiceName>` from Kafka, dispatches typed
+.NET 10 library hosted inside a domain service. It consumes `process.commands.<ServiceName>` from Kafka, dispatches
+typed
 commands to your handlers and reports results through `WorkflowScheduler.Client`. Each host reuses one consumer and one
 dead-letter producer. Replicas of a service share the same consumer group.
 
@@ -23,7 +24,8 @@ builder.Services.AddWorkflowSchedulerWorker(options =>
 await builder.Build().RunAsync();
 ```
 
-Register the handler's own dependencies using normal DI. `Handle<TInput, TOutput, THandler>` registers the handler as scoped
+Register the handler's own dependencies using normal DI. `Handle<TInput, TOutput, THandler>` registers the handler as
+scoped
 unless you already registered it. Each message gets a new asynchronous DI scope, disposed after the handler finishes.
 The command name matches the name in `.Call("billing", "Charge")` or `.CompensateWith("billing", "Refund")` exactly.
 
@@ -46,7 +48,8 @@ public sealed class ChargeHandler(IPayments payments)
 ```
 
 `RefundHandler` implements the same interface for a refund. Compensation is an ordinary registered command;
-`context.IsCompensation` identifies it. `context.Execution` contains process, definition-step and step-execution IDs plus
+`context.IsCompensation` identifies it. `context.Execution` contains process, definition-step and step-execution IDs
+plus
 the attempt number. `context.CorrelationId` is the original command correlation. `context.IdempotencyKey` combines the
 execution ID and attempt, while `context.CallbackCorrelationId` is stable across transport retries and changes for a new
 scheduled attempt. A retried step retains its execution ID, so using only that ID as the callback correlation would
@@ -60,7 +63,8 @@ worker.Handle<ValidateRequest, ValidateResult>("Validate", (input, context, ct) 
 ```
 
 Use the class overload for scoped dependencies. Both overloads deserialize the original process input with web/camelCase
-JSON defaults and serialize the typed output. A handler exception, invalid typed input or an unregistered command sends a
+JSON defaults and serialize the typed output. A handler exception, invalid typed input or an unregistered command sends
+a
 failure callback. The scheduler owns delayed retries and compensation; the worker executes each published attempt once
 per delivery. Outputs are recorded in history; the scheduler continues to forward the original input to later commands.
 
@@ -80,12 +84,14 @@ provide concurrency. The consumer, producer and gRPC channel are reused througho
 
 Delivery is at least once. A restart after a business side effect and before its callback can execute the handler again.
 Persist/deduplicate the operation and its result in the domain service using `context.IdempotencyKey`; the package does
-not impose a database or claim exactly-once business effects. Keep a business-level idempotency key too when an operation
+not impose a database or claim exactly-once business effects. Keep a business-level idempotency key too when an
+operation
 must stay unique across distinct workflow retry attempts. Cancellation may race a handler already doing external work.
 
 Malformed envelopes, invalid execution identities, mismatched Kafka process keys and tombstones go to
 `process.commands.<ServiceName>.dead-letter`. `WorkflowDeadLetter` preserves the source topic, partition, offset, key,
-payload and parse error; its Kafka key is `<source-topic>:<partition>:<offset>`. The source offset is stored only after the
+payload and parse error; its Kafka key is `<source-topic>:<partition>:<offset>`. The source offset is stored only after
+the
 broker acknowledges the dead letter. Valid commands with no registered handler report failure to the scheduler.
 Provision both topics with the required partitions, replication and ACLs before running the worker.
 
@@ -97,22 +103,23 @@ locally after they throw.
 
 ## Configuration
 
-| Option | Default | Purpose |
-|---|---|---|
-| `ServiceName` | Required | Command topic suffix; must produce a valid Kafka topic |
-| `BootstrapServers` | Required | Kafka brokers |
-| `GroupId` | `workflow-<ServiceName>` | Stable group shared by replicas |
-| `DeadLetterTopic` | `<command-topic>.dead-letter` | Invalid message destination |
-| `MaxDeliveryAttempts` | 5 | Attempts for one status/callback/dead-letter operation |
-| `RetryDelay` | 1 second | Delay between transient transport failures |
-| `RpcTimeout` | 10 seconds | Cancellation deadline for each transport attempt |
-| `HandlerTimeout` | 1 minute | Cooperative handler cancellation deadline |
-| `JsonSerializerOptions` | Web defaults | Typed input/output serialization |
-| `ConsumerConfig` | Earliest; 1-second commit interval; 15-minute max poll interval | Kafka fetch/group/security settings |
-| `DeadLetterProducerConfig` | Idempotent; all replicas acknowledge | Dead-letter transport/security settings |
+| Option                     | Default                                                         | Purpose                                                |
+|----------------------------|-----------------------------------------------------------------|--------------------------------------------------------|
+| `ServiceName`              | Required                                                        | Command topic suffix; must produce a valid Kafka topic |
+| `BootstrapServers`         | Required                                                        | Kafka brokers                                          |
+| `GroupId`                  | `workflow-<ServiceName>`                                        | Stable group shared by replicas                        |
+| `DeadLetterTopic`          | `<command-topic>.dead-letter`                                   | Invalid message destination                            |
+| `MaxDeliveryAttempts`      | 5                                                               | Attempts for one status/callback/dead-letter operation |
+| `RetryDelay`               | 1 second                                                        | Delay between transient transport failures             |
+| `RpcTimeout`               | 10 seconds                                                      | Cancellation deadline for each transport attempt       |
+| `HandlerTimeout`           | 1 minute                                                        | Cooperative handler cancellation deadline              |
+| `JsonSerializerOptions`    | Web defaults                                                    | Typed input/output serialization                       |
+| `ConsumerConfig`           | Earliest; 1-second commit interval; 15-minute max poll interval | Kafka fetch/group/security settings                    |
+| `DeadLetterProducerConfig` | Idempotent; all replicas acknowledge                            | Dead-letter transport/security settings                |
 
 The worker copies configuration at registration. It enforces automatic batched commits with manual offset storage and
-an idempotent dead-letter producer. It validates that `MaxPollIntervalMs` exceeds the configured handler and conservative
+an idempotent dead-letter producer. It validates that `MaxPollIntervalMs` exceeds the configured handler and
+conservative
 RPC/reconciliation retry budget. Increase it when increasing handler timeouts. A handler that ignores cancellation can
 still exceed that budget. Configure SASL/TLS on **both** Kafka configuration objects; gRPC security belongs in
 `WorkflowClientOptions`. Do not change a replica's group ID on every deployment.

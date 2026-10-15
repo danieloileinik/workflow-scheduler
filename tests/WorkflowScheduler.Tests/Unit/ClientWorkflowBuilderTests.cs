@@ -193,21 +193,22 @@ public class ClientWorkflowBuilderTests
         var command = new RegisterProcessDefinitionCommand(
             definition.Name,
             definition.Version,
-            definition
-                .Steps
-                .Select(step => new StepDefinitionDto(
-                    step.Id,
-                    step.Name,
-                    step.Kind switch
-                    {
-                        WorkflowStepKind.Call => StepType.Call,
-                        WorkflowStepKind.WaitEvent => StepType.WaitEvent,
-                        _ => StepType.Condition
-                    },
-                    step.Metadata,
-                    step.NextStepId,
-                    step.CompensationStepId))
-                .ToArray());
+            [
+                .. definition
+                    .Steps
+                    .Select(step => new StepDefinitionDto(
+                        step.Id,
+                        step.Name,
+                        step.Kind switch
+                        {
+                            WorkflowStepKind.Call => StepType.Call,
+                            WorkflowStepKind.WaitEvent => StepType.WaitEvent,
+                            _ => StepType.Condition
+                        },
+                        step.Metadata,
+                        step.NextStepId,
+                        step.CompensationStepId))
+            ]);
         var result = new RegisterProcessDefinitionValidator().Validate(command);
         Assert.True(result.IsValid, result.ToString());
     }

@@ -9,7 +9,7 @@ internal sealed class WorkerRetry(WorkflowWorkerOptions options, ILogger logger)
 {
     public async Task<T> RunAsync<T>(string operation, Func<CancellationToken, Task<T>> action, CancellationToken ct)
     {
-        for (var attempt = 1; ; attempt++)
+        for (var attempt = 1;; attempt++)
         {
             ct.ThrowIfCancellationRequested();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -28,15 +28,19 @@ internal sealed class WorkerRetry(WorkflowWorkerOptions options, ILogger logger)
             {
                 logger.LogWarning(exception, "{Operation} failed; retry {Attempt}", operation, attempt);
             }
+
             await Task.Delay(options.RetryDelay, ct);
         }
     }
 
-    private static bool IsTransient(Exception exception) => exception switch
+    private static bool IsTransient(Exception exception)
     {
-        WorkflowClientException client => client.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
-            or StatusCode.ResourceExhausted or StatusCode.Aborted or StatusCode.FailedPrecondition,
-        KafkaException kafka => !kafka.Error.IsFatal,
-        _ => false
-    };
+        return exception switch
+        {
+            WorkflowClientException client => client.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                or StatusCode.ResourceExhausted or StatusCode.Aborted or StatusCode.FailedPrecondition,
+            KafkaException kafka => !kafka.Error.IsFatal,
+            _ => false
+        };
+    }
 }

@@ -1,3 +1,4 @@
+using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 using WorkflowScheduler.Tests.Support;
 
 namespace WorkflowScheduler.Tests.Integration;

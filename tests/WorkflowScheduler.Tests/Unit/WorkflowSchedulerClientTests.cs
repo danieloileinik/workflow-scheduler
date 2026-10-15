@@ -259,7 +259,7 @@ public class WorkflowSchedulerClientTests
                 response,
                 Task.FromResult(new Metadata()),
                 () => Status.DefaultSuccess,
-                () => new Metadata(),
+                () => [],
                 () => { });
         }
 

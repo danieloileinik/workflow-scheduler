@@ -27,7 +27,8 @@ internal sealed class KafkaProbe : IDisposable
             // Capture end offsets BEFORE triggering a workflow. Old test records are ignored
             // without deleting topics or waiting for a consumer group rebalance.
             _consumer.Assign(
-                services
+            [
+                .. services
                     .Select(service =>
                     {
                         var partition = new TopicPartition($"process.commands.{service}", new Partition(0));
@@ -35,7 +36,7 @@ internal sealed class KafkaProbe : IDisposable
                         _nextOffsets.Add(partition, end);
                         return new TopicPartitionOffset(partition, end);
                     })
-                    .ToArray());
+            ]);
         }
         catch
         {

@@ -11,11 +11,11 @@ public sealed class WorkflowWorkerOptions
     public string? DeadLetterTopic { get; set; }
     public int MaxDeliveryAttempts { get; set; } = 5;
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
-    public TimeSpan RpcTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan RpcTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan HandlerTimeout { get; set; } = TimeSpan.FromMinutes(1);
-    public JsonSerializerOptions JsonSerializerOptions { get; set; } = new(JsonSerializerDefaults.Web);
-    public ConsumerConfig ConsumerConfig { get; set; } = new();
-    public ProducerConfig DeadLetterProducerConfig { get; set; } = new();
+    public JsonSerializerOptions JsonSerializerOptions { get; init; } = new(JsonSerializerDefaults.Web);
+    public ConsumerConfig ConsumerConfig { get; init; } = new();
+    public ProducerConfig DeadLetterProducerConfig { get; init; } = new();
 
     internal string Topic => "process.commands." + ServiceName;
 
@@ -38,7 +38,8 @@ public sealed class WorkflowWorkerOptions
         var deadLetter = DeadLetterTopic ?? Topic + ".dead-letter";
         ValidateTopic(Topic);
         ValidateTopic(deadLetter);
-        if (deadLetter == Topic) throw new ArgumentException("Dead-letter and command topics must differ.", nameof(DeadLetterTopic));
+        if (deadLetter == Topic)
+            throw new ArgumentException("Dead-letter and command topics must differ.", nameof(DeadLetterTopic));
 
         var consumer = new ConsumerConfig(ConsumerConfig)
         {
@@ -51,17 +52,20 @@ public sealed class WorkflowWorkerOptions
         consumer.MaxPollIntervalMs ??= 900_000;
         var budget = HandlerTimeout + (RpcTimeout + RetryDelay) * (MaxDeliveryAttempts * (MaxDeliveryAttempts + 2));
         if (consumer.MaxPollIntervalMs <= budget.TotalMilliseconds)
-            throw new ArgumentException("MaxPollIntervalMs must exceed the handler and RPC retry budget.", nameof(ConsumerConfig));
+            throw new ArgumentException(
+                "MaxPollIntervalMs must exceed the handler and RPC retry budget.",
+                nameof(ConsumerConfig));
         var producer = new ProducerConfig(DeadLetterProducerConfig)
         {
             BootstrapServers = BootstrapServers, EnableIdempotence = true, Acks = Acks.All
         };
         producer.MessageTimeoutMs ??= (int)RpcTimeout.TotalMilliseconds;
         var json = new JsonSerializerOptions(JsonSerializerOptions);
-        json.MakeReadOnly(populateMissingResolver: true);
+        json.MakeReadOnly(true);
         return new WorkflowWorkerOptions
         {
-            ServiceName = ServiceName, BootstrapServers = BootstrapServers, GroupId = group, DeadLetterTopic = deadLetter,
+            ServiceName = ServiceName, BootstrapServers = BootstrapServers, GroupId = group,
+            DeadLetterTopic = deadLetter,
             MaxDeliveryAttempts = MaxDeliveryAttempts, RetryDelay = RetryDelay, RpcTimeout = RpcTimeout,
             HandlerTimeout = HandlerTimeout, JsonSerializerOptions = json,
             ConsumerConfig = consumer, DeadLetterProducerConfig = producer
@@ -72,6 +76,7 @@ public sealed class WorkflowWorkerOptions
     {
         if (string.IsNullOrWhiteSpace(topic) || topic.Length > 249 || topic is "." or ".."
             || topic.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-')))
-            throw new ArgumentException("Kafka topics must contain at most 249 ASCII letters, digits, dots, underscores or hyphens.");
+            throw new ArgumentException(
+                "Kafka topics must contain at most 249 ASCII letters, digits, dots, underscores or hyphens.");
     }
 }
