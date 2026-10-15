@@ -205,6 +205,34 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
 
     public sealed record Input(int OrderId);
 
+    [Fact]
+    public async Task LargeAccumulatedOutputs_DoNotPreventFollowingCommandsFromRunning()
+    {
+        await using var app = await infrastructure.CreateGrpcAppAsync();
+        app.StartServer();
+        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        var output = new string('a', 1_100_000);
+        var effects = 0;
+        await using var worker = await WorkerTestHost.StartAsync(infrastructure, client,
+            builder => builder.Handle<Input, string>("Large", (_, _, _) =>
+            {
+                Interlocked.Increment(ref effects);
+                return Task.FromResult(output);
+            }));
+        var workflow = Workflow.Define("large-history-" + Guid.NewGuid());
+        for (var index = 0; index < 5; index++) workflow.Call(worker.ServiceName, "Large");
+        var definition = await client.RegisterAsync(workflow.Build());
+
+        var process = await client.StartAsync(definition, new Input(42), "order", Guid.NewGuid());
+        await worker.WaitForOffsetAsync(5);
+
+        Assert.Equal(5, effects);
+        Assert.Equal(ProcessStatus.Completed, await app.WithDb(db => db.ProcessInstances
+            .Where(instance => instance.Id == process).Select(instance => instance.Status).SingleAsync()));
+        var tooLarge = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetStatusAsync(process));
+        Assert.Equal(StatusCode.ResourceExhausted, tooLarge.StatusCode);
+    }
+
     public sealed record Output(int OrderId, string Command);
 
     private sealed class AckLosingClient(IWorkflowSchedulerClient inner, WorkflowClientException failure)
@@ -273,5 +301,9 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         {
             return inner.GetStatusAsync(processInstanceId, cancellationToken);
         }
+
+        public Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
+            CancellationToken cancellationToken = default) =>
+            inner.IsStepActiveAsync(execution, isCompensation, cancellationToken);
     }
 }

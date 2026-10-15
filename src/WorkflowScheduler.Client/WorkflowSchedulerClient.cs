@@ -229,17 +229,41 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             throw new ArgumentOutOfRangeException(nameof(options), "RequestTimeout must be positive or infinite.");
     }
 
-    private Task CompleteAsync(StepExecution execution,
-        bool success,
-        string output,
-        string correlationId,
-        CancellationToken cancellationToken)
+    public Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateExecution(execution);
+        var request = new IsStepActiveRequest
+        {
+            ProcessInstanceId = execution.ProcessInstanceId.ToString(),
+            StepDefinitionId = execution.StepDefinitionId.ToString(),
+            StepInstanceId = execution.StepInstanceId.ToString(),
+            Attempt = execution.Attempt,
+            IsCompensation = isCompensation
+        };
+        return InvokeAsync(nameof(IsStepActiveAsync), async options =>
+        {
+            using var call = _grpc.IsStepActiveAsync(request, options);
+            return (await call.ResponseAsync.ConfigureAwait(false)).Active;
+        }, cancellationToken);
+    }
+
+    private static void ValidateExecution(StepExecution execution)
     {
         ArgumentNullException.ThrowIfNull(execution);
         Guard.Id(execution.ProcessInstanceId, nameof(execution.ProcessInstanceId));
         Guard.Id(execution.StepDefinitionId, nameof(execution.StepDefinitionId));
         Guard.Id(execution.StepInstanceId, nameof(execution.StepInstanceId));
         ArgumentOutOfRangeException.ThrowIfNegative(execution.Attempt);
+    }
+
+    private Task CompleteAsync(StepExecution execution,
+        bool success,
+        string output,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        ValidateExecution(execution);
         Guard.Text(correlationId, nameof(correlationId), 256);
         var request = new CompleteStepRequest
         {

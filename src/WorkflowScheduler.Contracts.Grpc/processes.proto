@@ -11,6 +11,7 @@ service Processes {
   rpc SendEvent (SendEventRequest) returns (SendEventResponse);
   rpc CancelProcess (CancelProcessRequest) returns (CancelProcessResponse);
   rpc GetProcessStatus (GetProcessStatusRequest) returns (GetProcessStatusResponse);
+  rpc IsStepActive (IsStepActiveRequest) returns (IsStepActiveResponse);
 }
 
 enum StepTypeMessage {
@@ -81,6 +82,18 @@ message CancelProcessResponse {
 
 message GetProcessStatusRequest {
   string process_instance_id = 1;
+}
+
+message IsStepActiveRequest {
+  string process_instance_id = 1;
+  string step_definition_id = 2;
+  string step_instance_id = 3;
+  int32 attempt = 4;
+  bool is_compensation = 5;
+}
+
+message IsStepActiveResponse {
+  bool active = 1;
 }
 
 message StepHistoryEntry {

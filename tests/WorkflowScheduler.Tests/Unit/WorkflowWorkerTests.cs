@@ -19,8 +19,8 @@ public class WorkflowWorkerTests
         var second = command with { StepInstanceId = Guid.NewGuid() };
         var client = Client(command);
         client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Active(command)), Task.FromResult(Active(second)));
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(true), Task.FromResult(true));
         var trace = new ScopeTrace();
         var services = Services(client);
         services.AddSingleton(trace);
@@ -90,10 +90,10 @@ public class WorkflowWorkerTests
         var unavailable = await RpcFailure(StatusCode.Unavailable);
         var conflict = await RpcFailure(StatusCode.FailedPrecondition);
         client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(
-                Task.FromResult(Active(command)),
-                Task.FromResult(Active(command) with { Status = WorkflowProcessStatus.Completed }));
+                Task.FromResult(true),
+                Task.FromResult(false));
         client
             .CompleteStepAsync(
                 Arg.Any<StepExecution>(),
@@ -109,7 +109,7 @@ public class WorkflowWorkerTests
         await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
-        await client.Received(2).GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>());
+        await client.Received(2).IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
         await client
             .Received(2)
             .CompleteStepAsync(
@@ -161,10 +161,10 @@ public class WorkflowWorkerTests
         var client = Client(command);
         var unavailable = await RpcFailure(StatusCode.Unavailable);
         client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(
-                _ => Task.FromException<WorkflowProcessSnapshot>(unavailable),
-                _ => Task.FromResult(Active(command)));
+                _ => Task.FromException<bool>(unavailable),
+                _ => Task.FromResult(true));
         var effects = 0;
         await using var provider = Provider(
             client,
@@ -173,32 +173,16 @@ public class WorkflowWorkerTests
         await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
-        await client.Received(2).GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>());
+        await client.Received(2).IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
     }
 
-    [Theory]
-    [InlineData("cancelled")]
-    [InlineData("completed")]
-    [InlineData("old-attempt")]
-    [InlineData("old-step")]
-    [InlineData("wrong-definition")]
-    public async Task InactiveCommand_DoesNotInvokeHandlerOrCallback(string reason)
+    [Fact]
+    public async Task InactiveCommand_DoesNotInvokeHandlerOrCallback()
     {
         var command = Command();
         var client = Client(command);
-        var status = Active(command);
-        status = reason switch
-        {
-            "cancelled" => status with { Status = WorkflowProcessStatus.Cancelled },
-            "completed" => status with
-            {
-                StepHistory = [status.StepHistory[0] with { Status = WorkflowStepStatus.Completed }]
-            },
-            "old-attempt" => status with { StepHistory = [status.StepHistory[0] with { RetryCount = 1 }] },
-            "old-step" => status with { CurrentStepId = Guid.NewGuid() },
-            _ => status with { StepHistory = [status.StepHistory[0] with { StepDefinitionId = Guid.NewGuid() }] }
-        };
-        client.GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>()).Returns(Task.FromResult(status));
+        client.IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(false));
         var effects = 0;
         await using var provider = Provider(
             client,
@@ -217,11 +201,6 @@ public class WorkflowWorkerTests
     {
         var command = Command() with { IsCompensation = true };
         var client = Client(command);
-        client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(
-                Task.FromResult(
-                    Active(command) with { Status = WorkflowProcessStatus.Cancelled, CurrentStepId = Guid.NewGuid() }));
         WorkflowCommandContext? seen = null;
         await using var provider = Provider(
             client,
@@ -339,7 +318,7 @@ public class WorkflowWorkerTests
                 "Command handler timed out.",
                 Arg.Any<string>(),
                 Arg.Any<CancellationToken>());
-        await client.Received(1).GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>());
+        await client.Received(1).IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -482,32 +461,9 @@ public class WorkflowWorkerTests
     {
         var client = Substitute.For<IWorkflowSchedulerClient>();
         client
-            .GetStatusAsync(command.ProcessInstanceId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Active(command)));
+            .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(true));
         return client;
-    }
-
-    private static WorkflowProcessSnapshot Active(StepCommandEvent command)
-    {
-        return new WorkflowProcessSnapshot(
-            command.ProcessInstanceId,
-            Guid.NewGuid(),
-            "order",
-            WorkflowProcessStatus.Waiting,
-            command.StepInstanceId,
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow,
-            [
-                new WorkflowStepHistory(
-                    command.StepInstanceId,
-                    command.StepDefinitionId,
-                    WorkflowStepStatus.Running,
-                    DateTimeOffset.UtcNow,
-                    null,
-                    null,
-                    null,
-                    command.Attempt)
-            ]);
     }
 
     private static Task<WorkflowClientException> RpcFailure(StatusCode code)

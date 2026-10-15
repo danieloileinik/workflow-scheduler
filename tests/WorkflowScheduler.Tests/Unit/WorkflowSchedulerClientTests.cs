@@ -238,6 +238,23 @@ public class WorkflowSchedulerClientTests
         return new WorkflowSchedulerClient(new Processes.ProcessesClient(invoker), options);
     }
 
+    [Fact]
+    public async Task IsStepActive_SendsExactExecutionIdentityAndCompensationFlag()
+    {
+        var invoker = new RecordingInvoker(_ => new IsStepActiveResponse { Active = true });
+        using var client = Client(invoker);
+        var execution = new StepExecution(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2);
+
+        Assert.True(await client.IsStepActiveAsync(execution, true));
+
+        var request = Assert.IsType<IsStepActiveRequest>(Assert.Single(invoker.Requests).Request);
+        Assert.Equal(execution.ProcessInstanceId.ToString(), request.ProcessInstanceId);
+        Assert.Equal(execution.StepInstanceId.ToString(), request.StepInstanceId);
+        Assert.Equal(execution.StepDefinitionId.ToString(), request.StepDefinitionId);
+        Assert.Equal(2, request.Attempt);
+        Assert.True(request.IsCompensation);
+    }
+
     private sealed class RecordingInvoker(Func<string, object> respond) : CallInvoker
     {
         public List<(object Request, CallOptions Options)> Requests { get; } = [];
