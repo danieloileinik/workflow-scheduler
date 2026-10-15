@@ -3,6 +3,7 @@ using StackExchange.Redis;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Features.Processes;
+using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
 
 namespace WorkflowScheduler.Infrastructure.Caching;
 
@@ -10,6 +11,7 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
     : IProcessDefinitionCache
 {
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
+    private static readonly RegisterProcessDefinitionValidator Validator = new();
     private IDatabase Db => redis.GetDatabase();
 
     public async Task<ProcessDefinition?> GetAsync(Guid definitionId, CancellationToken ct = default)
@@ -21,12 +23,22 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
             if (value.IsNullOrEmpty) return null;
 
             var snapshot = JsonSerializer.Deserialize<DefinitionSnapshot>(value.ToString());
-            if (snapshot is null || snapshot.Id != definitionId || snapshot.Steps is null
+            if (snapshot is null || snapshot.Id != definitionId || snapshot.Steps is not { Count: > 0 }
                 || string.IsNullOrWhiteSpace(snapshot.Name) || snapshot.Version <= 0) return null;
+            var steps = new List<StepDefinitionDto>(snapshot.Steps.Count);
+            foreach (var step in snapshot.Steps)
+            {
+                if (step is null) return null;
+                steps.Add(new StepDefinitionDto(step.Id, step.Name, step.Type, step.Metadata,
+                    step.NextStepId, step.CompensationStepId));
+            }
+
+            if (!Validator.Validate(new RegisterProcessDefinitionCommand(snapshot.Name, snapshot.Version, steps)).IsValid)
+                return null;
             var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version)
                 { CreatedAt = snapshot.CreatedAt };
 
-            foreach (var step in snapshot.Steps)
+            foreach (var step in steps)
                 definition.AddStep(
                     new StepDefinition(
                         step.Id,
@@ -84,5 +96,5 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
         Guid? NextStepId,
         Guid? CompensationStepId);
 
-    private record DefinitionSnapshot(Guid Id, string Name, int Version, DateTime CreatedAt, List<StepSnapshot> Steps);
+    private record DefinitionSnapshot(Guid Id, string Name, int Version, DateTime CreatedAt, List<StepSnapshot?> Steps);
 }

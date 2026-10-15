@@ -9,9 +9,11 @@ namespace WorkflowScheduler.Tests.Integration;
 public class CacheTests(TestInfrastructure infrastructure)
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CompleteStep_WithMissingOrCorruptSnapshot_RefillsCacheAndAdvancesProcess(bool corrupt)
+    [InlineData("missing")]
+    [InlineData("invalid-json")]
+    [InlineData("empty-steps")]
+    [InlineData("null-step")]
+    public async Task CompleteStep_WithMissingOrCorruptSnapshot_RefillsCacheAndAdvancesProcess(string corruption)
     {
         // Arrange
         var app = await infrastructure.CreateHarnessAsync();
@@ -21,8 +23,17 @@ public class CacheTests(TestInfrastructure infrastructure)
         var process = await app.Start(definition);
         var redis = app.Services.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
         var key = $"proc-def:v2:{definition}";
-        if (corrupt) await redis.StringSetAsync(key, "{broken-json");
-        else await redis.KeyDeleteAsync(key);
+        if (corruption == "missing") await redis.KeyDeleteAsync(key);
+        else
+        {
+            var snapshot = corruption switch
+            {
+                "empty-steps" => $$"""{"Id":"{{definition}}","Name":"workflow","Version":1,"Steps":[]} """,
+                "null-step" => $$"""{"Id":"{{definition}}","Name":"workflow","Version":1,"Steps":[null]} """,
+                _ => "{broken-json"
+            };
+            await redis.StringSetAsync(key, snapshot);
+        }
 
         // Act
         var result = await app.Complete(process, first.Id);
