@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using WorkflowScheduler.Contracts;
 
 namespace WorkflowScheduler.Client;
 
@@ -74,15 +75,14 @@ public sealed class WorkflowBuilder
 
     public WorkflowBuilder Call(string service, string command, string? name = null)
     {
-        Guard.Text(service, nameof(service));
-        Guard.Text(command, nameof(command));
+        ValidateCall(service, command);
         Append(NewStep(name ?? command, WorkflowStepKind.Call, new { serviceName = service, command }));
         return this;
     }
 
     public WorkflowBuilder WaitFor(string eventName, string? name = null)
     {
-        Guard.Text(eventName, nameof(eventName), 250);
+        Guard.Text(eventName, nameof(eventName), WorkflowProtocol.MaxEventNameLength);
         Append(NewStep(name ?? eventName, WorkflowStepKind.WaitEvent, new { eventName }));
         return this;
     }
@@ -94,8 +94,7 @@ public sealed class WorkflowBuilder
             throw new InvalidOperationException("CompensateWith must follow a Call step.");
         if (_last.CompensationStepId is not null)
             throw new InvalidOperationException("This Call step already has a compensation.");
-        Guard.Text(service, nameof(service));
-        Guard.Text(command, nameof(command));
+        ValidateCall(service, command);
         var compensation = NewStep(
             name ?? command,
             WorkflowStepKind.Call,
@@ -207,6 +206,14 @@ public sealed class WorkflowBuilder
             throw new InvalidOperationException("A condition failed to build; create a new workflow builder.");
         if (_insideBranch || _definitionBranchClosed)
             throw new InvalidOperationException("Modify only the branch builder supplied to the current callback.");
+    }
+
+    private static void ValidateCall(string service, string command)
+    {
+        Guard.Text(service, nameof(service));
+        Guard.Text(command, nameof(command), WorkflowProtocol.MaxCommandLength);
+        if (!WorkflowProtocol.IsValidTopic(WorkflowProtocol.CommandTopic(service)))
+            throw new ArgumentException("Service name must form a valid Kafka command topic.", nameof(service));
     }
 
     private MutableStep NewStep(string name, WorkflowStepKind kind, object metadata)

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Grpc.Core;
 using Grpc.Net.Client;
+using WorkflowScheduler.Contracts;
 using WorkflowScheduler.Grpc;
 
 namespace WorkflowScheduler.Client;
@@ -97,6 +98,8 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         Guard.Id(idempotencyKey, nameof(idempotencyKey));
         Guard.Text(businessKey, nameof(businessKey), 512);
         var json = JsonSerializer.Serialize(input, _json);
+        if (!WorkflowProtocol.InputFitsMessage(json))
+            throw new ArgumentException("Workflow input exceeds the command message size limit.", nameof(input));
         using (var document = JsonDocument.Parse(json))
         {
             if (document.RootElement.ValueKind != JsonValueKind.Object)
@@ -125,7 +128,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
-        Guard.Text(eventName, nameof(eventName), 250);
+        Guard.Text(eventName, nameof(eventName), WorkflowProtocol.MaxEventNameLength);
         Guard.Text(correlationId, nameof(correlationId), 256);
         var request = new SendEventRequest
         {

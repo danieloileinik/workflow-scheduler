@@ -12,6 +12,9 @@ public class RegisterProcessDefinitionValidatorTests
     [InlineData("{}")]
     [InlineData("{\"command\":\"Execute\"}")]
     [InlineData("{\"serviceName\":\"billing\",\"command\":null}")]
+    [InlineData("{\"serviceName\":123,\"ServiceName\":\"billing\",\"command\":\"Execute\"}")]
+    [InlineData("{\"serviceName\":\"billing\",\"command\":\"Execute\",\"COMMAND\":\"Other\"}")]
+    [InlineData("{\"serviceName\":\"billing v2\",\"command\":\"Execute\"}")]
     public void Validate_WithInvalidCallMetadata_ReturnsValidationError(string metadata)
     {
         // Arrange
@@ -116,6 +119,23 @@ public class RegisterProcessDefinitionValidatorTests
             """{"serviceName":"billing","command":"Execute"}""",
             nextStepId,
             null);
+    }
+
+    [Theory]
+    [InlineData("serviceName", 250)]
+    [InlineData("command", 257)]
+    [InlineData("eventName", 251)]
+    public void Validate_WithUnusableMetadataLimits_ReturnsValidationError(string property, int length)
+    {
+        var metadata = new Dictionary<string, string> { ["serviceName"] = "billing", ["command"] = "Execute" };
+        metadata[property] = new string('x', length);
+        var step = CreateCallStep() with
+        {
+            Type = property == "eventName" ? StepType.WaitEvent : StepType.Call,
+            Metadata = JsonSerializer.Serialize(metadata)
+        };
+
+        Assert.False(new RegisterProcessDefinitionValidator().Validate(CreateDefinition(step)).IsValid);
     }
 
     private static StepDefinitionDto CreateConditionStep(Guid id, Guid nextStepId)
