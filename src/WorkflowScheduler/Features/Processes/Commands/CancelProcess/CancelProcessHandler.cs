@@ -6,7 +6,7 @@ using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 
-public class CancelProcessHandler(AppDbContext db, SagaCoordinator saga)
+public class CancelProcessHandler(AppDbContext db, CachedProcessDefinitionProvider definitions, SagaCoordinator saga)
     : IRequestHandler<CancelProcessCommand, ErrorOr<Success>>
 {
     public async Task<ErrorOr<Success>> Handle(CancelProcessCommand request, CancellationToken ct)
@@ -26,10 +26,7 @@ public class CancelProcessHandler(AppDbContext db, SagaCoordinator saga)
             if (cancel.IsError) return cancel;
         }
 
-        var definition = await db
-            .ProcessDefinitions
-            .Include(x => x.Steps)
-            .FirstOrDefaultAsync(x => x.Id == instance.DefinitionId, ct);
+        var definition = await definitions.GetOrLoadAsync(instance.DefinitionId, ct);
         if (definition is null) return ProcessErrors.DefinitionNotFound;
         return await saga.ScheduleAsync(instance, definition, ct);
     }

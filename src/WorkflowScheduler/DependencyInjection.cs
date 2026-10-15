@@ -38,6 +38,7 @@ public static class DependencyInjection
 
         private IServiceCollection AddWorkflowApplication()
         {
+            services.AddScoped<CachedProcessDefinitionProvider>();
             services.AddScoped<SagaCoordinator>();
 
             services.AddScoped<IStepStrategy, CallStepStrategy>();

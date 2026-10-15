@@ -2,12 +2,13 @@ using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
+using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Features.Steps.Strategies;
 using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Features.Steps.Commands.RetrySteps;
 
-public class RetryStepsHandler(AppDbContext db, StepExecutor executor)
+public class RetryStepsHandler(AppDbContext db, CachedProcessDefinitionProvider definitions, StepExecutor executor)
     : IRequestHandler<RetryStepsCommand, ErrorOr<Success>>
 {
     public async Task<ErrorOr<Success>> Handle(RetryStepsCommand request, CancellationToken ct)
@@ -23,10 +24,7 @@ public class RetryStepsHandler(AppDbContext db, StepExecutor executor)
                         && x.NextRetryAt <= DateTime.UtcNow)
             .ToList();
         if (due.Count == 0) return Result.Success;
-        var definition = await db
-            .ProcessDefinitions
-            .Include(x => x.Steps)
-            .FirstOrDefaultAsync(x => x.Id == instance.DefinitionId, ct);
+        var definition = await definitions.GetOrLoadAsync(instance.DefinitionId, ct);
         if (definition is null) return ProcessErrors.DefinitionNotFound;
         foreach (var step in due)
         {
