@@ -37,6 +37,8 @@ public interface IWorkflowSchedulerClient
 
     Task CancelAsync(Guid processInstanceId, CancellationToken cancellationToken = default);
     Task<WorkflowProcessSnapshot> GetStatusAsync(Guid processInstanceId, CancellationToken cancellationToken = default);
+    Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId, int offset = 0, int pageSize = 100,
+        bool includeOutputs = false, CancellationToken cancellationToken = default);
     Task<bool> IsStepActiveAsync(StepExecution execution, bool isCompensation = false,
         CancellationToken cancellationToken = default);
 }

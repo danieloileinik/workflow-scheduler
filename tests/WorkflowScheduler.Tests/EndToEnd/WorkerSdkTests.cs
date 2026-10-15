@@ -231,6 +231,12 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
             .Where(instance => instance.Id == process).Select(instance => instance.Status).SingleAsync()));
         var tooLarge = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetStatusAsync(process));
         Assert.Equal(StatusCode.ResourceExhausted, tooLarge.StatusCode);
+        var page = await client.GetStatusPageAsync(process);
+        Assert.Equal(5, page.TotalStepCount);
+        Assert.Equal(5, page.StepHistory.Count);
+        Assert.All(page.StepHistory, step => Assert.Null(step.OutputData));
+        var outputPage = await client.GetStatusPageAsync(process, pageSize: 1, includeOutputs: true);
+        Assert.Equal(output, outputPage.StepHistory.Single().ReadOutput<string>());
     }
 
     public sealed record Output(int OrderId, string Command);
@@ -308,5 +314,9 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
 
         public Task<RegisteredWorkflow> GetDefinitionAsync(string name, int version,
             CancellationToken cancellationToken = default) => inner.GetDefinitionAsync(name, version, cancellationToken);
+
+        public Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId, int offset = 0, int pageSize = 100,
+            bool includeOutputs = false, CancellationToken cancellationToken = default) =>
+            inner.GetStatusPageAsync(processInstanceId, offset, pageSize, includeOutputs, cancellationToken);
     }
 }

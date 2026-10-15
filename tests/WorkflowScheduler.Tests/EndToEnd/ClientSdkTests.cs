@@ -119,4 +119,38 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         var missing = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetDefinitionAsync(definition.Name, 4));
         Assert.Equal(StatusCode.NotFound, missing.StatusCode);
     }
+
+    [Fact]
+    public async Task HistoryPages_PreserveOrderAndExposeTotalWithoutLoadingOutputsByDefault()
+    {
+        await using var app = await infrastructure.CreateGrpcAppAsync();
+        app.StartServer();
+        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        var workflow = Workflow.Define("paged-history-" + Guid.NewGuid());
+        for (var index = 0; index < 5; index++) workflow.WaitFor("Approved");
+        var definition = await client.RegisterAsync(workflow.Build());
+        var process = await client.StartAsync(definition, new { }, "order", Guid.NewGuid());
+        for (var index = 0; index < 4; index++)
+            await client.SendEventAsync(process, "Approved", new { index }, "approval-" + index);
+
+        var first = await client.GetStatusPageAsync(process, pageSize: 2);
+        var second = await client.GetStatusPageAsync(process, offset: 2, pageSize: 2);
+        var last = await client.GetStatusPageAsync(process, offset: 4, pageSize: 2);
+        var full = await client.GetStatusAsync(process);
+
+        Assert.Equal(5, first.TotalStepCount);
+        Assert.Equal(0, first.HistoryOffset);
+        Assert.Equal(2, second.HistoryOffset);
+        Assert.Equal(4, last.HistoryOffset);
+        Assert.Equal(full.StepHistory.Select(step => step.Id),
+            first.StepHistory.Concat(second.StepHistory).Concat(last.StepHistory).Select(step => step.Id));
+        Assert.All(first.StepHistory, step => Assert.Null(step.OutputData));
+        var withOutputs = await client.GetStatusPageAsync(process, pageSize: 2, includeOutputs: true);
+        Assert.All(withOutputs.StepHistory, step => Assert.NotNull(step.OutputData));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => client.GetStatusPageAsync(process, pageSize: 101));
+        var invalid = await Assert.ThrowsAsync<RpcException>(() => app.Client.GetProcessStatusAsync(
+            new WorkflowScheduler.Grpc.GetProcessStatusRequest { ProcessInstanceId = process.ToString(), HistoryPageSize = 101 })
+            .ResponseAsync);
+        Assert.Equal(StatusCode.InvalidArgument, invalid.StatusCode);
+    }
 }

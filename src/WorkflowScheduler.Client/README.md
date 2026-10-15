@@ -60,6 +60,11 @@ customize `JsonSerializerOptions` before creating the client. Event/output paylo
 status snapshot, and `ReadOutput<T>()` reads a JSON output. The package does not consume Kafka or execute domain
 commands.
 
+For growing histories, use `GetStatusPageAsync(processId, offset: 0, pageSize: 100)` (page size 1..100).
+The snapshot includes `TotalStepCount` and `HistoryOffset`; outputs are omitted by default. Request individual output
+pages with `includeOutputs: true` and a suitable page size. The original `GetStatusAsync` retains its full-history
+behavior for compatibility; full or output-heavy responses may require a larger gRPC receive limit in `ChannelOptions`.
+
 `WorkflowClientException` preserves `StatusCode`, `Detail`, trailers and the original `RpcException`. Caller
 cancellation
 throws `OperationCanceledException`; deadline expiration remains a `DeadlineExceeded` client exception.

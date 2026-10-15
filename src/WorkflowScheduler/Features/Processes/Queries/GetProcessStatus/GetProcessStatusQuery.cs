@@ -3,7 +3,8 @@ using WorkflowScheduler.Common.Abstractions;
 
 namespace WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
 
-public record GetProcessStatusQuery(Guid ProcessInstanceId)
+public record GetProcessStatusQuery(Guid ProcessInstanceId, int HistoryOffset = 0, int HistoryPageSize = 0,
+    bool OmitOutputData = false)
     : IRequest<GetProcessStatusResponse?>, IQuery;
 
 public record GetProcessStatusResponse(
@@ -14,7 +15,9 @@ public record GetProcessStatusResponse(
     Guid? CurrentStepId,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    IReadOnlyList<StepHistoryDto> StepHistory);
+    IReadOnlyList<StepHistoryDto> StepHistory,
+    int TotalStepCount = 0,
+    int HistoryOffset = 0);
 
 public record StepHistoryDto(
     Guid Id,

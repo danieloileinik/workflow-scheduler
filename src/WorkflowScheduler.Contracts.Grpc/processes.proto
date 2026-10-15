@@ -92,6 +92,9 @@ message CancelProcessResponse {
 
 message GetProcessStatusRequest {
   string process_instance_id = 1;
+  int32 history_offset = 2;
+  int32 history_page_size = 3;
+  bool omit_output_data = 4;
 }
 
 message IsStepActiveRequest {
@@ -126,4 +129,6 @@ message GetProcessStatusResponse {
   string created_at = 6;
   string updated_at = 7;
   repeated StepHistoryEntry step_history = 8;
+  int32 total_step_count = 9;
+  int32 history_offset = 10;
 }
