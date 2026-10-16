@@ -11,6 +11,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -20,9 +22,58 @@ jobs:
         run: dotnet build WorkflowScheduler.slnx --no-restore --configuration Release --warnaserror
       - name: Run all tests with PostgreSQL, Redis and Kafka
         run: dotnet test WorkflowScheduler.slnx --no-build --configuration Release --logger 'trx;LogFileName=tests.trx' --collect:'XPlat Code Coverage' --settings coverage.runsettings
+      - name: Generate test summary
+        env:
+          TEST_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TEST_COMMIT: ${{ github.sha }}
+          TEST_REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: python3 scripts/update-test-summary.py
+      - name: Upload generated README
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-readme
+          path: README.md
       - name: Upload test results and coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: tests/**/TestResults/**
+  publish-coverage:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.forced == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-readme
+          path: ${{ runner.temp }}/coverage-readme
+      - name: Update README coverage
+        env:
+          COVERAGE_README: ${{ runner.temp }}/coverage-readme/README.md
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo 'main has advanced; the newer run will publish its coverage.'
+            exit 0
+          fi
+          cp "$COVERAGE_README" README.md
+          if git diff --quiet -- README.md; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md
+          git commit -m 'docs: update test coverage'
+          if ! git push origin HEAD:main; then
+            git fetch origin main
+            if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+              echo 'main advanced during publication; keeping the newer commit.'
+              exit 0
+            fi
+            exit 1
+          fi
+
