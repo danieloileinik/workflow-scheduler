@@ -185,11 +185,11 @@ See [reliability details](docs/reliability.md) for dispatch leases, backoff, qua
 ## Testing
 
 <!-- test-summary:start -->
-**239 tests passed** · **95.50% line coverage** (2186/2289) · **83.47% branch coverage** (727/871).
+**239 tests passed** · **95.50% line coverage** (2186/2289) · **83.35% branch coverage** (726/871).
 Unit: **163** · Integration: **57** · E2E: **19**.
 
 Combined coverage of Scheduler, Client SDK and Worker SDK; generated `obj` files are excluded.
-Measured by [CI](https://github.com/danieloileinik/workflow-scheduler/actions/runs/38822240589).
+Measured by [CI](https://github.com/danieloileinik/workflow-scheduler/actions/runs/38874073159).
 <!-- test-summary:end -->
 
 | Layer | What is tested |
