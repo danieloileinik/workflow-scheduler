@@ -1,6 +1,6 @@
-namespace WorkflowScheduler.Contracts.Events;
+namespace WorkflowScheduler.Contracts.Grpc;
 
-public sealed record StepCommandEvent(
+public sealed record ExecuteStepCommand(
     Guid ProcessInstanceId,
     Guid StepDefinitionId,
     Guid StepInstanceId,

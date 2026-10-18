@@ -4,7 +4,7 @@ using Grpc.Core;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using WorkflowScheduler.Client;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Tests.Support;
 using WorkflowScheduler.Worker;
 
@@ -454,9 +454,9 @@ public class WorkflowWorkerTests
         options.MaxDeliveryAttempts = 3;
     }
 
-    private static StepCommandEvent Command()
+    private static ExecuteStepCommand Command()
     {
-        return new StepCommandEvent(
+        return new ExecuteStepCommand(
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
@@ -465,7 +465,7 @@ public class WorkflowWorkerTests
             "envelope-correlation");
     }
 
-    private static IWorkflowSchedulerClient Client(StepCommandEvent command)
+    private static IWorkflowSchedulerClient Client(ExecuteStepCommand command)
     {
         var client = Substitute.For<IWorkflowSchedulerClient>();
         client

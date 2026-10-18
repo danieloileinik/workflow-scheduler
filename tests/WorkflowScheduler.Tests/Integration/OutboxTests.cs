@@ -1,5 +1,5 @@
 using System.Text.Json;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
 using WorkflowScheduler.Tests.Support;
 
@@ -30,7 +30,7 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Equal(2048, error!.Length);
         Assert.Single(app.Publisher.Messages);
         Assert.Equal(process.ToString(), app.Publisher.Messages[0].Key);
-        var command = JsonSerializer.Deserialize<StepCommandEvent>(app.Publisher.Messages[0].Payload);
+        var command = JsonSerializer.Deserialize<ExecuteStepCommand>(app.Publisher.Messages[0].Payload);
         Assert.Equal(process, command!.ProcessInstanceId);
         Assert.Equal(command.StepInstanceId.ToString(), command.CorrelationId);
         Assert.Equal(0, command.Attempt);

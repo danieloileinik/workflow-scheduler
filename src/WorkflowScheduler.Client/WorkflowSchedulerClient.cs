@@ -2,14 +2,24 @@ using System.Globalization;
 using System.Text.Json;
 using Grpc.Core;
 using Grpc.Net.Client;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Grpc;
+using CancelProcessGrpcClient = WorkflowScheduler.Grpc.CancelProcessService.CancelProcessServiceClient;
+using CompleteStepGrpcClient = WorkflowScheduler.Grpc.CompleteStepService.CompleteStepServiceClient;
+using GetProcessDefinitionGrpcClient =
+    WorkflowScheduler.Grpc.GetProcessDefinitionService.GetProcessDefinitionServiceClient;
+using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceClient;
+using IsStepActiveGrpcClient = WorkflowScheduler.Grpc.IsStepActiveService.IsStepActiveServiceClient;
+using RegisterProcessDefinitionGrpcClient =
+    WorkflowScheduler.Grpc.RegisterProcessDefinitionService.RegisterProcessDefinitionServiceClient;
+using SendEventGrpcClient = WorkflowScheduler.Grpc.SendEventService.SendEventServiceClient;
+using StartProcessGrpcClient = WorkflowScheduler.Grpc.StartProcessService.StartProcessServiceClient;
 
 namespace WorkflowScheduler.Client;
 
 public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposable
 {
-    private readonly Processes.ProcessesClient _grpc;
+    private readonly CallInvoker _callInvoker;
     private readonly Func<Metadata>? _headers;
     private readonly JsonSerializerOptions _json;
     private readonly GrpcChannel? _ownedChannel;
@@ -25,16 +35,16 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         _ownedChannel = options.ChannelOptions is null
             ? GrpcChannel.ForAddress(options.Address!)
             : GrpcChannel.ForAddress(options.Address!, options.ChannelOptions);
-        _grpc = new Processes.ProcessesClient(_ownedChannel);
+        _callInvoker = _ownedChannel.CreateCallInvoker();
     }
 
-    /// <summary>Uses a caller-owned gRPC client/channel, allowing custom interceptors and transport configuration.</summary>
-    public WorkflowSchedulerClient(Processes.ProcessesClient grpc, WorkflowClientOptions? options = null)
+    /// <summary>Uses a caller-owned gRPC call invoker, allowing custom interceptors and transport configuration.</summary>
+    public WorkflowSchedulerClient(CallInvoker callInvoker, WorkflowClientOptions? options = null)
     {
-        ArgumentNullException.ThrowIfNull(grpc);
+        ArgumentNullException.ThrowIfNull(callInvoker);
         options ??= new WorkflowClientOptions();
         ValidateOptions(options, false);
-        _grpc = grpc;
+        _callInvoker = callInvoker;
         _json = CopyJsonOptions(options.JsonSerializerOptions);
         _timeout = options.RequestTimeout;
         _headers = options.HeadersFactory;
@@ -71,7 +81,10 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             nameof(RegisterAsync),
             async options =>
             {
-                using var call = _grpc.RegisterProcessDefinitionAsync(request, options);
+                using var call =
+                    new RegisterProcessDefinitionGrpcClient(_callInvoker).RegisterProcessDefinitionAsync(
+                        request,
+                        options);
                 var response = await call.ResponseAsync.ConfigureAwait(false);
                 return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), definition.Name, definition.Version);
             },
@@ -99,7 +112,8 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             nameof(GetDefinitionAsync),
             async options =>
             {
-                using var call = _grpc.GetProcessDefinitionAsync(request, options);
+                using var call =
+                    new GetProcessDefinitionGrpcClient(_callInvoker).GetProcessDefinitionAsync(request, options);
                 var response = await call.ResponseAsync.ConfigureAwait(false);
                 return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), name, version);
             },
@@ -133,7 +147,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             nameof(StartAsync),
             async options =>
             {
-                using var call = _grpc.StartProcessAsync(request, options);
+                using var call = new StartProcessGrpcClient(_callInvoker).StartProcessAsync(request, options);
                 return Guid.Parse((await call.ResponseAsync.ConfigureAwait(false)).ProcessInstanceId);
             },
             cancellationToken);
@@ -157,7 +171,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             nameof(SendEventAsync),
             async options =>
             {
-                using var call = _grpc.SendEventAsync(request, options);
+                using var call = new SendEventGrpcClient(_callInvoker).SendEventAsync(request, options);
                 await call.ResponseAsync.ConfigureAwait(false);
                 return true;
             },
@@ -188,7 +202,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             nameof(CancelAsync),
             async options =>
             {
-                using var call = _grpc.CancelProcessAsync(
+                using var call = new CancelProcessGrpcClient(_callInvoker).CancelProcessAsync(
                     new CancelProcessRequest
                         { ProcessInstanceId = processInstanceId.ToString() },
                     options);
@@ -244,7 +258,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             nameof(IsStepActiveAsync),
             async options =>
             {
-                using var call = _grpc.IsStepActiveAsync(request, options);
+                using var call = new IsStepActiveGrpcClient(_callInvoker).IsStepActiveAsync(request, options);
                 return (await call.ResponseAsync.ConfigureAwait(false)).Active;
             },
             cancellationToken);
@@ -258,7 +272,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             operation,
             async options =>
             {
-                using var call = _grpc.GetProcessStatusAsync(request, options);
+                using var call = new GetProcessStatusGrpcClient(_callInvoker).GetProcessStatusAsync(request, options);
                 var response = await call.ResponseAsync.ConfigureAwait(false);
                 var history = response
                     .StepHistory
@@ -327,7 +341,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             success ? nameof(CompleteStepAsync) : nameof(FailStepAsync),
             async options =>
             {
-                using var call = _grpc.CompleteStepAsync(request, options);
+                using var call = new CompleteStepGrpcClient(_callInvoker).CompleteStepAsync(request, options);
                 await call.ResponseAsync.ConfigureAwait(false);
                 return true;
             },

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace WorkflowScheduler.Contracts;
+namespace WorkflowScheduler.Contracts.Grpc;
 
 public static class WorkflowProtocol
 {

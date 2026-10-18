@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service StartProcessService {
+  rpc StartProcess (StartProcessRequest) returns (StartProcessResponse);
+}
+
+message StartProcessRequest {
+  string definition_id = 1;
+  string business_key = 2;
+  string input_data = 3;
+  string idempotency_key = 4;
+}
+
+message StartProcessResponse {
+  string process_instance_id = 1;
+}

@@ -3,7 +3,7 @@ using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WorkflowScheduler.Client;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Worker;
 
@@ -17,9 +17,9 @@ internal sealed class WorkflowMessageProcessor(
     private readonly WorkflowWorkerOptions _options = registration.Options;
     private readonly WorkerRetry _retry = new(registration.Options, logger);
 
-    public static StepCommandEvent ReadCommand(string? payload, string? key)
+    public static ExecuteStepCommand ReadCommand(string? payload, string? key)
     {
-        var command = JsonSerializer.Deserialize<StepCommandEvent>(payload ?? "null", EnvelopeJson);
+        var command = JsonSerializer.Deserialize<ExecuteStepCommand>(payload ?? "null", EnvelopeJson);
         if (command is null || command.ProcessInstanceId == Guid.Empty || command.StepDefinitionId == Guid.Empty
             || command.StepInstanceId == Guid.Empty || command.Attempt < 0 || string.IsNullOrWhiteSpace(command.Command)
             || string.IsNullOrWhiteSpace(command.CorrelationId) || command.CorrelationId.Length > 256
@@ -28,7 +28,7 @@ internal sealed class WorkflowMessageProcessor(
         return command;
     }
 
-    public async Task ProcessAsync(StepCommandEvent command, CancellationToken ct)
+    public async Task ProcessAsync(ExecuteStepCommand command, CancellationToken ct)
     {
         if (!await IsActiveAsync(command, ct))
         {
@@ -117,7 +117,7 @@ internal sealed class WorkflowMessageProcessor(
             ct);
     }
 
-    private async Task<bool> IsActiveAsync(StepCommandEvent command, CancellationToken ct)
+    private async Task<bool> IsActiveAsync(ExecuteStepCommand command, CancellationToken ct)
     {
         try
         {

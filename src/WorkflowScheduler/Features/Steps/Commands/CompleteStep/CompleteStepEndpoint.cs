@@ -2,18 +2,15 @@ using ErrorOr;
 using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
-using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
+using GrpcServiceBase = WorkflowScheduler.Grpc.CompleteStepService.CompleteStepServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.CompleteStepRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.CompleteStepResponse;
 
-namespace WorkflowScheduler.Features.Steps.Endpoints;
+namespace WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 
-public static class CompleteStepEndpoint
+public sealed class CompleteStepEndpoint(IMediator mediator) : GrpcServiceBase
 {
-    public static async Task<GrpcResponse> HandleAsync(
-        GrpcRequest request,
-        ServerCallContext context,
-        IMediator mediator)
+    public override async Task<GrpcResponse> CompleteStep(GrpcRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.ProcessInstanceId, out var instanceId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid process instance id"));

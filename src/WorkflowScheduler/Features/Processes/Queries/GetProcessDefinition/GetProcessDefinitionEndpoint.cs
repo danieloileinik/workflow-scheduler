@@ -1,10 +1,11 @@
-using WorkflowScheduler.Features.Processes.Queries.GetProcessDefinition;
+using MediatR;
+using GrpcServiceBase = WorkflowScheduler.Grpc.GetProcessDefinitionService.GetProcessDefinitionServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.GetProcessDefinitionRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.GetProcessDefinitionResponse;
 
-namespace WorkflowScheduler.Features.Processes.Endpoints;
+namespace WorkflowScheduler.Features.Processes.Queries.GetProcessDefinition;
 
-public partial class ProcessService
+public sealed class GetProcessDefinitionEndpoint(IMediator mediator) : GrpcServiceBase
 {
     public override async Task<GrpcResponse> GetProcessDefinition(GrpcRequest request, ServerCallContext context)
     {

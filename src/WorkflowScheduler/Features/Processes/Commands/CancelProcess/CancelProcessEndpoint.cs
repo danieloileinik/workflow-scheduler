@@ -1,12 +1,13 @@
 using FluentValidation;
+using MediatR;
 using WorkflowScheduler.Common;
-using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
+using GrpcServiceBase = WorkflowScheduler.Grpc.CancelProcessService.CancelProcessServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.CancelProcessRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.CancelProcessResponse;
 
-namespace WorkflowScheduler.Features.Processes.Endpoints;
+namespace WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 
-public partial class ProcessService
+public sealed class CancelProcessEndpoint(IMediator mediator) : GrpcServiceBase
 {
     public override async Task<GrpcResponse> CancelProcess(GrpcRequest request, ServerCallContext context)
     {

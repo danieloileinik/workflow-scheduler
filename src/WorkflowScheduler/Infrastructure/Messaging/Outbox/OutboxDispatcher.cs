@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Infrastructure.Persistence;
 
@@ -23,13 +23,13 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
 
         try
         {
-            var commands = new Dictionary<Guid, StepCommandEvent>();
+            var commands = new Dictionary<Guid, ExecuteStepCommand>();
             foreach (var message in pending)
                 try
                 {
                     commands.Add(
                         message.Id,
-                        JsonSerializer.Deserialize<StepCommandEvent>(message.Payload)
+                        JsonSerializer.Deserialize<ExecuteStepCommand>(message.Payload)
                         ?? throw new JsonException("Outbox command is null"));
                 }
                 catch (JsonException ex)

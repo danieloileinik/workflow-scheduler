@@ -13,8 +13,8 @@ namespace WorkflowScheduler.Tests.Support;
 internal sealed class GrpcApp : WebApplicationFactory<Program>
 {
     private readonly TestInfrastructure _infrastructure;
+    private CallInvoker? _callInvoker;
     private GrpcChannel? _channel;
-    private Processes.ProcessesClient? _client;
     private HttpClient? _httpClient;
 
     public GrpcApp(TestInfrastructure infrastructure)
@@ -26,7 +26,7 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
             endpoint => endpoint.Protocols = HttpProtocols.Http2));
     }
 
-    public Processes.ProcessesClient Client
+    public CallInvoker CallInvoker
     {
         get
         {
@@ -41,7 +41,7 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
             _channel ??= GrpcChannel.ForAddress(
                 _httpClient.BaseAddress!,
                 new GrpcChannelOptions { HttpClient = _httpClient });
-            return _client ??= new Processes.ProcessesClient(_channel.Intercept(new RpcDeadlineInterceptor()));
+            return _callInvoker ??= _channel.Intercept(new RpcDeadlineInterceptor());
         }
     }
 

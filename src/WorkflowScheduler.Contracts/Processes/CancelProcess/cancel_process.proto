@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service CancelProcessService {
+  rpc CancelProcess (CancelProcessRequest) returns (CancelProcessResponse);
+}
+
+message CancelProcessRequest {
+  string process_instance_id = 1;
+}
+
+message CancelProcessResponse {
+}

@@ -1,8 +1,9 @@
 using Grpc.Core;
 using WorkflowScheduler.Client;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Grpc;
 using WorkflowScheduler.Tests.Support;
+using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceClient;
 
 namespace WorkflowScheduler.Tests.EndToEnd;
 
@@ -92,7 +93,7 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         Assert.Equal(StatusCode.FailedPrecondition, late.StatusCode);
     }
 
-    private static StepExecution Execution(StepCommandEvent command)
+    private static StepExecution Execution(ExecuteStepCommand command)
     {
         return new StepExecution(
             command.ProcessInstanceId,
@@ -153,9 +154,10 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         var withOutputs = await client.GetStatusPageAsync(process, pageSize: 2, includeOutputs: true);
         Assert.All(withOutputs.StepHistory, step => Assert.NotNull(step.OutputData));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => client.GetStatusPageAsync(process, pageSize: 101));
-        var invalid = await Assert.ThrowsAsync<RpcException>(() => app.Client.GetProcessStatusAsync(
-                new GetProcessStatusRequest { ProcessInstanceId = process.ToString(), HistoryPageSize = 101 })
-            .ResponseAsync);
+        var invalid = await Assert.ThrowsAsync<RpcException>(() =>
+            new GetProcessStatusGrpcClient(app.CallInvoker).GetProcessStatusAsync(
+                    new GetProcessStatusRequest { ProcessInstanceId = process.ToString(), HistoryPageSize = 101 })
+                .ResponseAsync);
         Assert.Equal(StatusCode.InvalidArgument, invalid.StatusCode);
     }
 }

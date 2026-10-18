@@ -1,6 +1,6 @@
 using System.Text.Json;
 using FluentValidation;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Features.Processes.Commands.StartProcess;
 

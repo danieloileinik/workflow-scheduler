@@ -1,14 +1,15 @@
 using FluentValidation;
+using MediatR;
 using WorkflowScheduler.Common;
 using WorkflowScheduler.Domain.Steps;
-using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
+using GrpcServiceBase = WorkflowScheduler.Grpc.RegisterProcessDefinitionService.RegisterProcessDefinitionServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.RegisterProcessDefinitionRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.RegisterProcessDefinitionResponse;
 using GrpcStepTypeMessage = WorkflowScheduler.Grpc.StepTypeMessage;
 
-namespace WorkflowScheduler.Features.Processes.Endpoints;
+namespace WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
 
-public partial class ProcessService
+public sealed class RegisterProcessDefinitionEndpoint(IMediator mediator) : GrpcServiceBase
 {
     public override async Task<GrpcResponse> RegisterProcessDefinition(GrpcRequest request, ServerCallContext context)
     {

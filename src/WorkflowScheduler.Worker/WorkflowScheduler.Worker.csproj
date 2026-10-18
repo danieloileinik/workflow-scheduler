@@ -14,7 +14,7 @@
         <PackageReference Include="Confluent.Kafka" Version="2.6.1"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8"/>
         <ProjectReference Include="../WorkflowScheduler.Client/WorkflowScheduler.Client.csproj"/>
-        <ProjectReference Include="../WorkflowScheduler.Contracts.Grpc/WorkflowScheduler.Contracts.Grpc.csproj"/>
+        <ProjectReference Include="..\WorkflowScheduler.Contracts\WorkflowScheduler.Contracts.csproj"/>
         <InternalsVisibleTo Include="WorkflowScheduler.Tests"/>
         <None Include="README.md" Pack="true" PackagePath="/"/>
     </ItemGroup>

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Worker;
 
 namespace WorkflowScheduler.Tests.Unit;

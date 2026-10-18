@@ -1,6 +1,6 @@
 <Solution>
     <Project Path="../../src/WorkflowScheduler/WorkflowScheduler.csproj"/>
-    <Project Path="../../src/WorkflowScheduler.Contracts.Grpc/WorkflowScheduler.Contracts.Grpc.csproj"/>
+    <Project Path="../../src/WorkflowScheduler.Contracts/WorkflowScheduler.Contracts.csproj"/>
     <Project Path="../../src/WorkflowScheduler.Client/WorkflowScheduler.Client.csproj"/>
     <Project Path="../../src/WorkflowScheduler.Worker/WorkflowScheduler.Worker.csproj"/>
     <Project Path="OrderDemo.Contracts/OrderDemo.Contracts.csproj"/>

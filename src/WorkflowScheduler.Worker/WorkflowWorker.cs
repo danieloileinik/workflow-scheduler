@@ -2,7 +2,7 @@ using System.Text.Json;
 using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Worker;
 
@@ -42,7 +42,7 @@ internal sealed class WorkflowWorker(
                 }
 
                 if (record.IsPartitionEOF) continue;
-                StepCommandEvent? command = null;
+                ExecuteStepCommand? command = null;
                 string? malformed = null;
                 try
                 {

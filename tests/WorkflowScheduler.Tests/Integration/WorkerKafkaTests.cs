@@ -3,7 +3,7 @@ using Confluent.Kafka;
 using Grpc.Core;
 using NSubstitute;
 using WorkflowScheduler.Client;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Tests.Support;
 using WorkflowScheduler.Worker;
 
@@ -200,9 +200,9 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 Arg.Any<CancellationToken>());
     }
 
-    private static StepCommandEvent Command()
+    private static ExecuteStepCommand Command()
     {
-        return new StepCommandEvent(
+        return new ExecuteStepCommand(
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
@@ -211,7 +211,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
             "broker-correlation");
     }
 
-    private static IWorkflowSchedulerClient Client(StepCommandEvent command)
+    private static IWorkflowSchedulerClient Client(ExecuteStepCommand command)
     {
         var client = Substitute.For<IWorkflowSchedulerClient>();
         client

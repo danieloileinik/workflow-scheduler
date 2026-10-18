@@ -1,5 +1,12 @@
+using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
+using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
+using WorkflowScheduler.Features.Processes.Commands.SendEvent;
+using WorkflowScheduler.Features.Processes.Commands.StartProcess;
+using WorkflowScheduler.Features.Processes.Queries.GetProcessDefinition;
+using WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
+using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
+using WorkflowScheduler.Features.Steps.Queries.IsStepActive;
 using WorkflowScheduler.Infrastructure.Persistence;
-using ProcessService = WorkflowScheduler.Features.Processes.Endpoints.ProcessService;
 
 namespace WorkflowScheduler;
 
@@ -19,7 +26,14 @@ public class Program
             return;
         }
 
-        app.MapGrpcService<ProcessService>();
+        app.MapGrpcService<RegisterProcessDefinitionEndpoint>();
+        app.MapGrpcService<GetProcessDefinitionEndpoint>();
+        app.MapGrpcService<StartProcessEndpoint>();
+        app.MapGrpcService<CompleteStepEndpoint>();
+        app.MapGrpcService<SendEventEndpoint>();
+        app.MapGrpcService<CancelProcessEndpoint>();
+        app.MapGrpcService<GetProcessStatusEndpoint>();
+        app.MapGrpcService<IsStepActiveEndpoint>();
         await app.RunAsync();
     }
 }

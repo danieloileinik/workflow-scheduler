@@ -1,12 +1,13 @@
 using FluentValidation;
+using MediatR;
 using WorkflowScheduler.Common;
-using WorkflowScheduler.Features.Processes.Commands.StartProcess;
+using GrpcServiceBase = WorkflowScheduler.Grpc.StartProcessService.StartProcessServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.StartProcessRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.StartProcessResponse;
 
-namespace WorkflowScheduler.Features.Processes.Endpoints;
+namespace WorkflowScheduler.Features.Processes.Commands.StartProcess;
 
-public partial class ProcessService
+public sealed class StartProcessEndpoint(IMediator mediator) : GrpcServiceBase
 {
     public override async Task<GrpcResponse> StartProcess(GrpcRequest request, ServerCallContext context)
     {

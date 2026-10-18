@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service CompleteStepService {
+  rpc CompleteStep (CompleteStepRequest) returns (CompleteStepResponse);
+}
+
+message CompleteStepRequest {
+  string process_instance_id = 1;
+  string step_definition_id = 2;
+  bool success = 3;
+  string output_data = 4;
+  string correlation_id = 5;
+  string step_instance_id = 6;
+  int32 attempt = 7;
+}
+
+message CompleteStepResponse {
+}

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service IsStepActiveService {
+  rpc IsStepActive (IsStepActiveRequest) returns (IsStepActiveResponse);
+}
+
+message IsStepActiveRequest {
+  string process_instance_id = 1;
+  string step_definition_id = 2;
+  string step_instance_id = 3;
+  int32 attempt = 4;
+  bool is_compensation = 5;
+}
+
+message IsStepActiveResponse {
+  bool active = 1;
+}

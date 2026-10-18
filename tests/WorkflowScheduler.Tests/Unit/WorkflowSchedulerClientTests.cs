@@ -235,7 +235,7 @@ public class WorkflowSchedulerClientTests
 
     private static WorkflowSchedulerClient Client(RecordingInvoker invoker, WorkflowClientOptions? options = null)
     {
-        return new WorkflowSchedulerClient(new Processes.ProcessesClient(invoker), options);
+        return new WorkflowSchedulerClient(invoker, options);
     }
 
     [Fact]

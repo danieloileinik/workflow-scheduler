@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Grpc.Core;
 using WorkflowScheduler.Client;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Tests.Support;
 using WorkflowScheduler.Worker;
 
@@ -47,7 +47,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
             "Worker finished Charge and process is waiting for Approved");
         var first = Assert.Single(handled).Context;
         await worker.PublishAsync(
-            new StepCommandEvent(
+            new ExecuteStepCommand(
                 process,
                 first.Execution.StepDefinitionId,
                 first.Execution.StepInstanceId,

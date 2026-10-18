@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using FluentValidation;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Domain.Steps;
 
 namespace WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Worker;
 

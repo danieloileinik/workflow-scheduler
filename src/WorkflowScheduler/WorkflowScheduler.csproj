@@ -20,7 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\WorkflowScheduler.Contracts.Grpc\WorkflowScheduler.Contracts.Grpc.csproj"/>
+        <ProjectReference Include="..\WorkflowScheduler.Contracts\WorkflowScheduler.Contracts.csproj"/>
         <EmbeddedResource Include="../../database/001_outbox_delivery.sql"
                           LogicalName="WorkflowScheduler.Database.OutboxDelivery.sql"/>
     </ItemGroup>

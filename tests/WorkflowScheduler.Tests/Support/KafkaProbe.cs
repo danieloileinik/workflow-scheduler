@@ -1,12 +1,12 @@
 using System.Text.Json;
 using Confluent.Kafka;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Tests.Support;
 
 internal sealed class KafkaProbe : IDisposable
 {
-    private readonly List<(string Topic, string Key, StepCommandEvent Command)> _buffer = [];
+    private readonly List<(string Topic, string Key, ExecuteStepCommand Command)> _buffer = [];
     private readonly IConsumer<string, string> _consumer;
     private readonly Dictionary<TopicPartition, Offset> _nextOffsets = new();
 
@@ -50,7 +50,7 @@ internal sealed class KafkaProbe : IDisposable
         _consumer.Dispose();
     }
 
-    public async Task<StepCommandEvent> ReadAsync(string service, Guid processId)
+    public async Task<ExecuteStepCommand> ReadAsync(string service, Guid processId)
     {
         var topic = $"process.commands.{service}";
         var buffered =
@@ -72,7 +72,7 @@ internal sealed class KafkaProbe : IDisposable
                     {
                         var record = _consumer.Consume(timeout.Token);
                         _nextOffsets[record.TopicPartition] = record.Offset + 1;
-                        var command = JsonSerializer.Deserialize<StepCommandEvent>(record.Message.Value)!;
+                        var command = JsonSerializer.Deserialize<ExecuteStepCommand>(record.Message.Value)!;
                         Assert.Equal(command.ProcessInstanceId.ToString(), record.Message.Key);
                         if (record.Topic == topic && command.ProcessInstanceId == processId) return command;
                         _buffer.Add((record.Topic, record.Message.Key, command));
@@ -100,7 +100,7 @@ internal sealed class KafkaProbe : IDisposable
         {
             var record = _consumer.Consume(timeout.Token);
             _nextOffsets[record.TopicPartition] = record.Offset + 1;
-            var command = JsonSerializer.Deserialize<StepCommandEvent>(record.Message.Value)!;
+            var command = JsonSerializer.Deserialize<ExecuteStepCommand>(record.Message.Value)!;
             if (command.ProcessInstanceId == processId) count++;
             else _buffer.Add((record.Topic, record.Message.Key, command));
         }

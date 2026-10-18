@@ -1,10 +1,11 @@
-using WorkflowScheduler.Features.Steps.Queries.IsStepActive;
+using MediatR;
+using GrpcServiceBase = WorkflowScheduler.Grpc.IsStepActiveService.IsStepActiveServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.IsStepActiveRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.IsStepActiveResponse;
 
-namespace WorkflowScheduler.Features.Processes.Endpoints;
+namespace WorkflowScheduler.Features.Steps.Queries.IsStepActive;
 
-public partial class ProcessService
+public sealed class IsStepActiveEndpoint(IMediator mediator) : GrpcServiceBase
 {
     public override async Task<GrpcResponse> IsStepActive(GrpcRequest request, ServerCallContext context)
     {

@@ -1,7 +1,7 @@
 using System.Text;
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Infrastructure.Messaging;
 
@@ -26,8 +26,8 @@ public sealed class KafkaPublisher(IOptions<KafkaOptions> options) : IMessagePub
 
     public Task PublishAsync(string topic, string key, string value, CancellationToken ct)
     {
-        if (Encoding.UTF8.GetByteCount(value) > WorkflowProtocol.MaxKafkaValueBytes)
-            throw new ArgumentException("Command exceeds the Kafka message size limit.", nameof(value));
-        return _producer.ProduceAsync(topic, new Message<string, string> { Key = key, Value = value }, ct);
+        return Encoding.UTF8.GetByteCount(value) > WorkflowProtocol.MaxKafkaValueBytes
+            ? throw new ArgumentException("Command exceeds the Kafka message size limit.", nameof(value))
+            : _producer.ProduceAsync(topic, new Message<string, string> { Key = key, Value = value }, ct);
     }
 }

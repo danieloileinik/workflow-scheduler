@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
-using WorkflowScheduler.Contracts;
+using WorkflowScheduler.Contracts.Grpc;
 
 namespace WorkflowScheduler.Client;
 

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service SendEventService {
+  rpc SendEvent (SendEventRequest) returns (SendEventResponse);
+}
+
+message SendEventRequest {
+  string process_instance_id = 1;
+  string event_name = 2;
+  string payload = 3;
+  string correlation_id = 4;
+}
+
+message SendEventResponse {
+}

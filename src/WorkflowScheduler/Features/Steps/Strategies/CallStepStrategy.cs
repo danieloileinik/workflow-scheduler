@@ -1,5 +1,5 @@
 using System.Text.Json;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
@@ -20,7 +20,7 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
         var metadata = JsonSerializer.Deserialize<CallMetadata>(stepDefinition.Metadata, StepMetadata.Options)!;
 
         var payload = JsonSerializer.Serialize(
-            new StepCommandEvent(
+            new ExecuteStepCommand(
                 instance.Id,
                 stepDefinition.Id,
                 stepInstance.Id,

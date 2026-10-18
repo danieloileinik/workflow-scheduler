@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service RegisterProcessDefinitionService {
+  rpc RegisterProcessDefinition (RegisterProcessDefinitionRequest) returns (RegisterProcessDefinitionResponse);
+}
+
+enum StepTypeMessage {
+  CALL = 0;
+  WAIT_EVENT = 1;
+  CONDITION = 2;
+}
+
+message StepDefinitionMessage {
+  string id = 1;
+  string name = 2;
+  StepTypeMessage step_type = 3;
+  string metadata = 4;
+  string next_step_id = 5;
+  string compensation_step_id = 6;
+}
+
+message RegisterProcessDefinitionRequest {
+  string name = 1;
+  int32 version = 2;
+  repeated StepDefinitionMessage steps = 3;
+}
+
+message RegisterProcessDefinitionResponse {
+  string definition_id = 1;
+}

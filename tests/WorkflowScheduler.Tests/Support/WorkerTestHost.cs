@@ -5,7 +5,7 @@ using Grpc.Core;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using WorkflowScheduler.Client;
-using WorkflowScheduler.Contracts.Events;
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Grpc;
 using WorkflowScheduler.Worker;
 using GrpcStatusResponse = WorkflowScheduler.Grpc.GetProcessStatusResponse;
@@ -111,7 +111,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
         }
     }
 
-    public Task PublishAsync(StepCommandEvent command)
+    public Task PublishAsync(ExecuteStepCommand command)
     {
         return PublishRawAsync(
             command.ProcessInstanceId.ToString(),
@@ -167,7 +167,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
                 () => Status.DefaultSuccess,
                 () => [],
                 () => { }));
-        using var client = new WorkflowSchedulerClient(new Processes.ProcessesClient(invoker));
+        using var client = new WorkflowSchedulerClient(invoker);
         return await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetStatusAsync(Guid.NewGuid()));
     }
 }

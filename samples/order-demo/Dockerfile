@@ -4,7 +4,7 @@ COPY database/ database/
 COPY src/WorkflowScheduler/WorkflowScheduler.csproj src/WorkflowScheduler/
 COPY src/WorkflowScheduler.Client/WorkflowScheduler.Client.csproj src/WorkflowScheduler.Client/
 COPY src/WorkflowScheduler.Worker/WorkflowScheduler.Worker.csproj src/WorkflowScheduler.Worker/
-COPY src/WorkflowScheduler.Contracts.Grpc/WorkflowScheduler.Contracts.Grpc.csproj src/WorkflowScheduler.Contracts.Grpc/
+COPY src/WorkflowScheduler.Contracts/WorkflowScheduler.Contracts.csproj src/WorkflowScheduler.Contracts/
 COPY samples/order-demo/Directory.Build.props samples/order-demo/OrderDemo.slnx samples/order-demo/
 COPY samples/order-demo/OrderDemo.Contracts/OrderDemo.Contracts.csproj samples/order-demo/OrderDemo.Contracts/
 COPY samples/order-demo/OrderDemo.Inventory/OrderDemo.Inventory.csproj samples/order-demo/OrderDemo.Inventory/

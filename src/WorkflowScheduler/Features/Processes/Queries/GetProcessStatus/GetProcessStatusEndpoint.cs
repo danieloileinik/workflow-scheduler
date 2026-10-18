@@ -1,11 +1,12 @@
-using WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
+using MediatR;
+using GrpcServiceBase = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceBase;
 using GrpcRequest = WorkflowScheduler.Grpc.GetProcessStatusRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.GetProcessStatusResponse;
 using GrpcStepHistoryEntry = WorkflowScheduler.Grpc.StepHistoryEntry;
 
-namespace WorkflowScheduler.Features.Processes.Endpoints;
+namespace WorkflowScheduler.Features.Processes.Queries.GetProcessStatus;
 
-public partial class ProcessService
+public sealed class GetProcessStatusEndpoint(IMediator mediator) : GrpcServiceBase
 {
     public override async Task<GrpcResponse> GetProcessStatus(GrpcRequest request, ServerCallContext context)
     {
