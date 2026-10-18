@@ -13,8 +13,7 @@ public static class RpcExceptionExtensions
             ErrorType.NotFound => StatusCode.NotFound,
             ErrorType.Validation => StatusCode.InvalidArgument,
             ErrorType.Conflict => StatusCode.FailedPrecondition,
-            ErrorType.Unauthorized => StatusCode.PermissionDenied,
-            ErrorType.Forbidden => StatusCode.PermissionDenied,
+            ErrorType.Unauthorized or ErrorType.Forbidden => StatusCode.PermissionDenied,
             _ => StatusCode.Internal
         };
 

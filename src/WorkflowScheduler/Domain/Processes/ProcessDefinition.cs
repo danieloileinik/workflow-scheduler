@@ -33,12 +33,10 @@ public class ProcessDefinition(Guid id, string name, int version)
 
     public StepDefinition? FindStep(Guid stepId)
     {
-        if (_stepsById is null || _indexedStepCount != _steps.Count)
-        {
-            _stepsById = new Dictionary<Guid, StepDefinition>(_steps.Count);
-            foreach (var step in _steps) _stepsById.TryAdd(step.Id, step);
-            _indexedStepCount = _steps.Count;
-        }
+        if (_stepsById is not null && _indexedStepCount == _steps.Count) return _stepsById.GetValueOrDefault(stepId);
+        _stepsById = new Dictionary<Guid, StepDefinition>(_steps.Count);
+        foreach (var step in _steps) _stepsById.TryAdd(step.Id, step);
+        _indexedStepCount = _steps.Count;
 
         return _stepsById.GetValueOrDefault(stepId);
     }
