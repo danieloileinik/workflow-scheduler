@@ -26,21 +26,23 @@ does not execute arbitrary scripts, run parallel branches, or provide a visual w
 
 ## Architecture
 
-| Component                           | Responsibility                                                                                             |
-|-------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `Domain/Processes`                  | Definition versions, process state, event deduplication, durable start receipts, saga compensation records |
-| `Domain/Steps`                      | Step definitions, execution attempts, results, and history                                                 |
-| `Features/Processes/Commands`       | Registration, start, callbacks, external events, cancellation, due retries                                 |
-| `Features/Processes/Queries`        | Process status and ordered execution history                                                               |
-| `Features/Processes/StepStrategies` | `Call`, `WaitEvent`, `Condition`, iterative execution, and saga coordination                               |
-| `Features/Processes/Endpoints`      | Six gRPC methods and protocol/domain error mapping                                                         |
-| `Common/Behaviors`                  | Validation and command transaction boundaries                                                              |
-| `Infrastructure/Persistence`        | EF Core mappings and PostgreSQL persistence                                                                |
-| `Infrastructure/Caching`            | Optional Redis cache for immutable definitions                                                             |
-| `Infrastructure/Messaging`          | Kafka publication and durable outbox/retry workers                                                         |
-| `WorkflowScheduler.Contracts.Grpc`  | gRPC protocol types and the shared Kafka command envelope                                                  |
-| `WorkflowScheduler.Client`          | Fluent workflow definitions, typed payloads/statuses and a reusable gRPC client                            |
-| `WorkflowScheduler.Worker`          | Typed Kafka command handlers, scoped execution, retries for callbacks and safe offset acknowledgement      |
+| Component | Responsibility |
+|-----------|----------------|
+| `Domain/Processes` | Definition versions, process state, event deduplication, durable start receipts, saga compensation records |
+| `Domain/Steps` | Step definitions, execution attempts, results, and history |
+| `Features/Processes/Commands` | Registration, start, external events and cancellation, with a gRPC endpoint in each scenario |
+| `Features/Processes/Queries` | Definition lookup and process status/history, with a gRPC endpoint in each scenario |
+| `Features/Processes` | Definition loading/cache coordination and saga compensation coordination |
+| `Features/Steps/Commands` | Step completion and due retries; step completion has its own gRPC endpoint |
+| `Features/Steps/Queries` | Execution activity checks with a dedicated gRPC endpoint |
+| `Features/Steps/Strategies` | `Call`, `WaitEvent`, `Condition` and iterative execution |
+| `Common/Behaviors` | Validation and command transaction boundaries |
+| `Infrastructure/Persistence` | EF Core mappings and PostgreSQL persistence |
+| `Infrastructure/Caching` | Optional Redis cache for immutable definitions |
+| `Infrastructure/Messaging` | Kafka publication and durable outbox/retry workers |
+| `WorkflowScheduler.Contracts` | Per-scenario gRPC contracts and the shared Kafka command envelope |
+| `WorkflowScheduler.Client` | Fluent workflow definitions, typed payloads/statuses and a reusable gRPC channel |
+| `WorkflowScheduler.Worker` | Typed Kafka command handlers, scoped execution, retries for callbacks and safe offset acknowledgement |
 
 A command passes through validation and the transaction behavior before its handler runs. Successful commands persist
 their state changes, event receipt, and outbox records in one transaction. Rejected commands roll back. Read queries do
@@ -192,18 +194,35 @@ provided.
 
 ## gRPC API
 
-Contract: [
-`src/WorkflowScheduler.Contracts.Grpc/processes.proto`](src/WorkflowScheduler.Contracts.Grpc/processes.proto). Service
-name: `workflow.Processes`.
+Each scenario has a separate protobuf service with one RPC. Server endpoints live beside the corresponding
+command or query handler. Contracts are grouped by scenario in `src/WorkflowScheduler.Contracts`;
+generated C# types retain the `WorkflowScheduler.Grpc` namespace.
 
-Server reflection is not enabled. Supply the proto explicitly:
+| RPC | Service | Contract |
+|-----|---------|----------|
+| `RegisterProcessDefinition` | `workflow.RegisterProcessDefinitionService` | [register_process_definition.proto](src/WorkflowScheduler.Contracts/Processes/RegisterProcessDefinition/register_process_definition.proto) |
+| `GetProcessDefinition` | `workflow.GetProcessDefinitionService` | [get_process_definition.proto](src/WorkflowScheduler.Contracts/Processes/GetProcessDefinition/get_process_definition.proto) |
+| `StartProcess` | `workflow.StartProcessService` | [start_process.proto](src/WorkflowScheduler.Contracts/Processes/StartProcess/start_process.proto) |
+| `CompleteStep` | `workflow.CompleteStepService` | [complete_step.proto](src/WorkflowScheduler.Contracts/Steps/CompleteStep/complete_step.proto) |
+| `SendEvent` | `workflow.SendEventService` | [send_event.proto](src/WorkflowScheduler.Contracts/Processes/SendEvent/send_event.proto) |
+| `CancelProcess` | `workflow.CancelProcessService` | [cancel_process.proto](src/WorkflowScheduler.Contracts/Processes/CancelProcess/cancel_process.proto) |
+| `GetProcessStatus` | `workflow.GetProcessStatusService` | [get_process_status.proto](src/WorkflowScheduler.Contracts/Processes/GetProcessStatus/get_process_status.proto) |
+| `IsStepActive` | `workflow.IsStepActiveService` | [is_step_active.proto](src/WorkflowScheduler.Contracts/Steps/IsStepActive/is_step_active.proto) |
+
+**Breaking contract change:** the former `workflow.Processes` service has been replaced by the services above.
+Regenerate direct gRPC clients and update their service names; deploy matching scheduler, Client SDK and Worker SDK
+versions together. Request/response message names, field numbers and Kafka JSON fields are unchanged.
+The contracts project/package is now `WorkflowScheduler.Contracts`. The SDK constructor for caller-owned transports
+accepts `Grpc.Core.CallInvoker` instead of the former generated client.
+
+Server reflection is not enabled. Supply the scenario's proto explicitly, for example:
 
 ```bash
 grpcurl -plaintext \
-  -import-path src/WorkflowScheduler.Contracts.Grpc \
-  -proto processes.proto \
-  -d '<request JSON>' \
-  localhost:5125 workflow.Processes.<Method>
+  -import-path src/WorkflowScheduler.Contracts \
+  -proto Processes/GetProcessStatus/get_process_status.proto \
+  -d '{"processInstanceId":"<process UUID>"}' \
+  localhost:5125 workflow.GetProcessStatusService/GetProcessStatus
 ```
 
 ### RegisterProcessDefinition
@@ -420,7 +439,7 @@ examples, delivery guarantees, timeouts, security and packaging.
 
 ## Domain-service integration
 
-Commands are JSON-serialized `StepCommandEvent` records, published to `process.commands.<serviceName>`:
+Commands are JSON-serialized `ExecuteStepCommand` records, published to `process.commands.<serviceName>`:
 
 ```json
 {
@@ -453,7 +472,7 @@ Kafka records are keyed by process-instance ID. The command `CorrelationId` rema
 distinguishes an intentional retry from transport redelivery. Compensation commands set `IsCompensation: true` and have
 distinct execution IDs.
 
-`WorkflowScheduler.Contracts.Grpc` contains both the gRPC protocol types and the Kafka command envelope shared by the
+`WorkflowScheduler.Contracts` contains both the gRPC protocol types and the Kafka command envelope shared by the
 scheduler and Worker SDK. Callbacks and external events are submitted through gRPC. Process-lifecycle events are not
 published.
 
@@ -542,7 +561,7 @@ dotnet test WorkflowScheduler.slnx \
 | EndToEnd    | gRPC over HTTP/2, Client/Worker typed handlers, concurrent starts, workflow transitions/events, API errors, cancellation, compensation, scheduled retry and lost callback acknowledgements                                     | Kestrel on an ephemeral port, real PostgreSQL/Redis/Kafka, production adapters, outbox/retry workers and the hosted Worker SDK |
 
 One xUnit collection fixture starts the three containers concurrently once per test process. Schemas and Kafka topics
-are created once. Pinned container images match `compose.yaml`, so development and tests share the local image cache.
+are created once. Pinned container images match `docker-compose.yaml`, so development and tests share the local image cache.
 The integration service provider and database connection pools are reused. Container tests run
 sequentially within that collection so resets cannot race other test cases; unit test collections retain parallelism.
 Integration tests use a dedicated PostgreSQL database and Redis database 0. E2E tests use another PostgreSQL database

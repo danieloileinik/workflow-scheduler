@@ -136,11 +136,11 @@ still exceed that budget. Configure SASL/TLS on **both** Kafka configuration obj
 ## Local packages
 
 ```bash
-dotnet pack src/WorkflowScheduler.Contracts.Grpc --configuration Release --output artifacts/packages
+dotnet pack src/WorkflowScheduler.Contracts --configuration Release --output artifacts/packages
 dotnet pack src/WorkflowScheduler.Client --configuration Release --output artifacts/packages
 dotnet pack src/WorkflowScheduler.Worker --configuration Release --output artifacts/packages
 ```
 
 Add `artifacts/packages` to your NuGet sources and install `WorkflowScheduler.Worker` version `0.1.0`. The
-`WorkflowScheduler.Client` and `WorkflowScheduler.Contracts.Grpc` packages must be available in the feed. The Worker
+`WorkflowScheduler.Client` and `WorkflowScheduler.Contracts` packages must be available in the feed. The Worker
 package does not depend on the scheduler application.

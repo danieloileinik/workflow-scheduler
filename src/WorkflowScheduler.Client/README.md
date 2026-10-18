@@ -16,7 +16,8 @@ services.AddWorkflowSchedulerClient(options =>
 Inject `IWorkflowSchedulerClient`. A singleton reuses its gRPC channel, which the service provider disposes. For
 standalone
 use, create and dispose `new WorkflowSchedulerClient(new WorkflowClientOptions { Address = address })`.
-You can also wrap a caller-owned `Processes.ProcessesClient`; its channel remains caller-owned.
+You can also pass a caller-owned `Grpc.Core.CallInvoker`, for example `channel.CreateCallInvoker()`
+or an invoker with interceptors; its channel remains caller-owned.
 
 ```csharp
 var definition = Workflow.Define("Order", version: 1)
@@ -74,11 +75,11 @@ The scheduler forwards original input to calls and does not automatically merge 
 Build the local NuGet feed from the repository root:
 
 ```bash
-dotnet pack src/WorkflowScheduler.Contracts.Grpc --configuration Release --output artifacts/packages
+dotnet pack src/WorkflowScheduler.Contracts --configuration Release --output artifacts/packages
 dotnet pack src/WorkflowScheduler.Client --configuration Release --output artifacts/packages
 ```
 
-The Client package depends on the existing `WorkflowScheduler.Contracts.Grpc` package; both must be available in the
+The Client package depends on the existing `WorkflowScheduler.Contracts` package; both must be available in the
 feed.
 Add `artifacts/packages` as a NuGet source alongside nuget.org, then install `WorkflowScheduler.Client` version `0.1.0`.
 Public dependencies (gRPC, protobuf and DI abstractions) are restored from your normal NuGet sources.
