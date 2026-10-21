@@ -1,6 +1,3 @@
-using System.Buffers.Binary;
-using System.Security.Cryptography;
-using System.Text;
 using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Common.Abstractions;
@@ -27,16 +24,14 @@ public class TransactionBehavior<TRequest, TResponse>(AppDbContext db)
         };
         if (key is not null && db.Database.IsNpgsql())
         {
-            var lockId = BinaryPrimitives.ReadInt64BigEndian(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+            var lockId = AdvisoryLock.FromKey(key);
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})", ct);
             if (request is RegisterProcessDefinitionCommand registration)
             {
                 var stepLocks = registration
                     .Steps
                     .Select(step =>
-                        BinaryPrimitives.ReadInt64BigEndian(
-                            SHA256.HashData(
-                                Encoding.UTF8.GetBytes($"step-definition:{step.Id}"))))
+                        AdvisoryLock.FromKey($"step-definition:{step.Id}"))
                     .Distinct()
                     .Order()
                     .ToArray();

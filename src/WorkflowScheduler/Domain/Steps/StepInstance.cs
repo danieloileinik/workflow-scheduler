@@ -7,20 +7,18 @@ public class StepInstance(
     Guid processInstanceId,
     Guid stepDefinitionId,
     int maxRetries,
-    TimeSpan? timeout,
     int retryCount)
 {
     public StepInstance(
         Guid processInstanceId,
         Guid stepDefinitionId,
         int retryCount = 0,
-        int maxRetries = 3,
-        TimeSpan? timeout = null)
-        : this(Guid.NewGuid(), processInstanceId, stepDefinitionId, maxRetries, timeout, retryCount)
+        int maxRetries = 3)
+        : this(Guid.NewGuid(), processInstanceId, stepDefinitionId, maxRetries, retryCount)
     {
     }
 
-    private StepInstance() : this(Guid.Empty, Guid.Empty, Guid.Empty, 3, null, 0)
+    private StepInstance() : this(Guid.Empty, Guid.Empty, Guid.Empty, 3, 0)
     {
     }
 
@@ -29,7 +27,6 @@ public class StepInstance(
 
     public Guid Id { get; init; } = id;
     public int RetryCount { get; private set; } = retryCount;
-    public DateTime? TimeoutAt { get; } = timeout.HasValue ? DateTime.UtcNow + timeout.Value : null;
 
     public int MaxRetries { get; } = maxRetries;
 
@@ -96,16 +93,6 @@ public class StepInstance(
         return Result.Success;
     }
 
-    public ErrorOr<Success> MarkTimedOut()
-    {
-        if (Status is not (StepStatus.Running or StepStatus.Waiting))
-            return StepErrors.InvalidTransition(Status, StepStatus.TimedOut);
-        Status = StepStatus.TimedOut;
-        Error = "Step execution timed out";
-        CompletedAt = DateTime.UtcNow;
-        return Result.Success;
-    }
-
     public ErrorOr<Success> Cancel()
     {
         if (Status is not (StepStatus.Pending or StepStatus.Running or StepStatus.Waiting))
@@ -121,11 +108,5 @@ public class StepInstance(
         if (Status != StepStatus.Completed) return StepErrors.InvalidTransition(Status, StepStatus.Compensated);
         Status = StepStatus.Compensated;
         return Result.Success;
-    }
-
-    public bool IsTimedOut()
-    {
-        return TimeoutAt.HasValue && DateTime.UtcNow > TimeoutAt.Value &&
-               Status is StepStatus.Running or StepStatus.Waiting;
     }
 }

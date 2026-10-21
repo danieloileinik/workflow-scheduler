@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using WorkflowScheduler.Grpc;
 
 namespace WorkflowScheduler.Tests.Support;
@@ -48,8 +49,15 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddConfiguration(
+    }
+
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        // Minimal hosting reads optional infrastructure settings during service registration.
+        // Supply them before Program executes, rather than through the later web-host callback.
+        builder.ConfigureHostConfiguration(configuration => configuration.AddConfiguration(
             _infrastructure.Configuration(_infrastructure.EndToEndPostgres, 1)));
+        return base.CreateHost(builder);
     }
 
     public async Task<T> WithDb<T>(Func<AppDbContext, Task<T>> action)

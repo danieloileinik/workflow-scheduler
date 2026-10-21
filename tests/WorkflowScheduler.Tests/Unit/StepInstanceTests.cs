@@ -85,7 +85,7 @@ public class StepInstanceTests
     [InlineData(StepStatus.Completed)]
     [InlineData(StepStatus.Cancelled)]
     [InlineData(StepStatus.Compensated)]
-    public void TerminalStep_CannotRestartCompleteFailWaitCancelTimeOutOrRetry(StepStatus status)
+    public void TerminalStep_CannotRestartCompleteFailWaitCancelOrRetry(StepStatus status)
     {
         var step = CreateStep(status);
 
@@ -94,19 +94,17 @@ public class StepInstanceTests
         AssertRejected(step, current => current.Complete("replacement output"));
         AssertRejected(step, current => current.Fail("replacement failure"));
         AssertRejected(step, current => current.Cancel());
-        AssertRejected(step, current => current.MarkTimedOut());
         AssertRejected(step, current => current.TryScheduleRetry(TimeSpan.Zero));
     }
 
     [Fact]
-    public void PendingStep_CannotWaitCompleteFailTimeOutOrRetryBeforeStarting()
+    public void PendingStep_CannotWaitCompleteFailOrRetryBeforeStarting()
     {
         var step = CreateStep(StepStatus.Pending);
 
         AssertRejected(step, current => current.MarkWaiting());
         AssertRejected(step, current => current.Complete("output"));
         AssertRejected(step, current => current.Fail("failure"));
-        AssertRejected(step, current => current.MarkTimedOut());
         AssertRejected(step, current => current.TryScheduleRetry(TimeSpan.Zero));
     }
 
@@ -132,7 +130,6 @@ public class StepInstanceTests
         AssertRejected(step, current => current.Complete("output"));
         AssertRejected(step, current => current.Fail("replacement failure"));
         AssertRejected(step, current => current.Cancel());
-        AssertRejected(step, current => current.MarkTimedOut());
     }
 
     [Fact]
@@ -228,21 +225,6 @@ public class StepInstanceTests
     }
 
     [Theory]
-    [InlineData(StepStatus.Running)]
-    [InlineData(StepStatus.Waiting)]
-    public void MarkTimedOut_WhenActive_RecordsTimeout(StepStatus status)
-    {
-        var step = CreateStep(status);
-
-        var result = step.MarkTimedOut();
-
-        Assert.False(result.IsError);
-        Assert.Equal(StepStatus.TimedOut, step.Status);
-        Assert.Equal("Step execution timed out", step.Error);
-        Assert.NotNull(step.CompletedAt);
-    }
-
-    [Theory]
     [InlineData(StepStatus.Pending)]
     [InlineData(StepStatus.Running)]
     [InlineData(StepStatus.Waiting)]
@@ -302,7 +284,8 @@ public class StepInstanceTests
                 Assert.False(step.Fail("saved failure").IsError);
                 break;
             case StepStatus.TimedOut:
-                Assert.False(step.MarkTimedOut().IsError);
+                // Simulate a legacy status restored from storage.
+                typeof(StepInstance).GetProperty(nameof(StepInstance.Status))!.SetValue(step, StepStatus.TimedOut);
                 break;
             case StepStatus.Cancelled:
                 Assert.False(step.Cancel().IsError);

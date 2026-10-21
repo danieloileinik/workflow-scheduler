@@ -13,10 +13,7 @@ public class RetryStepsHandler(AppDbContext db, CachedProcessDefinitionProvider 
 {
     public async Task<ErrorOr<Success>> Handle(RetryStepsCommand request, CancellationToken ct)
     {
-        var instance = await db
-            .ProcessInstances
-            .Include(x => x.Steps)
-            .FirstOrDefaultAsync(x => x.Id == request.ProcessInstanceId, ct);
+        var instance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
         if (instance is null) return ProcessErrors.NotFound;
         var due = instance
             .Steps

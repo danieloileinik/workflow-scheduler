@@ -16,6 +16,7 @@ public class WorkflowWorkerTests
     [Fact]
     public async Task TypedHandler_UsesFreshScopeAndDisposesItBeforeCallback()
     {
+        // Arrange
         var command = Command();
         var second = command with { StepInstanceId = Guid.NewGuid() };
         var client = Client(command);
@@ -23,6 +24,17 @@ public class WorkflowWorkerTests
             .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(true), Task.FromResult(true));
         var trace = new ScopeTrace();
+        client
+            .CompleteStepAsync(
+                Arg.Any<StepExecution>(),
+                Arg.Any<JsonElement>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                Assert.Equal(trace.Created, trace.Disposed);
+                return Task.CompletedTask;
+            });
         var services = Services(client);
         services.AddSingleton(trace);
         services.AddScoped<ScopedDependency>();
@@ -30,9 +42,23 @@ public class WorkflowWorkerTests
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var processor = provider.GetRequiredService<WorkflowMessageProcessor>();
 
-        await processor.ProcessAsync(command, CancellationToken.None);
+        // Act
+        var processing = processor.ProcessAsync(command, CancellationToken.None);
+        try
+        {
+            await trace.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Empty(trace.Disposed);
+            Assert.DoesNotContain(client.ReceivedCalls(), call => call.GetMethodInfo().Name == "CompleteStepAsync");
+        }
+        finally
+        {
+            trace.Release.TrySetResult();
+            await processing;
+        }
+
         await processor.ProcessAsync(second, CancellationToken.None);
 
+        // Assert
         Assert.Equal(2, trace.Created.Count);
         Assert.Equal(2, trace.Created.Distinct().Count());
         Assert.Equal(trace.Created, trace.Disposed);
@@ -485,6 +511,8 @@ public class WorkflowWorkerTests
 
     public sealed class ScopeTrace
     {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<Guid> Created { get; } = [];
         public List<Guid> Disposed { get; } = [];
         public List<int> Inputs { get; } = [];
@@ -505,14 +533,17 @@ public class WorkflowWorkerTests
     public sealed class ScopedHandler(ScopedDependency dependency, ScopeTrace trace)
         : IWorkflowCommandHandler<Input, Output>
     {
-        public Task<Output> HandleAsync(Input input,
+        public async Task<Output> HandleAsync(Input input,
             WorkflowCommandContext context,
             CancellationToken cancellationToken)
         {
             trace.Created.Add(dependency.Id);
             trace.Inputs.Add(input.OrderId);
             trace.Contexts.Add(context);
-            return Task.FromResult(new Output(input.OrderId));
+            trace.Entered.TrySetResult();
+            await trace.Release.Task.WaitAsync(cancellationToken);
+            Assert.DoesNotContain(dependency.Id, trace.Disposed);
+            return new Output(input.OrderId);
         }
     }
 }

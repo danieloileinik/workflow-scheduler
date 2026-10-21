@@ -1,3 +1,4 @@
+using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
 using WorkflowScheduler.Features.Processes.Commands.SendEvent;
@@ -15,7 +16,8 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-        builder.Services.AddGrpc();
+        builder.Services.AddGrpc(options =>
+            options.MaxReceiveMessageSize = WorkflowProtocol.MaxGrpcReceiveMessageBytes);
         builder.Services.AddWorkflowScheduler(builder.Configuration);
         var app = builder.Build();
         if (args.Contains("--initialize-database"))

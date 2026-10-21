@@ -86,6 +86,8 @@ internal sealed class WorkflowMessageProcessor(
             }
         }
 
+        if (failure is null && !WorkflowProtocol.OutputFitsMessage(JsonSerializer.Serialize(output)))
+            failure = "Command output exceeds the callback message size limit.";
         failure = failure?[..Math.Min(failure.Length, 2048)];
         ct.ThrowIfCancellationRequested();
 
@@ -96,7 +98,24 @@ internal sealed class WorkflowMessageProcessor(
                 try
                 {
                     if (failure is null)
-                        await client.CompleteStepAsync(context.Execution, output, context.CallbackCorrelationId, token);
+                        try
+                        {
+                            await client.CompleteStepAsync(
+                                context.Execution,
+                                output,
+                                context.CallbackCorrelationId,
+                                token);
+                        }
+                        catch (ArgumentException exception) when (exception.ParamName == "output")
+                        {
+                            // The client may use a different JSON encoder; its final byte limit is authoritative.
+                            failure = "Command output exceeds the callback message size limit.";
+                            await client.FailStepAsync(
+                                context.Execution,
+                                failure,
+                                context.CallbackCorrelationId,
+                                token);
+                        }
                     else
                         await client.FailStepAsync(context.Execution, failure, context.CallbackCorrelationId, token);
                 }

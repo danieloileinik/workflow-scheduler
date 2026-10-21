@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Grpc.Core;
 using NSubstitute;
 using WorkflowScheduler.Client;
@@ -13,6 +14,44 @@ namespace WorkflowScheduler.Tests.Integration;
 [Trait("Category", "Integration")]
 public class WorkerKafkaTests(TestInfrastructure infrastructure)
 {
+    [Fact]
+    public async Task DeadLetterPublicationFailure_LeavesTheSourceOffsetUncommitted()
+    {
+        // Arrange
+        var client = Substitute.For<IWorkflowSchedulerClient>();
+        var service = "dlq-failure-" + Guid.NewGuid().ToString("N");
+        var source = "process.commands." + service;
+        using var admin = new AdminClientBuilder(
+            new AdminClientConfig
+                { BootstrapServers = infrastructure.BootstrapServers }).Build();
+        await admin.CreateTopicsAsync(
+        [
+            new TopicSpecification { Name = source, NumPartitions = 1, ReplicationFactor = 1 },
+            new TopicSpecification
+            {
+                Name = source + ".dead-letter", NumPartitions = 1, ReplicationFactor = 1,
+                Configs = new Dictionary<string, string> { ["max.message.bytes"] = "128" }
+            }
+        ]);
+        await using var worker = await WorkerTestHost.StartAsync(
+            infrastructure,
+            client,
+            builder => builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(0)),
+            service,
+            createTopics: false);
+
+        // Act
+        await worker.PublishRawAsync("bad-key", "{invalid" + new string('x', 1000));
+        var failure =
+            await Assert.ThrowsAsync<ProduceException<string, string>>(() =>
+                worker.Execution.WaitAsync(TimeSpan.FromSeconds(20)));
+
+        // Assert
+        Assert.Equal(ErrorCode.MsgSizeTooLarge, failure.Error.Code);
+        Assert.Equal(Offset.Unset.Value, await worker.CommittedAsync(CancellationToken.None));
+        Assert.Empty(client.ReceivedCalls());
+    }
+
     [Fact]
     public async Task OffsetIsStoredAfterCallbackAndDuplicateDeliveryDoesNotRepeatBusinessOperation()
     {

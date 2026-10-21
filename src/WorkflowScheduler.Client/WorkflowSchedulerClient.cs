@@ -330,6 +330,8 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
     {
         ValidateExecution(execution);
         Guard.Text(correlationId, nameof(correlationId), 256);
+        if (!WorkflowProtocol.OutputFitsMessage(output))
+            throw new ArgumentException("Step output exceeds the callback message size limit.", nameof(output));
         var request = new CompleteStepRequest
         {
             ProcessInstanceId = execution.ProcessInstanceId.ToString(),

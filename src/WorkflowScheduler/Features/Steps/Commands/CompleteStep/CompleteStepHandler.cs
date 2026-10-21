@@ -22,13 +22,22 @@ public class CompleteStepHandler(
                      && e.EventName == "CompleteStep" && e.CorrelationId == request.CorrelationId,
                 ct))
             return ProcessErrors.DuplicateEvent;
-        var instance = await db
-            .ProcessInstances
-            .Include(x => x.Steps)
-            .FirstOrDefaultAsync(x => x.Id == request.ProcessInstanceId, ct);
+        var instance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
         if (instance is null) return ProcessErrors.NotFound;
         var step = instance.Steps.FirstOrDefault(x => x.Id == request.StepInstanceId);
-        if (step is null || step.StepDefinitionId != request.StepDefinitionId) return ProcessErrors.StepNotFound;
+        if (step is null)
+        {
+            var exists = await db.StepInstances.AnyAsync(
+                candidate => candidate.ProcessInstanceId == instance.Id
+                             && candidate.Id == request.StepInstanceId &&
+                             candidate.StepDefinitionId == request.StepDefinitionId,
+                ct);
+            return exists
+                ? Error.Conflict("ProcessStep.StaleCallback", "Step is not running this attempt")
+                : ProcessErrors.StepNotFound;
+        }
+
+        if (step.StepDefinitionId != request.StepDefinitionId) return ProcessErrors.StepNotFound;
         if (step.Status != StepStatus.Running || step.RetryCount != request.Attempt)
             return Error.Conflict("ProcessStep.StaleCallback", "Step is not running this attempt");
         if (!step.IsCompensation && (instance.Status != ProcessStatus.Waiting || instance.CurrentStepId != step.Id))

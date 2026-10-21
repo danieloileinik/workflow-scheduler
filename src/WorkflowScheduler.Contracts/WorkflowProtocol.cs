@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace WorkflowScheduler.Contracts.Grpc;
@@ -11,6 +12,13 @@ public static class WorkflowProtocol
     // Leave room for the Kafka record overhead and the command envelope.
     public const int MaxKafkaValueBytes = 990_000;
     public const int MaxInputStringBytes = 980_000;
+    public const int MaxOutputDataBytes = 3 * 1024 * 1024;
+    public const int MaxGrpcReceiveMessageBytes = 4 * 1024 * 1024;
+
+    public static bool OutputFitsMessage(string? output)
+    {
+        return output is null || Encoding.UTF8.GetByteCount(output) <= MaxOutputDataBytes;
+    }
 
     public static string CommandTopic(string serviceName)
     {

@@ -8,14 +8,7 @@ namespace WorkflowScheduler.Infrastructure.Messaging;
 public sealed class KafkaPublisher(IOptions<KafkaOptions> options) : IMessagePublisher, IAsyncDisposable
 {
     private readonly IProducer<string, string> _producer = new ProducerBuilder<string, string>(
-        new ProducerConfig
-        {
-            BootstrapServers = options.Value.BootstrapServers,
-            EnableIdempotence = true,
-            Acks = Acks.All,
-            MessageMaxBytes = 1_000_000,
-            MessageTimeoutMs = 10_000
-        }).Build();
+        options.Value.CreateProducerConfig()).Build();
 
     public ValueTask DisposeAsync()
     {

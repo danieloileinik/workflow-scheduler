@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402-noble AS build
 WORKDIR /source
 COPY database/ database/
 COPY src/WorkflowScheduler/WorkflowScheduler.csproj src/WorkflowScheduler/
@@ -10,7 +10,6 @@ COPY samples/order-demo/OrderDemo.Contracts/OrderDemo.Contracts.csproj samples/o
 COPY samples/order-demo/OrderDemo.Inventory/OrderDemo.Inventory.csproj samples/order-demo/OrderDemo.Inventory/
 COPY samples/order-demo/OrderDemo.Payments/OrderDemo.Payments.csproj samples/order-demo/OrderDemo.Payments/
 COPY samples/order-demo/OrderDemo.Orders/OrderDemo.Orders.csproj samples/order-demo/OrderDemo.Orders/
-COPY samples/order-demo/OrderDemo.Tests/OrderDemo.Tests.csproj samples/order-demo/OrderDemo.Tests/
 RUN dotnet restore samples/order-demo/OrderDemo.slnx
 COPY src/ src/
 COPY samples/order-demo/ samples/order-demo/
@@ -19,7 +18,7 @@ RUN dotnet publish samples/order-demo/OrderDemo.Inventory/OrderDemo.Inventory.cs
 RUN dotnet publish samples/order-demo/OrderDemo.Payments/OrderDemo.Payments.csproj -c Release --no-restore -o /out/payments
 RUN dotnet publish samples/order-demo/OrderDemo.Orders/OrderDemo.Orders.csproj -c Release --no-restore -o /out/orders
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13-noble AS runtime
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080
 USER $APP_UID

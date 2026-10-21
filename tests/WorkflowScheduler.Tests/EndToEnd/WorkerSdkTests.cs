@@ -3,6 +3,7 @@ using System.Text.Json;
 using Grpc.Core;
 using WorkflowScheduler.Client;
 using WorkflowScheduler.Contracts.Grpc;
+using WorkflowScheduler.Grpc;
 using WorkflowScheduler.Tests.Support;
 using WorkflowScheduler.Worker;
 
@@ -12,6 +13,65 @@ namespace WorkflowScheduler.Tests.EndToEnd;
 [Trait("Category", "EndToEnd")]
 public class WorkerSdkTests(TestInfrastructure infrastructure)
 {
+    [Fact]
+    public async Task OversizedHandlerOutput_ReportsBoundedFailureAndWorkerProcessesNextWorkflow()
+    {
+        // Arrange
+        await using var app = await infrastructure.CreateGrpcAppAsync();
+        app.StartServer();
+        using var client =
+            new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        var effects = 0;
+        await using var worker = await WorkerTestHost.StartAsync(
+            infrastructure,
+            client,
+            builder => builder.Handle<Input, string>(
+                "Output",
+                (input, _, _) =>
+                {
+                    Interlocked.Increment(ref effects);
+                    return Task.FromResult(input.OrderId == 1 ? new string('x', 5_000_000) : "small");
+                }));
+        var definition = await client.RegisterAsync(
+            Workflow
+                .Define("oversized-output-" + Guid.NewGuid())
+                .Call(worker.ServiceName, "Output")
+                .Build());
+
+        // Act
+        var large = await client.StartAsync(definition, new Input(1), "large", Guid.NewGuid());
+        await worker.WaitForOffsetAsync(1);
+        var small = await client.StartAsync(definition, new Input(2), "small", Guid.NewGuid());
+        await worker.WaitForOffsetAsync(2);
+        var pending = await client.GetStatusAsync(large);
+        var completed = await client.GetStatusAsync(small);
+        var tooLarge = await Assert.ThrowsAsync<RpcException>(async () =>
+        {
+            using var callback = new CompleteStepService.CompleteStepServiceClient(app.CallInvoker)
+                .CompleteStepAsync(
+                    new CompleteStepRequest
+                    {
+                        ProcessInstanceId = large.ToString(),
+                        StepDefinitionId = pending.StepHistory[0].StepDefinitionId.ToString(),
+                        StepInstanceId = pending.StepHistory[0].Id.ToString(),
+                        Attempt = 1,
+                        Success = true,
+                        OutputData = new string('x', WorkflowProtocol.MaxOutputDataBytes + 1),
+                        CorrelationId = "oversized-raw-callback"
+                    });
+            await callback.ResponseAsync;
+        });
+
+        // Assert
+        Assert.Equal(2, effects);
+        Assert.Equal(StatusCode.InvalidArgument, tooLarge.StatusCode);
+        Assert.Equal(WorkflowStepStatus.Pending, Assert.Single(pending.StepHistory).Status);
+        Assert.Equal(1, pending.StepHistory[0].RetryCount);
+        Assert.Equal(WorkflowProcessStatus.Completed, completed.Status);
+        Assert.Equal("small", Assert.Single(completed.StepHistory).ReadOutput<string>());
+        Assert.Equal(2, await app.WithDb(db => db.EventLogs.CountAsync(log => log.EventName == "CompleteStep")));
+    }
+
     [Fact]
     public async Task ClientAndWorker_RunTypedWorkflowAndIgnoreDuplicateKafkaDelivery()
     {

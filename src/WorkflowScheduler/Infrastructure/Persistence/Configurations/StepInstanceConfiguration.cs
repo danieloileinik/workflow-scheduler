@@ -20,10 +20,10 @@ public class StepInstanceConfiguration : IEntityTypeConfiguration<StepInstance>
         builder.Property(s => s.StartedAt).IsRequired();
         builder.Property(s => s.CompletedAt);
         builder.Property(s => s.NextRetryAt);
-        builder.Property(s => s.TimeoutAt);
         builder.Property(s => s.OutputData);
         builder.Property(s => s.Error).HasMaxLength(2048);
         builder.HasIndex(s => new { s.ProcessInstanceId, s.StepDefinitionId });
+        builder.HasIndex(s => new { s.ProcessInstanceId, s.Sequence });
         builder.HasIndex(s => s.NextRetryAt).HasFilter("\"NextRetryAt\" IS NOT NULL");
     }
 }

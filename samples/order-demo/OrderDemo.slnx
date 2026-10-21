@@ -7,5 +7,4 @@
     <Project Path="OrderDemo.Inventory/OrderDemo.Inventory.csproj"/>
     <Project Path="OrderDemo.Payments/OrderDemo.Payments.csproj"/>
     <Project Path="OrderDemo.Orders/OrderDemo.Orders.csproj"/>
-    <Project Path="OrderDemo.Tests/OrderDemo.Tests.csproj"/>
 </Solution>

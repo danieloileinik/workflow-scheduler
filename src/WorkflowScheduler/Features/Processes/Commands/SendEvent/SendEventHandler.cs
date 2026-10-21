@@ -23,10 +23,7 @@ public class SendEventHandler(
             ct);
         if (duplicate) return ProcessErrors.DuplicateEvent;
 
-        var processInstance = await db
-            .ProcessInstances
-            .Include(i => i.Steps)
-            .FirstOrDefaultAsync(i => i.Id == request.ProcessInstanceId, ct);
+        var processInstance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
         if (processInstance is null) return ProcessErrors.NotFound;
 
         if (processInstance.Status != ProcessStatus.Waiting) return ProcessErrors.NotWaiting;

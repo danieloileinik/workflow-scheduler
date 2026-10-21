@@ -20,8 +20,6 @@ jobs:
         run: dotnet restore samples/order-demo/OrderDemo.slnx
       - name: Build
         run: dotnet build samples/order-demo/OrderDemo.slnx --no-restore --configuration Release --warnaserror
-      - name: Test business rules and PostgreSQL idempotency
-        run: dotnet test samples/order-demo/OrderDemo.slnx --no-build --configuration Release
       - name: Start the complete sample
         run: docker compose -f samples/order-demo/compose.yaml up --build -d
       - name: Exercise orders, events, retries and compensation

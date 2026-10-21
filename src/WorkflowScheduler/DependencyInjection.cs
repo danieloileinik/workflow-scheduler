@@ -19,19 +19,27 @@ public static class DependencyInjection
             services.AddDbContext<AppDbContext>(opt =>
                 opt.UseNpgsql(configuration.GetConnectionString("Postgres")));
 
-            services.AddSingleton<IConnectionMultiplexer>(_ =>
+            var redisConnection = configuration.GetConnectionString("Redis");
+            if (string.IsNullOrWhiteSpace(redisConnection))
             {
-                var options = ConfigurationOptions.Parse(configuration.GetConnectionString("Redis")!);
-                options.AbortOnConnectFail = false;
-                return ConnectionMultiplexer.Connect(options);
-            });
+                services.AddSingleton<IProcessDefinitionCache, DisabledProcessDefinitionCache>();
+            }
+            else
+            {
+                services.AddSingleton<IConnectionMultiplexer>(_ =>
+                {
+                    var options = ConfigurationOptions.Parse(redisConnection);
+                    options.AbortOnConnectFail = false;
+                    return ConnectionMultiplexer.Connect(options);
+                });
+                services.AddScoped<IProcessDefinitionCache, ProcessDefinitionCache>();
+            }
 
             services.Configure<KafkaOptions>(configuration.GetSection("Kafka"));
             services.AddSingleton<IMessagePublisher, KafkaPublisher>();
             services.AddScoped<OutboxDispatcher>();
             services.AddHostedService<OutboxWorker>();
 
-            services.AddScoped<IProcessDefinitionCache, ProcessDefinitionCache>();
             services.AddHostedService<RetryWorker>();
             return services.AddWorkflowApplication();
         }

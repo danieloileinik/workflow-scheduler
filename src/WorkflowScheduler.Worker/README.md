@@ -1,9 +1,45 @@
 # WorkflowScheduler.Worker
 
-.NET 10 library hosted inside a domain service. It consumes `process.commands.<ServiceName>` from Kafka, dispatches
-typed
-commands to your handlers and reports results through `WorkflowScheduler.Client`. Each host reuses one consumer and one
-dead-letter producer. Replicas of a service share the same consumer group.
+Use this .NET 10 SDK inside the service that executes workflow commands. The Worker receives a command from Kafka,
+calls your handler and reports success or failure to the scheduler through the Client SDK.
+
+The scheduler controls step order and delayed business retries. Your service owns the operation and its durable result.
+
+## Install
+
+Build the packages from the repository root:
+
+```bash
+dotnet pack src/WorkflowScheduler.Contracts --configuration Release --output artifacts/packages
+dotnet pack src/WorkflowScheduler.Client --configuration Release --output artifacts/packages
+dotnet pack src/WorkflowScheduler.Worker --configuration Release --output artifacts/packages
+PACKAGE_FEED="$(pwd)/artifacts/packages"
+dotnet nuget add source "$PACKAGE_FEED" --name workflow-local
+```
+
+Add this source once; skip `dotnet nuget add source` if the Client setup already added it. Keep nuget.org configured for
+public dependencies. Then create a Worker host, or use your existing service project:
+
+```bash
+dotnet new worker --name Example.Worker --framework net10.0
+dotnet add Example.Worker/Example.Worker.csproj package WorkflowScheduler.Worker --version 0.1.0
+```
+
+The Worker package brings in the Client and Contracts packages as dependencies.
+
+## Run your first handler
+
+Start the [local scheduler](../../README.md#run-the-scheduler-locally). From the repository root, create the command and
+dead-letter topics in its local Kafka broker:
+
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --if-not-exists --topic process.commands.inventory --partitions 1 --replication-factor 1
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --if-not-exists --topic process.commands.inventory.dead-letter --partitions 1 --replication-factor 1
+```
+
+Replace `Example.Worker/Program.cs` with:
 
 ```csharp
 using Microsoft.Extensions.Hosting;
@@ -12,135 +48,123 @@ using WorkflowScheduler.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddWorkflowSchedulerClient(options =>
-    options.Address = new Uri("https://scheduler.example.com"));
+    options.Address = new Uri("http://localhost:5125"));
 builder.Services.AddWorkflowSchedulerWorker(options =>
 {
-    options.ServiceName = "billing";
+    options.ServiceName = "inventory";
     options.BootstrapServers = "localhost:9092";
 })
-.Handle<ChargeRequest, ChargeResult, ChargeHandler>("Charge")
-.Handle<ChargeRequest, ChargeResult, RefundHandler>("Refund");
+.Handle<OrderInput, ReservationResult>("ReserveStock", (input, context, ct) =>
+{
+    Console.WriteLine($"ReserveStock for order {input.OrderId}, attempt {context.Execution.Attempt}");
+    return Task.FromResult(new ReservationResult($"demo-{input.OrderId}"));
+});
 
 await builder.Build().RunAsync();
+
+public sealed record OrderInput(int OrderId);
+public sealed record ReservationResult(string ReservationId);
 ```
 
-Register the handler's own dependencies using normal DI. `Handle<TInput, TOutput, THandler>` registers the handler as
-scoped
-unless you already registered it. Each message gets a new asynchronous DI scope, disposed after the handler finishes.
-The command name matches the name in `.Call("billing", "Charge")` or `.CompensateWith("billing", "Refund")` exactly.
+Run `dotnet run --project Example.Worker` and keep it running. Then execute the
+[Client example](../WorkflowScheduler.Client/README.md#start-your-first-process).
+The Worker prints the order ID and the Client observes `Completed`. This handler only returns a demonstration result;
+see the next section before implementing a business side effect.
+
+`ServiceName = "inventory"` selects `process.commands.inventory`. `ReserveStock` must exactly match the command in
+`.Call("inventory", "ReserveStock")`. Input and output use web/camelCase JSON defaults.
+You do not need to write a Kafka consumer or call `CompleteStepAsync` in the handler.
+
+## Implement a business operation
+
+Use the class overload when the handler needs scoped dependencies:
 
 ```csharp
-public sealed record ChargeRequest(int OrderId, decimal Amount);
-public sealed record ChargeResult(string PaymentId);
-
-public sealed class ChargeHandler(IPayments payments)
-    : IWorkflowCommandHandler<ChargeRequest, ChargeResult>
-{
-    public async Task<ChargeResult> HandleAsync(
-        ChargeRequest input, WorkflowCommandContext context, CancellationToken cancellationToken)
-    {
-        // IPayments is the domain service's dependency. Its implementation persists
-        // and reuses the result for this execution key before repeating a charge.
-        return await payments.ChargeAsync(input.OrderId, input.Amount,
-            context.IdempotencyKey, cancellationToken);
-    }
-}
+worker.Handle<OrderInput, ReservationResult, ReserveStockHandler>("ReserveStock");
 ```
 
-`RefundHandler` implements the same interface for a refund. Compensation is an ordinary registered command;
-`context.IsCompensation` identifies it. `context.Execution` contains process, definition-step and step-execution IDs
-plus
-the attempt number. `context.CorrelationId` is the original command correlation. `context.IdempotencyKey` combines the
-execution ID and attempt, while `context.CallbackCorrelationId` is stable across transport retries and changes for a new
-scheduled attempt. A retried step retains its execution ID, so using only that ID as the callback correlation would
-collide with an earlier failure callback.
+Here `worker` is the builder returned by `AddWorkflowSchedulerWorker`. Your `ReserveStockHandler` implements
+`IWorkflowCommandHandler<OrderInput, ReservationResult>` and its `HandleAsync` method receives the input, a
+`WorkflowCommandContext` and a cancellation token. Register its dependencies through normal DI. The SDK registers the
+handler as scoped unless it is already registered; each message gets a fresh asynchronous scope.
 
-For a stateless handler, a delegate is also available:
+For a durable implementation, follow the demo's [Inventory handler](../../samples/order-demo/OrderDemo.Inventory/InventoryHandler.cs)
+or [Payment handler](../../samples/order-demo/OrderDemo.Payments/PaymentHandler.cs). Commit the business change and its
+execution receipt together, and return the stored result when the receipt already exists.
 
-```csharp
-worker.Handle<ValidateRequest, ValidateResult>("Validate", (input, context, ct) =>
-    Task.FromResult(new ValidateResult(input.OrderId > 0)));
-```
+| Context property | Use |
+|------------------|-----|
+| `IdempotencyKey` | Deduplicate this execution and attempt; persist it with the result |
+| `Execution` | Inspect process, definition-step and execution IDs plus the attempt number |
+| `Command` | Distinguish commands when one handler handles several operations |
+| `IsCompensation` | Identify an undo command |
+| `CallbackCorrelationId` | Stable callback identity managed by the SDK; changes for a new scheduled attempt |
 
-Use the class overload for scoped dependencies. Both overloads deserialize the original process input with web/camelCase
-JSON defaults and serialize the typed output. A handler exception, invalid typed input or an unregistered command sends
-a
-failure callback. The scheduler owns delayed retries and compensation; the worker executes each published attempt once
-per delivery. Outputs are recorded in history; the scheduler continues to forward the original input to later commands.
+Delivery is **at least once**. If the service crashes after committing a business operation but before the scheduler
+accepts its callback, the handler can run again. A business-level key, such as a payment transaction ID, is also needed
+when an operation must remain unique across different workflow retry attempts.
 
-## Delivery and shutdown
+Compensation is another registered command, such as `ReleaseStock`. Register it with `Handle` just like a forward
+command. The scheduler chooses when to execute it; the handler performs the domain-specific undo operation.
 
-The worker checks persisted process/step state before executing a command. It skips completed, cancelled, missing and
-superseded executions. Running compensation steps are allowed while the process remains `Failed` or `Cancelled`.
-Transport retries keep the already computed output or error in memory and resend the same callback identity. A callback
-conflict is acknowledged only after checking that the execution is no longer active. An active execution's conflict is
-retried and eventually fails the worker; it is never silently acknowledged.
+## Results, retries and shutdown
 
-Kafka offset storage is disabled until a callback is accepted or an inactive execution is confirmed. Stored offsets are
-committed by librdkafka in batches, including on a clean close. This follows the client's
-[manual offset storage pattern](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html#store-offsets).
-The handler runs sequentially in each worker, preserving partition order. More topic partitions and service replicas
-provide concurrency. The consumer, producer and gRPC channel are reused throughout the host lifetime.
+- Returning a result sends a success callback. Throwing an exception, invalid typed input or a missing handler sends a
+  failure callback. The scheduler then applies its retry and compensation policy.
+- A serialized output over 3 MiB produces a small failure callback. Store large results externally and return a reference.
+- Callback transport failures retry the already computed result in memory. The SDK does not rerun the handler as a local
+  transport retry. A process restart can still cause redelivery.
+- Before execution, the Worker checks that the execution and attempt are active. It skips completed, cancelled and stale
+  commands. Running compensation remains valid while the process is `Failed` or `Cancelled`.
+- The Kafka offset becomes eligible for commit only after callback acknowledgement or confirmation that the execution is
+  inactive. Handler cancellation during shutdown leaves unfinished delivery unacknowledged.
+- Honour the handler's cancellation token. Exhausted transport retries or unexpected infrastructure failures fault the
+  Worker; Generic Host normally stops the host so its supervisor can restart it.
 
-Before execution and when reconciling a lost callback response, the worker calls `IsStepActive` for the exact step,
-attempt and compensation flag. This query does not load execution history or previous outputs. Deploy a scheduler
-supporting this RPC before updating workers.
-
-Delivery is at least once. A restart after a business side effect and before its callback can execute the handler again.
-Persist/deduplicate the operation and its result in the domain service using `context.IdempotencyKey`; the package does
-not impose a database or claim exactly-once business effects. Keep a business-level idempotency key too when an
-operation
-must stay unique across distinct workflow retry attempts. Cancellation may race a handler already doing external work.
-
-Malformed envelopes, invalid execution identities, mismatched Kafka process keys and tombstones go to
-`process.commands.<ServiceName>.dead-letter`. `WorkflowDeadLetter` preserves the source topic, partition, offset, key,
-payload and parse error; its Kafka key is `<source-topic>:<partition>:<offset>`. The source offset is stored only after
-the
-broker acknowledges the dead letter. Valid commands with no registered handler report failure to the scheduler.
-Provision both topics with the required partitions, replication and ACLs before running the worker.
-
-If escaping would exceed the producer's message limit, the dead letter contains a payload prefix,
-`PayloadTruncated`, `OriginalPayloadBytes` and `PayloadSha256`. Oversized keys are shortened and marked
-with `KeyTruncated`. The source topic, partition and offset remain intact. Small messages retain the complete payload.
-`DeadLetterProducerConfig.MessageMaxBytes` must be at least 8192; broker/topic limits must also permit that size.
-
-Shutdown cancels the current handler/RPC, waits for it to finish and closes the consumer. An unfinished record remains
-unacknowledged. Handlers must honor their cancellation token. Exhausted transient retries, authentication errors and
-other unexpected infrastructure failures fault the background service. Generic Host's default behavior stops the host;
-its supervisor can restart it and Kafka redelivers uncommitted records. The package does not retry business operations
-locally after they throw.
+Each Worker executes handlers sequentially. More command-topic partitions and service replicas provide concurrency;
+replicas of the same service must share a stable consumer group. Cancellation can race a business operation already
+in progress.
 
 ## Configuration
 
-| Option                     | Default                                                         | Purpose                                                |
-|----------------------------|-----------------------------------------------------------------|--------------------------------------------------------|
-| `ServiceName`              | Required                                                        | Command topic suffix; must produce a valid Kafka topic |
-| `BootstrapServers`         | Required                                                        | Kafka brokers                                          |
-| `GroupId`                  | `workflow-<ServiceName>`                                        | Stable group shared by replicas                        |
-| `DeadLetterTopic`          | `<command-topic>.dead-letter`                                   | Invalid message destination                            |
-| `MaxDeliveryAttempts`      | 5                                                               | Attempts for one status/callback/dead-letter operation |
-| `RetryDelay`               | 1 second                                                        | Delay between transient transport failures             |
-| `RpcTimeout`               | 10 seconds                                                      | Cancellation deadline for each transport attempt       |
-| `HandlerTimeout`           | 1 minute                                                        | Cooperative handler cancellation deadline              |
-| `JsonSerializerOptions`    | Web defaults                                                    | Typed input/output serialization                       |
-| `ConsumerConfig`           | Earliest; 1-second commit interval; 15-minute max poll interval | Kafka fetch/group/security settings                    |
-| `DeadLetterProducerConfig` | Idempotent; all replicas acknowledge                            | Dead-letter transport/security settings                |
+Configure these options inside `AddWorkflowSchedulerWorker` before building the host:
 
-The worker copies configuration at registration. It enforces automatic batched commits with manual offset storage and
-an idempotent dead-letter producer. It validates that `MaxPollIntervalMs` exceeds the configured handler and
-conservative
-RPC/reconciliation retry budget. Increase it when increasing handler timeouts. A handler that ignores cancellation can
-still exceed that budget. Configure SASL/TLS on **both** Kafka configuration objects; gRPC security belongs in
-`WorkflowClientOptions`. Do not change a replica's group ID on every deployment.
+| Option | Default | Purpose |
+|--------|---------|---------|
+| `ServiceName` | Required | Command topic suffix |
+| `BootstrapServers` | Required | Kafka brokers |
+| `GroupId` | `workflow-<ServiceName>` | Stable group shared by service replicas |
+| `DeadLetterTopic` | `<command-topic>.dead-letter` | Destination for invalid envelopes |
+| `HandlerTimeout` | 1 minute | Cooperative handler cancellation deadline |
+| `RpcTimeout` | 10 seconds | Timeout of each status, callback or dead-letter transport attempt |
+| `MaxDeliveryAttempts` | 5 | Attempts for one transport operation |
+| `RetryDelay` | 1 second | Delay between transient transport failures |
+| `JsonSerializerOptions` | Web defaults | Typed payload serialization |
+| `ConsumerConfig` | Earliest; 1-second commit interval; 15-minute max poll interval | Kafka consumer and security settings |
+| `DeadLetterProducerConfig` | Idempotent; all replicas acknowledge | Kafka producer and security settings |
 
-## Local packages
+These delivery attempts are separate from the scheduler's delayed business retries. Increasing `HandlerTimeout` or
+transport retry settings may require a larger `ConsumerConfig.MaxPollIntervalMs`; registration validates that budget.
+A handler that ignores cancellation can still overrun it.
 
-```bash
-dotnet pack src/WorkflowScheduler.Contracts --configuration Release --output artifacts/packages
-dotnet pack src/WorkflowScheduler.Client --configuration Release --output artifacts/packages
-dotnet pack src/WorkflowScheduler.Worker --configuration Release --output artifacts/packages
-```
+For a secured broker, configure SASL/TLS on **both** `ConsumerConfig` and `DeadLetterProducerConfig`. Configure scheduler
+gRPC transport through `WorkflowClientOptions`. Provision command and dead-letter topics with the required partitions,
+replication and permissions before starting the service. Keep the same group ID across deployments.
 
-Add `artifacts/packages` to your NuGet sources and install `WorkflowScheduler.Worker` version `0.1.0`. The
-`WorkflowScheduler.Client` and `WorkflowScheduler.Contracts` packages must be available in the feed. The Worker
-package does not depend on the scheduler application.
+<details>
+<summary>Invalid messages and delivery details</summary>
+
+Malformed envelopes, invalid execution identities, mismatched Kafka process keys and tombstones go to the dead-letter
+topic. A valid command with no registered handler instead reports failure to the scheduler.
+
+`WorkflowDeadLetter` records the source topic, partition, offset, key, payload and error. Its Kafka key is
+`<source-topic>:<partition>:<offset>`. The source offset is stored only after the broker acknowledges the dead letter.
+Oversized payloads retain a prefix, `PayloadTruncated`, `OriginalPayloadBytes` and `PayloadSha256`; shortened keys set
+`KeyTruncated`. `DeadLetterProducerConfig.MessageMaxBytes` must be at least 8192 bytes, and broker/topic limits must
+permit that size.
+
+The Worker uses automatic batched commits with manual offset storage. A callback conflict is acknowledged only after
+`IsStepActive` confirms the execution is inactive. Active conflicts are retried and can fault the Worker; they are not
+silently treated as success. Deploy a scheduler supporting `IsStepActive` before updating Workers that require it.
+
+</details>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WorkflowScheduler.Common;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
 using WorkflowScheduler.Tests.Support;
@@ -9,6 +10,222 @@ namespace WorkflowScheduler.Tests.Integration;
 [Trait("Category", "Integration")]
 public class OutboxTests(TestInfrastructure infrastructure)
 {
+    [Fact]
+    public async Task CancellationDuringPublication_WaitsForTheDeliveryTransaction()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        var process = await app.Start(await app.Register(TestWorkflow.Call()));
+        var publishing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        app.Publisher.BeforePublishAsync = async ct =>
+        {
+            publishing.TrySetResult();
+            await release.Task.WaitAsync(ct);
+        };
+        var lockId = AdvisoryLock.ForProcess(process);
+        var high = (long)(unchecked((ulong)lockId) >> 32);
+        var low = (long)unchecked((uint)lockId);
+        var dispatch = app.Dispatch();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        Task<ErrorOr<Success>>? cancellation = null;
+
+        // Act
+        try
+        {
+            await publishing.Task.WaitAsync(timeout.Token);
+            cancellation = app.Send(new CancelProcessCommand(process), timeout.Token);
+            await Eventually.UntilAsync(
+                ct => app.WithDb(db => db
+                    .Database
+                    .SqlQuery<int>(
+                        $"""
+                         SELECT count(*)::integer AS "Value" FROM pg_locks
+                         WHERE locktype = 'advisory' AND NOT granted
+                           AND classid::bigint = {high} AND objid::bigint = {low}
+                         """)
+                    .SingleAsync(ct)),
+                waiters => waiters == 1,
+                "Cancellation waits for the publishing process lock",
+                TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            release.TrySetResult();
+            await dispatch;
+            if (cancellation is not null) await cancellation;
+            app.Publisher.BeforePublishAsync = null;
+        }
+
+        // Assert
+        Assert.False((await cancellation!).IsError);
+        Assert.Single(app.Publisher.Messages);
+        Assert.Equal("Cancelled", (await app.Send(new GetProcessStatusQuery(process)))!.Status);
+        Assert.NotNull(await app.WithDb(db => db.OutboxMessages.Select(message => message.ProcessedAt).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task LostClaimBeforePublication_DoesNotSendTheCommand()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        var process = await app.Start(await app.Register(TestWorkflow.Call()));
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var lockId = AdvisoryLock.ForProcess(process);
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var dispatch = app.Dispatch(timeout.Token);
+        var newOwner = Guid.NewGuid();
+
+        // Act
+        try
+        {
+            await Eventually.UntilAsync(
+                _ => app.WithDb(context => context.OutboxMessages
+                    .AnyAsync(message => message.ClaimId != null)),
+                claimed => claimed,
+                "Dispatcher claimed the message");
+            await app.WithDb(context => context.OutboxMessages.ExecuteUpdateAsync(update => update
+                .SetProperty(message => message.ClaimId, newOwner)
+                .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))));
+        }
+        finally
+        {
+            await transaction.RollbackAsync();
+            await dispatch;
+        }
+
+        // Assert
+        Assert.Empty(app.Publisher.Messages);
+        var pending = await app.WithDb(context => context.OutboxMessages.AsNoTracking().SingleAsync());
+        Assert.Equal(newOwner, pending.ClaimId);
+        Assert.Null(pending.ProcessedAt);
+        Assert.Equal(0, pending.Attempts);
+    }
+
+    [Fact]
+    public async Task LockedMessage_DoesNotBlockDeliveryOfOtherDueMessages()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        var definition = await app.Register(TestWorkflow.Call());
+        var lockedProcess = await app.Start(definition);
+        var availableProcess = await app.Start(definition);
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var message = await db.OutboxMessages.SingleAsync(value => value.Payload.Contains(lockedProcess.ToString()));
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM outbox_messages WHERE \"Id\" = {message.Id} FOR UPDATE");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Act
+        await app.Dispatch(timeout.Token);
+
+        // Assert
+        var delivered = Assert.Single(app.Publisher.Messages);
+        Assert.Equal(availableProcess.ToString(), delivered.Key);
+        Assert.Equal(
+            1,
+            await app.WithDb(context => context.OutboxMessages.CountAsync(value => value.ProcessedAt != null)));
+    }
+
+    [Fact]
+    public async Task CancellationBetweenBatchDeliveries_SuppressesTheLaterCommand()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        using var broker = infrastructure.CreateProbe("billing");
+        var definition = await app.Register(TestWorkflow.Call());
+        var first = await app.Start(definition);
+        var cancelled = await app.Start(definition);
+        await app.WithDb(db => db
+            .OutboxMessages
+            .Where(message => message.Payload.Contains(first.ToString()))
+            .ExecuteUpdateAsync(update => update.SetProperty(
+                message => message.CreatedAt,
+                DateTime.UtcNow.AddDays(-1))));
+        var publishing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        app.Publisher.BeforePublishAsync = async ct =>
+        {
+            publishing.TrySetResult();
+            await release.Task.WaitAsync(ct);
+        };
+        var dispatch = app.Dispatch();
+
+        // Act
+        try
+        {
+            await publishing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var cancellation = await app.Send(new CancelProcessCommand(cancelled));
+            Assert.False(cancellation.IsError);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await dispatch;
+            app.Publisher.BeforePublishAsync = null;
+        }
+
+        // Assert
+        Assert.Equal(first.ToString(), Assert.Single(app.Publisher.Messages).Key);
+        Assert.Equal(first, (await broker.ReadAsync("billing", first)).ProcessInstanceId);
+        Assert.Equal(0, broker.CountRemaining(cancelled));
+        Assert.Equal(2, await app.WithDb(db => db.OutboxMessages.CountAsync(message => message.ProcessedAt != null)));
+    }
+
+    [Fact]
+    public async Task BrokerAcknowledgementBeforeDatabaseFailure_RedeliversTheSameCommand()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        using var broker = infrastructure.CreateProbe("billing");
+        var process = await app.Start(await app.Register(TestWorkflow.Call()));
+        await app.WithDb(db => db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE FUNCTION reject_outbox_ack() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF NEW."ProcessedAt" IS NOT NULL THEN RAISE EXCEPTION 'Injected acknowledgement failure'; END IF;
+                RETURN NEW;
+            END $$;
+            CREATE TRIGGER reject_outbox_ack BEFORE UPDATE OF "ProcessedAt" ON outbox_messages
+                FOR EACH ROW EXECUTE FUNCTION reject_outbox_ack();
+            """));
+
+        // Act
+        try
+        {
+            await app.Dispatch();
+            var pending = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
+            Assert.Null(pending.ProcessedAt);
+            Assert.Equal(1, pending.Attempts);
+            Assert.Contains("Injected acknowledgement failure", pending.Error);
+        }
+        finally
+        {
+            await app.WithDb(db => db.Database.ExecuteSqlRawAsync(
+                "DROP TRIGGER reject_outbox_ack ON outbox_messages; DROP FUNCTION reject_outbox_ack();"));
+        }
+
+        await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
+            update.SetProperty(message => message.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
+        await app.Dispatch();
+
+        // Assert
+        var first = await broker.ReadAsync("billing", process);
+        var replay = await broker.ReadAsync("billing", process);
+        Assert.Equal(first, replay);
+        Assert.Equal(2, app.Publisher.Messages.Count);
+        Assert.Equal(0, broker.CountRemaining(process));
+        var delivered = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
+        Assert.NotNull(delivered.ProcessedAt);
+        Assert.Null(delivered.Error);
+        Assert.Equal(2, delivered.Attempts);
+    }
+
     [Fact]
     public async Task PublisherFailure_PreservesMessageAndRetriesWithSameIdentity()
     {

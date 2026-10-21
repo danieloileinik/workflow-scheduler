@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using WorkflowScheduler.Common;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Infrastructure.Persistence;
@@ -37,13 +38,6 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                     await RecordFailureAsync(message, claimId, ex, ct);
                 }
 
-            var processIds = commands.Values.Select(command => command.ProcessInstanceId).Distinct().ToArray();
-            var statuses = await db
-                .ProcessInstances
-                .Where(instance => processIds.AsEnumerable().Contains(instance.Id))
-                .Select(instance => new { instance.Id, instance.Status })
-                .ToDictionaryAsync(instance => instance.Id, instance => instance.Status, ct);
-
             foreach (var message in pending)
             {
                 ct.ThrowIfCancellationRequested();
@@ -52,35 +46,7 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                 if (!commands.TryGetValue(message.Id, out var command)) continue;
                 try
                 {
-                    var suppressed = !statuses.TryGetValue(command.ProcessInstanceId, out var status)
-                                     || (!command.IsCompensation && status is ProcessStatus.Cancelled
-                                         or ProcessStatus.Failed
-                                         or ProcessStatus.Completed);
-                    if (!suppressed)
-                    {
-                        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                        timeout.CancelAfter(PublishTimeout);
-                        await publisher.PublishAsync(
-                            message.Type,
-                            command.ProcessInstanceId.ToString(),
-                            message.Payload,
-                            timeout.Token);
-                    }
-
-                    await db
-                        .OutboxMessages
-                        .Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
-                        .ExecuteUpdateAsync(
-                            update => update
-                                .SetProperty(candidate => candidate.ProcessedAt, DateTime.UtcNow)
-                                .SetProperty(
-                                    candidate => candidate.Error,
-                                    suppressed ? "Suppressed because the process is terminal or missing" : null)
-                                .SetProperty(candidate => candidate.Attempts, message.Attempts + (suppressed ? 0 : 1))
-                                .SetProperty(candidate => candidate.NextAttemptAt, (DateTime?)null)
-                                .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
-                                .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null),
-                            ct);
+                    await PublishAsync(message, command, claimId, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -117,6 +83,56 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                     claimedUntil);
             }
         }
+    }
+
+    private async Task PublishAsync(OutboxMessage message,
+        ExecuteStepCommand command,
+        Guid claimId,
+        CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(PublishTimeout);
+        await using var transaction = await db.Database.BeginTransactionAsync(timeout.Token);
+        // Serialize one bounded delivery with process mutations, including cancellation.
+        // A later message in the batch observes any cancellation committed between deliveries.
+        var lockId = AdvisoryLock.ForProcess(command.ProcessInstanceId);
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})", timeout.Token);
+        var now = DateTime.UtcNow;
+        var ownsClaim = await db.OutboxMessages.AnyAsync(
+            candidate => candidate.Id == message.Id && candidate.ClaimId == claimId
+                                                    && candidate.ClaimedUntil > now + PublishTimeout,
+            timeout.Token);
+        if (!ownsClaim) return;
+
+        var status = await db
+            .ProcessInstances
+            .Where(instance => instance.Id == command.ProcessInstanceId)
+            .Select(instance => (ProcessStatus?)instance.Status)
+            .SingleOrDefaultAsync(timeout.Token);
+        var suppressed = status is null || (!command.IsCompensation && status is ProcessStatus.Cancelled
+            or ProcessStatus.Failed or ProcessStatus.Completed);
+        if (!suppressed)
+            await publisher.PublishAsync(
+                message.Type,
+                command.ProcessInstanceId.ToString(),
+                message.Payload,
+                timeout.Token);
+
+        await db
+            .OutboxMessages
+            .Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(candidate => candidate.ProcessedAt, DateTime.UtcNow)
+                    .SetProperty(
+                        candidate => candidate.Error,
+                        suppressed ? "Suppressed because the process is terminal or missing" : null)
+                    .SetProperty(candidate => candidate.Attempts, message.Attempts + (suppressed ? 0 : 1))
+                    .SetProperty(candidate => candidate.NextAttemptAt, (DateTime?)null)
+                    .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
+                    .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null),
+                timeout.Token);
+        await transaction.CommitAsync(timeout.Token);
     }
 
     private async Task<List<OutboxMessage>> ClaimAsync(Guid claimId,

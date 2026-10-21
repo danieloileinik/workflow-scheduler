@@ -23,6 +23,8 @@
         <ProjectReference Include="..\WorkflowScheduler.Contracts\WorkflowScheduler.Contracts.csproj"/>
         <EmbeddedResource Include="../../database/001_outbox_delivery.sql"
                           LogicalName="WorkflowScheduler.Database.OutboxDelivery.sql"/>
+        <EmbeddedResource Include="../../database/002_execution_sequence.sql"
+                          LogicalName="WorkflowScheduler.Database.ExecutionSequence.sql"/>
     </ItemGroup>
 
 </Project>

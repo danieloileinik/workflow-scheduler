@@ -11,10 +11,7 @@ public class CancelProcessHandler(AppDbContext db, CachedProcessDefinitionProvid
 {
     public async Task<ErrorOr<Success>> Handle(CancelProcessCommand request, CancellationToken ct)
     {
-        var instance = await db
-            .ProcessInstances
-            .Include(x => x.Steps)
-            .FirstOrDefaultAsync(x => x.Id == request.ProcessInstanceId, ct);
+        var instance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
         if (instance is null) return ProcessErrors.NotFound;
         var result = instance.Cancel();
         if (result.IsError) return result;

@@ -11,12 +11,6 @@ using Testcontainers.Redis;
 
 namespace WorkflowScheduler.Tests.Support;
 
-[CollectionDefinition(Name)]
-public sealed class InfrastructureCollection : ICollectionFixture<TestInfrastructure>
-{
-    public const string Name = "PostgreSQL, Redis and Kafka";
-}
-
 // xUnit creates one fixture for the entire collection, including filtered runs.
 // Containers, schemas, connection pools and the integration service provider are reused.
 public sealed class TestInfrastructure : IAsyncLifetime
@@ -35,9 +29,9 @@ public sealed class TestInfrastructure : IAsyncLifetime
     {
         try
         {
-            _postgres = new PostgreSqlBuilder("postgres:17-alpine").WithDatabase("workflow_integration").Build();
-            _redis = new RedisBuilder("redis:7.4-alpine").Build();
-            _kafka = new KafkaBuilder("apache/kafka:3.9.1")
+            _postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.24").WithDatabase("workflow_integration").Build();
+            _redis = new RedisBuilder("redis:8.10.2-alpine3.23").Build();
+            _kafka = new KafkaBuilder("apache/kafka:4.3.2")
                 .WithKRaft()
                 .Build();
 

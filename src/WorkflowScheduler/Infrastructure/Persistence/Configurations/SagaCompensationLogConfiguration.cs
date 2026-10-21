@@ -12,5 +12,6 @@ public class SagaCompensationLogConfiguration : IEntityTypeConfiguration<SagaCom
         builder.Property(x => x.Status).HasConversion<string>();
         builder.Property(x => x.Error).HasMaxLength(2048);
         builder.HasIndex(x => new { x.ProcessInstanceId, x.OriginalStepInstanceId }).IsUnique();
+        builder.HasIndex(x => new { x.ProcessInstanceId, x.Status, x.Sequence });
     }
 }

@@ -6,6 +6,7 @@ namespace WorkflowScheduler.Domain.Processes;
 public class ProcessInstance(Guid id, Guid definitionId, string businessKey, string inputData)
 {
     private readonly List<StepInstance> _steps = [];
+    private int _nextStepSequence;
 
     public ProcessInstance(Guid definitionId, string businessKey, string inputData)
         : this(Guid.NewGuid(), definitionId, businessKey, inputData)
@@ -21,6 +22,11 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; private set; }
     public IReadOnlyList<StepInstance> Steps => _steps;
+
+    public void RestoreStepSequence(int lastSequence)
+    {
+        _nextStepSequence = Math.Max(_nextStepSequence, checked(lastSequence + 1));
+    }
 
     public ErrorOr<StepInstance> Start(Guid firstStepDefinitionId)
     {
@@ -93,7 +99,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
     public StepInstance AddCompensationStep(Guid stepDefinitionId)
     {
         var step = new StepInstance(Id, stepDefinitionId);
-        step.SetSequence(_steps.Count, true);
+        step.SetSequence(_nextStepSequence++, true);
         _steps.Add(step);
         return step;
     }
@@ -103,15 +109,10 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
         return CurrentStepId is null ? null : _steps.FirstOrDefault(s => s.Id == CurrentStepId);
     }
 
-    public IEnumerable<StepInstance> GetCompletedSteps()
-    {
-        return _steps.Where(s => s is { IsCompensation: false, Status: StepStatus.Completed }).OrderBy(s => s.Sequence);
-    }
-
     private StepInstance CreateStepInstance(Guid stepId)
     {
         var step = new StepInstance(Id, stepId);
-        step.SetSequence(_steps.Count);
+        step.SetSequence(_nextStepSequence++);
         _steps.Add(step);
         return step;
     }

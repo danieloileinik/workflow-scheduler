@@ -61,33 +61,3 @@ public sealed class WorkflowWorkerBuilder
                ?? throw new JsonException("Workflow input cannot be null.");
     }
 }
-
-internal delegate Task<JsonElement> HandlerRegistration(IServiceProvider services,
-    string? input,
-    WorkflowCommandContext context,
-    JsonSerializerOptions json,
-    CancellationToken ct);
-
-internal sealed record WorkerRegistration(
-    WorkflowWorkerOptions Options,
-    IReadOnlyDictionary<string, HandlerRegistration> Handlers);
-
-public static class ServiceCollectionExtensions
-{
-    public static WorkflowWorkerBuilder AddWorkflowSchedulerWorker(this IServiceCollection services,
-        Action<WorkflowWorkerOptions> configure)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configure);
-        if (services.Any(descriptor => descriptor.ServiceType == typeof(WorkerRegistration)))
-            throw new InvalidOperationException("Register one workflow worker per host; add its commands with Handle.");
-        var options = new WorkflowWorkerOptions();
-        configure(options);
-        var snapshot = options.CopyAndValidate();
-        var builder = new WorkflowWorkerBuilder(services);
-        services.AddSingleton(_ => new WorkerRegistration(snapshot, builder.Snapshot()));
-        services.AddSingleton<WorkflowMessageProcessor>();
-        services.AddHostedService<WorkflowWorker>();
-        return builder;
-    }
-}
