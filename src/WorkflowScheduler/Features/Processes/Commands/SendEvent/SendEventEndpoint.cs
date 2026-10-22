@@ -1,7 +1,7 @@
 using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
-using GrpcServiceBase = WorkflowScheduler.Grpc.SendEventService.SendEventServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.SendEvent.SendEventBase;
 using GrpcRequest = WorkflowScheduler.Grpc.SendEventRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.SendEventResponse;
 

@@ -1,5 +1,5 @@
 using MediatR;
-using GrpcServiceBase = WorkflowScheduler.Grpc.IsStepActiveService.IsStepActiveServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.IsStepActive.IsStepActiveBase;
 using GrpcRequest = WorkflowScheduler.Grpc.IsStepActiveRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.IsStepActiveResponse;
 

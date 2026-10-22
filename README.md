@@ -166,18 +166,18 @@ It preserves rows and applies the included [outbox upgrade](database/001_outbox_
 .NET services can use the Worker SDK for command consumption and callbacks. Implement the following protocol yourself
 when integrating without that SDK.
 
-Each RPC has a separate `workflow.<Name>Service`; generated C# types use `WorkflowScheduler.Grpc`.
+Each RPC has a separate service named `workflow.<Name>`; generated C# types use `WorkflowScheduler.Grpc`.
 
 | RPC | Contract |
 |-----|----------|
-| `RegisterProcessDefinition` | [Definition registration](src/WorkflowScheduler.Contracts/Processes/RegisterProcessDefinition/register_process_definition.proto) |
-| `GetProcessDefinition` | [Lookup by name/version](src/WorkflowScheduler.Contracts/Processes/GetProcessDefinition/get_process_definition.proto) |
-| `StartProcess` | [Start with an idempotency key](src/WorkflowScheduler.Contracts/Processes/StartProcess/start_process.proto) |
-| `SendEvent` | [External event](src/WorkflowScheduler.Contracts/Processes/SendEvent/send_event.proto) |
-| `CancelProcess` | [Cancellation](src/WorkflowScheduler.Contracts/Processes/CancelProcess/cancel_process.proto) |
-| `GetProcessStatus` | [Status and paged history](src/WorkflowScheduler.Contracts/Processes/GetProcessStatus/get_process_status.proto) |
-| `CompleteStep` | [Success or failure callback](src/WorkflowScheduler.Contracts/Steps/CompleteStep/complete_step.proto) |
-| `IsStepActive` | [Execution activity check](src/WorkflowScheduler.Contracts/Steps/IsStepActive/is_step_active.proto) |
+| `RegisterProcessDefinition` | [Definition registration](src/WorkflowScheduler.Contracts/Processes/register_process_definition.proto) |
+| `GetProcessDefinition` | [Lookup by name/version](src/WorkflowScheduler.Contracts/Processes/get_process_definition.proto) |
+| `StartProcess` | [Start with an idempotency key](src/WorkflowScheduler.Contracts/Processes/start_process.proto) |
+| `SendEvent` | [External event](src/WorkflowScheduler.Contracts/Processes/send_event.proto) |
+| `CancelProcess` | [Cancellation](src/WorkflowScheduler.Contracts/Processes/cancel_process.proto) |
+| `GetProcessStatus` | [Status and paged history](src/WorkflowScheduler.Contracts/Processes/get_process_status.proto) |
+| `CompleteStep` | [Success or failure callback](src/WorkflowScheduler.Contracts/Steps/complete_step.proto) |
+| `IsStepActive` | [Execution activity check](src/WorkflowScheduler.Contracts/Steps/is_step_active.proto) |
 
 Commands go to `process.commands.<serviceName>` with the process ID as the Kafka key. The JSON envelope uses PascalCase:
 
@@ -227,9 +227,9 @@ Server reflection is disabled. Supply the proto when using `grpcurl`:
 ```bash
 grpcurl -plaintext \
   -import-path src/WorkflowScheduler.Contracts \
-  -proto Processes/GetProcessStatus/get_process_status.proto \
+  -proto Processes/get_process_status.proto \
   -d '{"processInstanceId":"<process UUID>"}' \
-  localhost:5125 workflow.GetProcessStatusService/GetProcessStatus
+  localhost:5125 workflow.GetProcessStatus/GetProcessStatus
 ```
 
 </details>

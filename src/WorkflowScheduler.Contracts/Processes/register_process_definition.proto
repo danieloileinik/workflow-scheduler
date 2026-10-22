@@ -4,7 +4,7 @@ option csharp_namespace = "WorkflowScheduler.Grpc";
 
 package workflow;
 
-service RegisterProcessDefinitionService {
+service RegisterProcessDefinition {
   rpc RegisterProcessDefinition (RegisterProcessDefinitionRequest) returns (RegisterProcessDefinitionResponse);
 }
 

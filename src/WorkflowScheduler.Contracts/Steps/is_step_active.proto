@@ -4,7 +4,7 @@ option csharp_namespace = "WorkflowScheduler.Grpc";
 
 package workflow;
 
-service IsStepActiveService {
+service IsStepActive {
   rpc IsStepActive (IsStepActiveRequest) returns (IsStepActiveResponse);
 }
 

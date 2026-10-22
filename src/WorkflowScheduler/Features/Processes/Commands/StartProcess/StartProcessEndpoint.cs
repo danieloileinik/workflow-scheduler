@@ -1,7 +1,7 @@
 using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
-using GrpcServiceBase = WorkflowScheduler.Grpc.StartProcessService.StartProcessServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.StartProcess.StartProcessBase;
 using GrpcRequest = WorkflowScheduler.Grpc.StartProcessRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.StartProcessResponse;
 

@@ -2,7 +2,7 @@ using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
 using WorkflowScheduler.Domain.Steps;
-using GrpcServiceBase = WorkflowScheduler.Grpc.RegisterProcessDefinitionService.RegisterProcessDefinitionServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.RegisterProcessDefinition.RegisterProcessDefinitionBase;
 using GrpcRequest = WorkflowScheduler.Grpc.RegisterProcessDefinitionRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.RegisterProcessDefinitionResponse;
 using GrpcStepTypeMessage = WorkflowScheduler.Grpc.StepTypeMessage;

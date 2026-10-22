@@ -4,16 +4,16 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Grpc;
-using CancelProcessGrpcClient = WorkflowScheduler.Grpc.CancelProcessService.CancelProcessServiceClient;
-using CompleteStepGrpcClient = WorkflowScheduler.Grpc.CompleteStepService.CompleteStepServiceClient;
+using CancelProcessGrpcClient = WorkflowScheduler.Grpc.CancelProcess.CancelProcessClient;
+using CompleteStepGrpcClient = WorkflowScheduler.Grpc.CompleteStep.CompleteStepClient;
 using GetProcessDefinitionGrpcClient =
-    WorkflowScheduler.Grpc.GetProcessDefinitionService.GetProcessDefinitionServiceClient;
-using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceClient;
-using IsStepActiveGrpcClient = WorkflowScheduler.Grpc.IsStepActiveService.IsStepActiveServiceClient;
+    WorkflowScheduler.Grpc.GetProcessDefinition.GetProcessDefinitionClient;
+using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatus.GetProcessStatusClient;
+using IsStepActiveGrpcClient = WorkflowScheduler.Grpc.IsStepActive.IsStepActiveClient;
 using RegisterProcessDefinitionGrpcClient =
-    WorkflowScheduler.Grpc.RegisterProcessDefinitionService.RegisterProcessDefinitionServiceClient;
-using SendEventGrpcClient = WorkflowScheduler.Grpc.SendEventService.SendEventServiceClient;
-using StartProcessGrpcClient = WorkflowScheduler.Grpc.StartProcessService.StartProcessServiceClient;
+    WorkflowScheduler.Grpc.RegisterProcessDefinition.RegisterProcessDefinitionClient;
+using SendEventGrpcClient = WorkflowScheduler.Grpc.SendEvent.SendEventClient;
+using StartProcessGrpcClient = WorkflowScheduler.Grpc.StartProcess.StartProcessClient;
 
 namespace WorkflowScheduler.Client;
 

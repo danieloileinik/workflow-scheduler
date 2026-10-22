@@ -47,7 +47,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         var completed = await client.GetStatusAsync(small);
         var tooLarge = await Assert.ThrowsAsync<RpcException>(async () =>
         {
-            using var callback = new CompleteStepService.CompleteStepServiceClient(app.CallInvoker)
+            using var callback = new CompleteStep.CompleteStepClient(app.CallInvoker)
                 .CompleteStepAsync(
                     new CompleteStepRequest
                     {

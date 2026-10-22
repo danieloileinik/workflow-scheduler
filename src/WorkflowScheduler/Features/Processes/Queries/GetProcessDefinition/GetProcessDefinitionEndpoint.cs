@@ -1,5 +1,5 @@
 using MediatR;
-using GrpcServiceBase = WorkflowScheduler.Grpc.GetProcessDefinitionService.GetProcessDefinitionServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.GetProcessDefinition.GetProcessDefinitionBase;
 using GrpcRequest = WorkflowScheduler.Grpc.GetProcessDefinitionRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.GetProcessDefinitionResponse;
 

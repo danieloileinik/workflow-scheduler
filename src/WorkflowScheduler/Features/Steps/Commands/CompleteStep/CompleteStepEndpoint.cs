@@ -2,7 +2,7 @@ using ErrorOr;
 using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
-using GrpcServiceBase = WorkflowScheduler.Grpc.CompleteStepService.CompleteStepServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.CompleteStep.CompleteStepBase;
 using GrpcRequest = WorkflowScheduler.Grpc.CompleteStepRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.CompleteStepResponse;
 

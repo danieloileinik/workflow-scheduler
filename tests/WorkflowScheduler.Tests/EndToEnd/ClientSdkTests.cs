@@ -3,7 +3,7 @@ using WorkflowScheduler.Client;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Grpc;
 using WorkflowScheduler.Tests.Support;
-using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceClient;
+using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatus.GetProcessStatusClient;
 
 namespace WorkflowScheduler.Tests.EndToEnd;
 

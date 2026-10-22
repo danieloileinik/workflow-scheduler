@@ -4,7 +4,7 @@ option csharp_namespace = "WorkflowScheduler.Grpc";
 
 package workflow;
 
-service GetProcessStatusService {
+service GetProcessStatus {
   rpc GetProcessStatus (GetProcessStatusRequest) returns (GetProcessStatusResponse);
 }
 

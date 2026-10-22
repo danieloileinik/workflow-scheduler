@@ -1,7 +1,7 @@
 using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
-using GrpcServiceBase = WorkflowScheduler.Grpc.CancelProcessService.CancelProcessServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.CancelProcess.CancelProcessBase;
 using GrpcRequest = WorkflowScheduler.Grpc.CancelProcessRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.CancelProcessResponse;
 

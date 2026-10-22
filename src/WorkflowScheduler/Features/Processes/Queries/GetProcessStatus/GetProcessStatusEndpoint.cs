@@ -1,5 +1,5 @@
 using MediatR;
-using GrpcServiceBase = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceBase;
+using GrpcServiceBase = WorkflowScheduler.Grpc.GetProcessStatus.GetProcessStatusBase;
 using GrpcRequest = WorkflowScheduler.Grpc.GetProcessStatusRequest;
 using GrpcResponse = WorkflowScheduler.Grpc.GetProcessStatusResponse;
 using GrpcStepHistoryEntry = WorkflowScheduler.Grpc.StepHistoryEntry;

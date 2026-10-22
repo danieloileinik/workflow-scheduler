@@ -4,13 +4,13 @@ using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Grpc;
 using WorkflowScheduler.Tests.Support;
-using CancelProcessGrpcClient = WorkflowScheduler.Grpc.CancelProcessService.CancelProcessServiceClient;
-using CompleteStepGrpcClient = WorkflowScheduler.Grpc.CompleteStepService.CompleteStepServiceClient;
-using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatusService.GetProcessStatusServiceClient;
+using CancelProcessGrpcClient = WorkflowScheduler.Grpc.CancelProcess.CancelProcessClient;
+using CompleteStepGrpcClient = WorkflowScheduler.Grpc.CompleteStep.CompleteStepClient;
+using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatus.GetProcessStatusClient;
 using RegisterProcessDefinitionGrpcClient =
-    WorkflowScheduler.Grpc.RegisterProcessDefinitionService.RegisterProcessDefinitionServiceClient;
-using SendEventGrpcClient = WorkflowScheduler.Grpc.SendEventService.SendEventServiceClient;
-using StartProcessGrpcClient = WorkflowScheduler.Grpc.StartProcessService.StartProcessServiceClient;
+    WorkflowScheduler.Grpc.RegisterProcessDefinition.RegisterProcessDefinitionClient;
+using SendEventGrpcClient = WorkflowScheduler.Grpc.SendEvent.SendEventClient;
+using StartProcessGrpcClient = WorkflowScheduler.Grpc.StartProcess.StartProcessClient;
 
 namespace WorkflowScheduler.Tests.EndToEnd;
 
