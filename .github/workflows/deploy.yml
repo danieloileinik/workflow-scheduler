@@ -1,0 +1,37 @@
+name: Deploy to VPS
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: workflow-scheduler-vps
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: vps
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Configure SSH and deploy to k3s
+        env:
+          SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          DEPLOY_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Set VPS_SSH_HOST in the vps environment.}"
+          : "${SSH_USER:?Set VPS_SSH_USER in the vps environment.}"
+          : "${DEPLOY_PRIVATE_KEY:?Set VPS_SSH_PRIVATE_KEY in the vps environment.}"
+          : "${DEPLOY_KNOWN_HOSTS:?Set VPS_SSH_KNOWN_HOSTS in the vps environment.}"
+          umask 077
+          export SSH_KEY="$RUNNER_TEMP/workflow-vps-key"
+          export SSH_KNOWN_HOSTS_FILE="$RUNNER_TEMP/workflow-vps-known-hosts"
+          trap 'rm -f -- "$SSH_KEY" "$SSH_KNOWN_HOSTS_FILE"' EXIT
+          printf '%s\n' "$DEPLOY_PRIVATE_KEY" > "$SSH_KEY"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$SSH_KNOWN_HOSTS_FILE"
+          unset DEPLOY_PRIVATE_KEY DEPLOY_KNOWN_HOSTS
+          bash deploy/vps.sh

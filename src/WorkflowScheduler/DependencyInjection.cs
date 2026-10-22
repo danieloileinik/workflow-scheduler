@@ -16,6 +16,9 @@ public static class DependencyInjection
     {
         public IServiceCollection AddWorkflowScheduler(IConfiguration configuration)
         {
+            services.AddHealthChecks()
+                .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"], timeout: TimeSpan.FromSeconds(3));
+
             services.AddDbContext<AppDbContext>(opt =>
                 opt.UseNpgsql(configuration.GetConnectionString("Postgres")));
 

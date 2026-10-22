@@ -1,0 +1,10 @@
+**
+!src/
+!src/WorkflowScheduler/
+!src/WorkflowScheduler/**
+!src/WorkflowScheduler.Contracts/
+!src/WorkflowScheduler.Contracts/**
+!database/
+!database/**
+**/bin/
+**/obj/

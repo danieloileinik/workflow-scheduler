@@ -134,6 +134,61 @@ Exhausted compensation needs operator intervention; there is no recovery API yet
 ## Reference
 
 <details>
+<summary>Deploy to a VPS with Kubernetes</summary>
+
+The [deployment scripts](deploy/vps.sh) target one Linux VPS running k3s, with PostgreSQL and Kafka on persistent
+volumes. Redis is disabled. Start with 2 vCPUs, 4 GB RAM and at least 30 GB of free SSD space; adjust the
+[resource requests and volumes](deploy/kubernetes) for your workload. This is a single-server installation;
+keep database backups outside the VPS.
+
+You need Docker, Git, SSH and Bash locally. The remote SSH user needs passwordless sudo. Trust the server's SSH
+host key before deployment. Allow SSH through the VPS firewall; keep the Kubernetes API and cluster ports private.
+On a new VPS, install the current stable k3s release once, then deploy from the repository root:
+
+```bash
+ssh user@vps 'sudo -n bash -s' < deploy/bootstrap-k3s.sh
+SSH_HOST=vps SSH_USER=user bash deploy/vps.sh
+```
+
+Use `SSH_PORT` for a custom SSH port and `SSH_KEY` for a private key file. Run `bash deploy/vps.sh --help` for options.
+The script builds for the VPS architecture, transfers the image over SSH and imports it into k3s; no image registry
+credentials are needed. Cross-architecture builds require Docker emulation on the build machine.
+Set `BUILD_NETWORK=host` if your local Docker bridge cannot reach NuGet.
+
+Each deployment preserves the PostgreSQL password and volumes, waits for PostgreSQL and Kafka, stops the old scheduler,
+runs `--initialize-database` as a Job and starts the new scheduler. Schema updates cause a short service interruption.
+A failed schema update leaves the scheduler stopped and prints diagnostics. The schema initializer's upgrade limits
+still apply; see the database section below.
+
+The scheduler is reachable inside the cluster at `http://scheduler.workflow-scheduler:8080`. From your computer,
+keep this SSH session open, then use `http://localhost:5125` with the SDK or k6:
+
+```bash
+ssh -L 5125:127.0.0.1:5125 user@vps \
+  'sudo -n k3s kubectl -n workflow-scheduler port-forward --address 127.0.0.1 service/scheduler 5125:8080'
+```
+
+Workers run separately and connect to `kafka.workflow-scheduler:9092` inside the cluster. Before starting a Worker,
+create its `process.commands.<serviceName>` and `process.commands.<serviceName>.dead-letter` topics with one or more
+partitions and replication factor 1. Auto topic creation is disabled. For example:
+
+```bash
+ssh user@vps 'sudo -n k3s kubectl -n workflow-scheduler exec kafka-0 -- \
+  /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+  --topic process.commands.inventory --partitions 1 --replication-factor 1'
+```
+
+For deployment from GitHub, configure the `vps` environment with secrets `VPS_SSH_HOST`, `VPS_SSH_USER`,
+`VPS_SSH_PRIVATE_KEY` and `VPS_SSH_KNOWN_HOSTS` (the verified `known_hosts` entry). Set the `VPS_SSH_PORT` environment
+variable if needed. Run the manual **Deploy to VPS** workflow. It calls the same script; pushes alone do not deploy.
+
+The scheduler exposes `/health/live` and `/health/ready` on the container's internal HTTP port 8081. Readiness checks
+PostgreSQL; liveness checks the application itself. Kafka outages are handled by the durable outbox rather than by
+restarting the scheduler.
+
+</details>
+
+<details>
 <summary>Server configuration and database upgrades</summary>
 
 Development defaults are in [appsettings.Development.json](src/WorkflowScheduler/appsettings.Development.json).

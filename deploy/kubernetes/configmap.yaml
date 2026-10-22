@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scheduler-config
+  namespace: workflow-scheduler
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  ConnectionStrings__Redis: ""
+  Kafka__BootstrapServers: kafka:9092

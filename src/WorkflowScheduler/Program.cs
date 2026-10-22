@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
@@ -27,6 +28,15 @@ public class Program
             await DatabaseInitializer.InitializeAsync(db);
             return;
         }
+
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = _ => false
+        });
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("ready")
+        });
 
         app.MapGrpcService<RegisterProcessDefinitionEndpoint>();
         app.MapGrpcService<GetProcessDefinitionEndpoint>();
