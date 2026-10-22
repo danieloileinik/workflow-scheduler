@@ -279,6 +279,77 @@ Kestrel and the SDKs in the test process. CI also runs the demo's HTTP smoke sce
 
 </details>
 
+<details>
+<summary>Load testing with k6</summary>
+
+Start the [local scheduler](#run-the-scheduler-locally) and install [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/).
+Run from the repository root against an isolated benchmark database. These workloads retain process history and receipts;
+each run registers uniquely named definitions. No external JavaScript dependencies or server reflection are needed.
+
+```bash
+# Ten iterations with one VU, exercising every workload in the default mix.
+k6 run -e PROFILE=smoke tests/load/scheduler.js
+
+# Offer 20 workload iterations per second for three minutes.
+k6 run -e PROFILE=load -e RATE=20 -e DURATION=3m tests/load/scheduler.js
+
+# Ramp through RATE, 3 * RATE and 5 * RATE, then ramp down.
+k6 run -e PROFILE=stress -e RATE=20 tests/load/scheduler.js
+
+# Hold a steady rate to observe resource growth over time.
+k6 run -e PROFILE=soak -e RATE=20 -e DURATION=30m tests/load/scheduler.js
+```
+
+`RATE` counts workload iterations, not RPCs. An iteration issues 1..6 RPCs depending on its workload. Arrival-rate
+profiles keep offering iterations as the server slows down; there is no sleep-based pacing. `dropped_iterations`
+means the generator could not sustain that rate with its configured VU capacity.
+
+| `WORKLOAD` | Behaviour |
+|------------|-----------|
+| `mixed` (default) | 40% workflow, 30% read, 10% replay, 10% callback, 10% cancel |
+| `workflow` | Start a condition-based workflow, send the selected approval event and verify completion |
+| `read` | Read bounded status pages from a pool of completed processes created during setup |
+| `replay` | Reuse one accepted start request across all VUs to measure idempotency and hot-key contention |
+| `callback` | Start a call, check activity, submit its callback, send an event and verify completion |
+| `cancel` | Start a waiting process, cancel it and verify its persisted status |
+
+Select one workload with `-e WORKLOAD=read`, for example. The callback workload **simulates the Worker response over
+gRPC**; it does not measure Kafka consumption, business-handler latency or end-to-end delivery. Its commands use a
+unique `k6-<run UUID>` service name. Other workloads use waiting/condition steps and do not publish commands.
+
+| Setting | Default |
+|---------|---------|
+| `GRPC_TARGET` | `localhost:5125`, without a URL scheme |
+| `PLAINTEXT` | `true`; set `false` for TLS |
+| `RPC_TIMEOUT` / `SETUP_TIMEOUT` | `10s` / `2m` |
+| `PRE_ALLOCATED_VUS` / `MAX_VUS` | `10` / `100` for arrival-rate profiles |
+| `SEED_COUNT` | `10` completed processes for reads |
+| `PAYLOAD_BYTES` | `0` bytes of extra ASCII input, up to `900000` |
+| `RAMP_DURATION` / `STAGE_DURATION` | `30s` / `1m` for stress stages |
+| `RPC_P95_MS` / `RPC_P99_MS` | `500` / `1000` |
+| `WORKLOAD_P95_MS` | `3000` |
+
+`BEARER_TOKEN` optionally supplies authorization metadata for a protected deployment boundary. `PROTO_ROOT` overrides
+the proto import directory when relocating the scripts.
+
+The pass criteria are at least 99% successful checks and workloads, under 1% failed RPCs, the configured p95/p99 latency
+limits and zero dropped iterations. Setup RPCs are tagged separately and excluded from those latency/failure criteria.
+Thresholds are starting targets to tune for your environment, not published scheduler performance guarantees.
+`workload_duration` and `workload_success` carry a workload tag; gRPC metrics and `rpc_failures` identify each RPC.
+Process IDs are not metric tags, which keeps metric cardinality bounded.
+
+To save the raw time series, create the output directory and add a JSON output:
+
+```bash
+mkdir -p artifacts/k6
+k6 run -e PROFILE=load --out json=artifacts/k6/results.json tests/load/scheduler.js
+```
+
+Results stay under the ignored `artifacts` directory. Investigate resource saturation, RPC errors and dropped iterations
+together; a slower workload may require more generator VUs rather than a higher request rate.
+
+</details>
+
 ## License
 
 [MIT](LICENSE).
