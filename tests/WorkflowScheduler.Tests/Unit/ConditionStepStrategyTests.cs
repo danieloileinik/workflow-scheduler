@@ -8,8 +8,9 @@ namespace WorkflowScheduler.Tests.Unit;
 public class ConditionStepStrategyTests
 {
     [Fact]
-    public async Task ReusedStrategy_UsesEachProcessesInputWithoutReturningAStaleBranch()
+    public void ReusedStrategy_UsesEachProcessesInputWithoutReturningAStaleBranch()
     {
+        // Arrange
         var yes = Guid.NewGuid();
         var no = Guid.NewGuid();
         var definition = new StepDefinition(
@@ -31,8 +32,10 @@ public class ConditionStepStrategyTests
                 JsonSerializer.Serialize(new { amount = input }));
             var step = new StepInstance(process.Id, definition.Id);
 
-            var result = await strategy.ExecuteAsync(process, step, definition, CancellationToken.None);
+            // Act
+            var result = strategy.Execute(process, step, definition);
 
+            // Assert
             Assert.Equal(expected, result.OverrideNextStepId);
         }
     }
@@ -46,7 +49,7 @@ public class ConditionStepStrategyTests
     [InlineData("lte", "12.5", "12.5", true)]
     [InlineData("gt", "12.5", "13", false)]
     [InlineData("gt", "not-number", "13", false)]
-    public async Task ExecuteAsync_WithRussianCulture_SelectsExpectedBranch(
+    public void Execute_WithRussianCulture_SelectsExpectedBranch(
         string comparisonOperator,
         string input,
         string value,
@@ -80,11 +83,10 @@ public class ConditionStepStrategyTests
         try
         {
             // Act
-            var result = await strategy.ExecuteAsync(
+            var result = strategy.Execute(
                 process,
                 step,
-                definition,
-                CancellationToken.None);
+                definition);
 
             // Assert
             Assert.Equal(StepExecutionState.Completed, result.State);
@@ -99,7 +101,7 @@ public class ConditionStepStrategyTests
     [Theory]
     [InlineData("{}")]
     [InlineData("[]")]
-    public async Task ExecuteAsync_WithMissingPropertyOrNonObject_SelectsFalseBranch(string input)
+    public void Execute_WithMissingPropertyOrNonObject_SelectsFalseBranch(string input)
     {
         // Arrange
         var falseStepId = Guid.NewGuid();
@@ -121,11 +123,10 @@ public class ConditionStepStrategyTests
         var strategy = new ConditionStepStrategy();
 
         // Act
-        var result = await strategy.ExecuteAsync(
+        var result = strategy.Execute(
             process,
             step,
-            definition,
-            CancellationToken.None);
+            definition);
 
         // Assert
         Assert.Equal(StepExecutionState.Completed, result.State);

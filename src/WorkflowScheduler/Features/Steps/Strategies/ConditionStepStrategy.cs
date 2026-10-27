@@ -11,10 +11,9 @@ public class ConditionStepStrategy : IStepStrategy
     private string? _inputData;
     public StepType StepType => StepType.Condition;
 
-    public ValueTask<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
+    public StepExecutionResult Execute(ProcessInstance processInstance,
         StepInstance stepInstance,
-        StepDefinition stepDefinition,
-        CancellationToken ct)
+        StepDefinition stepDefinition)
     {
         var condition = JsonSerializer.Deserialize<ConditionMetadata>(stepDefinition.Metadata, StepMetadata.Options);
         // Strategies are scoped to one sequential command execution; retain its immutable parsed input.
@@ -26,7 +25,7 @@ public class ConditionStepStrategy : IStepStrategy
 
         var result = Evaluate(_input, condition);
         var nextStepId = result ? condition.TrueNextStepId : condition.FalseNextStepId;
-        return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
+        return new StepExecutionResult(StepExecutionState.Completed, nextStepId);
     }
 
     private static bool Evaluate(JsonElement input, ConditionMetadata condition)

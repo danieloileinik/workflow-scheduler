@@ -9,11 +9,12 @@ public class StepExecutorTests
     [InlineData(StepType.Call, StepExecutionState.Waiting, StepStatus.Waiting, ProcessStatus.Waiting)]
     [InlineData(StepType.WaitEvent, StepExecutionState.Running, StepStatus.Running, ProcessStatus.Waiting)]
     [InlineData(StepType.Call, StepExecutionState.Completed, StepStatus.Completed, ProcessStatus.Completed)]
-    public async Task RunAsync_UsesStrategyOutcomeInsteadOfStepType(StepType type,
+    public void Run_UsesStrategyOutcomeInsteadOfStepType(StepType type,
         StepExecutionState state,
         StepStatus expectedStepStatus,
         ProcessStatus expectedProcessStatus)
     {
+        // Arrange
         var definition = new ProcessDefinition("custom-step", 1);
         var stepDefinition = new StepDefinition(definition.Id, "custom", type, "{}");
         definition.AddStep(stepDefinition);
@@ -22,8 +23,10 @@ public class StepExecutorTests
         var strategy = new ResultStrategy(type, state);
         var executor = new StepExecutor([strategy]);
 
-        var result = await executor.RunAsync(definition, process, stepDefinition, step, CancellationToken.None);
+        // Act
+        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
 
+        // Assert
         Assert.False(result.IsError);
         Assert.Equal(expectedStepStatus, step.Status);
         Assert.Equal(expectedProcessStatus, process.Status);
@@ -32,8 +35,9 @@ public class StepExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_WithCompletedStep_RejectsRestartBeforeExecutingStrategy()
+    public void Run_WithCompletedStep_RejectsRestartBeforeExecutingStrategy()
     {
+        // Arrange
         var definition = new ProcessDefinition("completed-step", 1);
         var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, "{}");
         definition.AddStep(stepDefinition);
@@ -45,8 +49,10 @@ public class StepExecutorTests
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
 
-        var result = await executor.RunAsync(definition, process, stepDefinition, step, CancellationToken.None);
+        // Act
+        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
 
+        // Assert
         Assert.True(result.IsError);
         Assert.Equal("ProcessStep.InvalidTransition", result.FirstError.Code);
         Assert.Equal(0, strategy.Executions);
@@ -57,8 +63,9 @@ public class StepExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_WithCompensation_KeepsProcessTerminalWhileExecutionRuns()
+    public void Run_WithCompensation_KeepsProcessTerminalWhileExecutionRuns()
     {
+        // Arrange
         var definition = new ProcessDefinition("compensation", 1);
         var stepDefinition = new StepDefinition(definition.Id, "undo", StepType.Call, "{}");
         definition.AddStep(stepDefinition);
@@ -68,8 +75,10 @@ public class StepExecutorTests
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
 
-        var result = await executor.RunAsync(definition, process, stepDefinition, step, CancellationToken.None);
+        // Act
+        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
 
+        // Assert
         Assert.False(result.IsError);
         Assert.Equal(StepStatus.Running, step.Status);
         Assert.Equal(ProcessStatus.Cancelled, process.Status);
@@ -77,8 +86,9 @@ public class StepExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_WithUnknownStrategyOutcome_ReturnsError()
+    public void Run_WithUnknownStrategyOutcome_ReturnsError()
     {
+        // Arrange
         var definition = new ProcessDefinition("invalid-outcome", 1);
         var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, "{}");
         definition.AddStep(stepDefinition);
@@ -87,15 +97,17 @@ public class StepExecutorTests
         var strategy = new ResultStrategy(StepType.Call, (StepExecutionState)(-1));
         var executor = new StepExecutor([strategy]);
 
-        var result = await executor.RunAsync(definition, process, stepDefinition, step, CancellationToken.None);
+        // Act
+        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
 
+        // Assert
         Assert.True(result.IsError);
         Assert.Equal("ProcessStep.InvalidExecutionState", result.FirstError.Code);
         Assert.Equal(ProcessStatus.Running, process.Status);
     }
 
     [Fact]
-    public async Task RunAsync_WithAutomaticCycle_ReturnsCycleErrorWithoutRecursion()
+    public void Run_WithAutomaticCycle_ReturnsCycleErrorWithoutRecursion()
     {
         // Arrange
         var definition = new ProcessDefinition("cycle", 1);
@@ -115,7 +127,7 @@ public class StepExecutorTests
         var executor = new StepExecutor([strategy]);
 
         // Act
-        var result = await executor.RunAsync(
+        var result = executor.Run(
             definition,
             process,
             stepDefinition,
@@ -132,13 +144,12 @@ public class StepExecutorTests
     {
         public StepType StepType => StepType.Condition;
 
-        public ValueTask<StepExecutionResult> ExecuteAsync(
+        public StepExecutionResult Execute(
             ProcessInstance processInstance,
             StepInstance stepInstance,
-            StepDefinition stepDefinition,
-            CancellationToken ct)
+            StepDefinition stepDefinition)
         {
-            return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Completed, nextStepId));
+            return new StepExecutionResult(StepExecutionState.Completed, nextStepId);
         }
     }
 
@@ -147,13 +158,12 @@ public class StepExecutorTests
         public int Executions { get; private set; }
         public StepType StepType => type;
 
-        public ValueTask<StepExecutionResult> ExecuteAsync(ProcessInstance processInstance,
+        public StepExecutionResult Execute(ProcessInstance processInstance,
             StepInstance stepInstance,
-            StepDefinition stepDefinition,
-            CancellationToken ct)
+            StepDefinition stepDefinition)
         {
             Executions++;
-            return ValueTask.FromResult(new StepExecutionResult(state));
+            return new StepExecutionResult(state);
         }
     }
 }

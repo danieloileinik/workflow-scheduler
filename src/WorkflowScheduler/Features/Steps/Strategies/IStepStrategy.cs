@@ -7,9 +7,8 @@ public interface IStepStrategy
 {
     StepType StepType { get; }
 
-    ValueTask<StepExecutionResult> ExecuteAsync(
+    StepExecutionResult Execute(
         ProcessInstance processInstance,
         StepInstance stepInstance,
-        StepDefinition stepDefinition,
-        CancellationToken ct);
+        StepDefinition stepDefinition);
 }

@@ -37,7 +37,7 @@ public class StartProcessHandler(
         var startResult = processInstance.Start(firstStepResult.Value.Id);
         if (startResult.IsError) return startResult.Errors;
 
-        var runResult = await executor.RunAsync(
+        var runResult = executor.Run(
             processDefinition,
             processInstance,
             firstStepResult.Value,

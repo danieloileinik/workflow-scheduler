@@ -6,20 +6,20 @@ namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public class StepExecutor(IEnumerable<IStepStrategy> strategies)
 {
-    public Task<ErrorOr<Success>> ExecuteAsync(ProcessDefinition definition,
+    public ErrorOr<Success> Execute(ProcessDefinition definition,
         ProcessInstance instance,
         Guid nextStepId,
         CancellationToken ct)
     {
         var next = definition.FindStep(nextStepId);
-        if (next is null) return Task.FromResult<ErrorOr<Success>>(ProcessErrors.StepNotFound);
+        if (next is null) return ProcessErrors.StepNotFound;
         var move = instance.MoveToStep(nextStepId);
         return move.IsError
-            ? Task.FromResult<ErrorOr<Success>>(move.Errors)
-            : RunAsync(definition, instance, next, move.Value, ct);
+            ? move.Errors
+            : Run(definition, instance, next, move.Value, ct);
     }
 
-    public async Task<ErrorOr<Success>> RunAsync(ProcessDefinition definition,
+    public ErrorOr<Success> Run(ProcessDefinition definition,
         ProcessInstance instance,
         StepDefinition stepDefinition,
         StepInstance step,
@@ -35,7 +35,7 @@ public class StepExecutor(IEnumerable<IStepStrategy> strategies)
             if (strategy is null) return ProcessErrors.StepTypeMismatch;
             var start = step.MarkRunning();
             if (start.IsError) return start;
-            var result = await strategy.ExecuteAsync(instance, step, stepDefinition, ct);
+            var result = strategy.Execute(instance, step, stepDefinition);
             var execution = result.State switch
             {
                 StepExecutionState.Completed => step.Complete(),

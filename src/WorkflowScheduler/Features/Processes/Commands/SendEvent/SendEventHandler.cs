@@ -51,7 +51,7 @@ public class SendEventHandler(
 
         var result = stepDefinition.NextStepId is null
             ? processInstance.Complete()
-            : await stepExecutor.ExecuteAsync(processDefinition, processInstance, stepDefinition.NextStepId.Value, ct);
+            : stepExecutor.Execute(processDefinition, processInstance, stepDefinition.NextStepId.Value, ct);
 
         if (result.IsError) return result.Errors;
 

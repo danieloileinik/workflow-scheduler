@@ -35,7 +35,7 @@ public class RetryStepsHandler(AppDbContext db, CachedProcessDefinitionProvider 
                 if (resume.IsError) return resume;
             }
 
-            var result = await executor.RunAsync(definition, instance, target, step, ct);
+            var result = executor.Run(definition, instance, target, step, ct);
             if (result.IsError) return result;
         }
 

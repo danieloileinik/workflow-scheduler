@@ -11,11 +11,10 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
 {
     public StepType StepType => StepType.Call;
 
-    public ValueTask<StepExecutionResult> ExecuteAsync(
+    public StepExecutionResult Execute(
         ProcessInstance instance,
         StepInstance stepInstance,
-        StepDefinition stepDefinition,
-        CancellationToken ct)
+        StepDefinition stepDefinition)
     {
         var metadata = JsonSerializer.Deserialize<CallMetadata>(stepDefinition.Metadata, StepMetadata.Options)!;
 
@@ -37,7 +36,7 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
                 Payload = payload
             });
 
-        return ValueTask.FromResult(new StepExecutionResult(StepExecutionState.Running));
+        return new StepExecutionResult(StepExecutionState.Running);
     }
 
     private record CallMetadata(string ServiceName, string Command);

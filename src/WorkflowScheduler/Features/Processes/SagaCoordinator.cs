@@ -44,7 +44,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
 
         if (existing.Any(log => log.Status is CompensationStatus.Running or CompensationStatus.Failed))
             return Result.Success;
-        return await StartNextAsync(
+        return StartNext(
             instance,
             definition,
             existing.Where(log => log.Status == CompensationStatus.Pending).MinBy(log => log.Sequence),
@@ -83,10 +83,10 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
                 candidate.ProcessInstanceId == instance.Id && candidate.Status == CompensationStatus.Pending)
             .OrderBy(candidate => candidate.Sequence)
             .FirstOrDefaultAsync(ct);
-        return await StartNextAsync(instance, definition, next, ct);
+        return StartNext(instance, definition, next, ct);
     }
 
-    private async Task<ErrorOr<Success>> StartNextAsync(ProcessInstance instance,
+    private ErrorOr<Success> StartNext(ProcessInstance instance,
         ProcessDefinition definition,
         SagaCompensationLog? next,
         CancellationToken ct)
@@ -96,6 +96,6 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
         if (target is null || target.Type != StepType.Call) return ProcessErrors.StepTypeMismatch;
         var step = instance.AddCompensationStep(target.Id);
         next.MarkRunning(step.Id);
-        return await executor.RunAsync(definition, instance, target, step, ct);
+        return executor.Run(definition, instance, target, step, ct);
     }
 }

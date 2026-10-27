@@ -47,7 +47,7 @@ public class CompleteStepHandler(
         var stepDefinition = definition.FindStep(step.StepDefinitionId);
         if (stepDefinition is null) return ProcessErrors.StepNotFound;
         if (stepDefinition.Type != StepType.Call) return ProcessErrors.StepTypeMismatch;
-        ErrorOr<Success> result = Result.Success;
+        ErrorOr<Success> result;
         if (request.Success)
         {
             var complete = step.Complete(request.OutputData);
@@ -62,7 +62,7 @@ public class CompleteStepHandler(
                 if (resume.IsError) return resume;
                 result = stepDefinition.NextStepId is null
                     ? instance.Complete()
-                    : await executor.ExecuteAsync(definition, instance, stepDefinition.NextStepId.Value, ct);
+                    : executor.Execute(definition, instance, stepDefinition.NextStepId.Value, ct);
             }
         }
         else
