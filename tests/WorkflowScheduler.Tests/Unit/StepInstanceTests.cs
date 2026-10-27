@@ -224,35 +224,6 @@ public class StepInstanceTests
         Assert.NotNull(step.CompletedAt);
     }
 
-    [Theory]
-    [InlineData(StepStatus.Pending)]
-    [InlineData(StepStatus.Running)]
-    [InlineData(StepStatus.Waiting)]
-    [InlineData(StepStatus.Failed)]
-    [InlineData(StepStatus.TimedOut)]
-    [InlineData(StepStatus.Cancelled)]
-    [InlineData(StepStatus.Compensated)]
-    public void MarkCompensated_WhenNotCompleted_ReturnsErrorWithoutChangingState(StepStatus status)
-    {
-        var step = CreateStep(status);
-
-        AssertRejected(step, current => current.MarkCompensated());
-    }
-
-    [Fact]
-    public void MarkCompensated_WhenCompleted_PreservesOriginalResult()
-    {
-        var step = CreateStep(StepStatus.Completed);
-        var completedAt = step.CompletedAt;
-
-        var result = step.MarkCompensated();
-
-        Assert.False(result.IsError);
-        Assert.Equal(StepStatus.Compensated, step.Status);
-        Assert.Equal("saved output", step.OutputData);
-        Assert.Equal(completedAt, step.CompletedAt);
-    }
-
     private static void AssertRejected<T>(StepInstance step, Func<StepInstance, ErrorOr<T>> transition)
     {
         var before = (step.Status, step.RetryCount, step.NextRetryAt, step.CompletedAt, step.OutputData, step.Error);
@@ -292,7 +263,8 @@ public class StepInstanceTests
                 break;
             case StepStatus.Compensated:
                 Assert.False(step.Complete("saved output").IsError);
-                Assert.False(step.MarkCompensated().IsError);
+                // Restore the status persisted by the saga's database update.
+                typeof(StepInstance).GetProperty(nameof(StepInstance.Status))!.SetValue(step, StepStatus.Compensated);
                 break;
         }
 

@@ -171,6 +171,9 @@ public class ProcessTests(TestInfrastructure infrastructure)
         var process = await app.Start(await app.Register(a, b, wait, undoA, undoB));
         await app.Complete(process, a.Id);
         await app.Complete(process, b.Id);
+
+        var completedSteps = (await app.Send(new GetProcessStatusQuery(process)))!.StepHistory.Take(2).ToArray();
+
         // Act
         var cancelled = await app.Send(new CancelProcessCommand(process));
         var midway = await app.Send(new GetProcessStatusQuery(process));
@@ -190,7 +193,9 @@ public class ProcessTests(TestInfrastructure infrastructure)
         Assert.Equal(
             2,
             await app.WithDb(db => db.SagaCompensationLogs.CountAsync(x => x.Status == CompensationStatus.Done)));
-        Assert.All(status.StepHistory.Take(2), x => Assert.Equal("Compensated", x.Status));
+        Assert.Equal(
+            completedSteps.Select(step => step with { Status = "Compensated" }),
+            status.StepHistory.Take(2));
     }
 
     [Fact]

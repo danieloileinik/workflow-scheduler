@@ -102,11 +102,4 @@ public class StepInstance(
         CompletedAt = DateTime.UtcNow;
         return Result.Success;
     }
-
-    public ErrorOr<Success> MarkCompensated()
-    {
-        if (Status != StepStatus.Completed) return StepErrors.InvalidTransition(Status, StepStatus.Compensated);
-        Status = StepStatus.Compensated;
-        return Result.Success;
-    }
 }
