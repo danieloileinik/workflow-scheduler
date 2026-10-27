@@ -1,4 +1,3 @@
-using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
 using GrpcServiceBase = WorkflowScheduler.Grpc.StartProcess.StartProcessBase;
@@ -17,18 +16,11 @@ public sealed class StartProcessEndpoint(IMediator mediator) : GrpcServiceBase
         if (!Guid.TryParse(request.IdempotencyKey, out var idempotencyKey))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid idempotency key"));
 
-        try
-        {
-            var command = new StartProcessCommand(definitionId, idempotencyKey, request.BusinessKey, request.InputData);
+        var command = new StartProcessCommand(definitionId, idempotencyKey, request.BusinessKey, request.InputData);
 
-            var result = await mediator.Send(command, context.CancellationToken);
-            return result.IsError
-                ? throw result.Errors.ToRpcException()
-                : new GrpcResponse { ProcessInstanceId = result.Value.ProcessInstanceId.ToString() };
-        }
-        catch (ValidationException ex)
-        {
-            throw ex.ToRpcException();
-        }
+        var result = await mediator.Send(command, context.CancellationToken);
+        return result.IsError
+            ? throw result.Errors.ToRpcException()
+            : new GrpcResponse { ProcessInstanceId = result.Value.ProcessInstanceId.ToString() };
     }
 }

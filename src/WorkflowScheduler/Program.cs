@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using WorkflowScheduler.Common;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
@@ -18,7 +19,10 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Services.AddGrpc(options =>
-            options.MaxReceiveMessageSize = WorkflowProtocol.MaxGrpcReceiveMessageBytes);
+        {
+            options.MaxReceiveMessageSize = WorkflowProtocol.MaxGrpcReceiveMessageBytes;
+            options.Interceptors.Add<ValidationExceptionInterceptor>();
+        });
         builder.Services.AddWorkflowScheduler(builder.Configuration);
         var app = builder.Build();
         if (args.Contains("--initialize-database"))

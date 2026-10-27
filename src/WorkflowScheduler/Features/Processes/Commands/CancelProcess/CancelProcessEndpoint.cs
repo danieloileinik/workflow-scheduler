@@ -1,4 +1,3 @@
-using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
 using GrpcServiceBase = WorkflowScheduler.Grpc.CancelProcess.CancelProcessBase;
@@ -14,15 +13,8 @@ public sealed class CancelProcessEndpoint(IMediator mediator) : GrpcServiceBase
         if (!Guid.TryParse(request.ProcessInstanceId, out var instanceId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid process instance id"));
 
-        try
-        {
-            var command = new CancelProcessCommand(instanceId);
-            var result = await mediator.Send(command, context.CancellationToken);
-            return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();
-        }
-        catch (ValidationException ex)
-        {
-            throw ex.ToRpcException();
-        }
+        var command = new CancelProcessCommand(instanceId);
+        var result = await mediator.Send(command, context.CancellationToken);
+        return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();
     }
 }

@@ -99,17 +99,54 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         Assert.Equal(StatusCode.NotFound, exception.StatusCode);
     }
 
-    [Fact]
-    public async Task BlankCorrelationId_ReturnsInvalidArgument()
+    [Theory]
+    [InlineData("register", "'Name' must not be empty.")]
+    [InlineData("start", "'Definition Id' must not be empty.")]
+    [InlineData("cancel", "'Process Instance Id' must not be empty.")]
+    [InlineData("complete", "'Correlation Id' must not be empty.")]
+    [InlineData("event", "'Event Name' must not be empty.; 'Correlation Id' must not be empty.")]
+    public async Task InvalidCommand_ReturnsInvalidArgumentWithValidationDetails(string operation,
+        string expectedDetail)
     {
         // Arrange
         await using var app = await infrastructure.CreateGrpcAppAsync();
-        var request = new SendEventRequest { ProcessInstanceId = Guid.NewGuid().ToString(), EventName = "Approved" };
+        var invoker = app.CallInvoker;
+        var registration = GrpcApp.Registration(TestWorkflow.Call());
+        registration.Name = "";
+        Func<Task> invoke = operation switch
+        {
+            "register" => () => new RegisterProcessDefinitionGrpcClient(invoker)
+                .RegisterProcessDefinitionAsync(registration)
+                .ResponseAsync,
+            "start" => () => new StartProcessGrpcClient(invoker).StartProcessAsync(
+                    new StartProcessRequest
+                    {
+                        DefinitionId = Guid.Empty.ToString(), IdempotencyKey = Guid.NewGuid().ToString(),
+                        BusinessKey = "order", InputData = "{}"
+                    })
+                .ResponseAsync,
+            "cancel" => () => new CancelProcessGrpcClient(invoker).CancelProcessAsync(
+                    new CancelProcessRequest { ProcessInstanceId = Guid.Empty.ToString() })
+                .ResponseAsync,
+            "complete" => () => new CompleteStepGrpcClient(invoker).CompleteStepAsync(
+                    new CompleteStepRequest
+                    {
+                        ProcessInstanceId = Guid.NewGuid().ToString(), StepDefinitionId = Guid.NewGuid().ToString(),
+                        StepInstanceId = Guid.NewGuid().ToString()
+                    })
+                .ResponseAsync,
+            "event" => () => new SendEventGrpcClient(invoker).SendEventAsync(
+                    new SendEventRequest { ProcessInstanceId = Guid.NewGuid().ToString() })
+                .ResponseAsync,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        };
+
         // Act
-        var exception = await Assert.ThrowsAsync<RpcException>(async () =>
-            await new SendEventGrpcClient(app.CallInvoker).SendEventAsync(request));
+        var exception = await Assert.ThrowsAsync<RpcException>(invoke);
+
         // Assert
         Assert.Equal(StatusCode.InvalidArgument, exception.StatusCode);
+        Assert.Equal(expectedDetail, exception.Status.Detail);
     }
 
     [Fact]

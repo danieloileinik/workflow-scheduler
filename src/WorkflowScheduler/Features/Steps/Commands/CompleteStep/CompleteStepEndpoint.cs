@@ -1,5 +1,3 @@
-using ErrorOr;
-using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
 using GrpcServiceBase = WorkflowScheduler.Grpc.CompleteStep.CompleteStepBase;
@@ -21,23 +19,16 @@ public sealed class CompleteStepEndpoint(IMediator mediator) : GrpcServiceBase
         if (!Guid.TryParse(request.StepInstanceId, out var stepInstanceId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid step instance id"));
 
-        try
-        {
-            var command = new CompleteStepCommand(
-                instanceId,
-                stepDefinitionId,
-                request.Success,
-                string.IsNullOrEmpty(request.OutputData) ? null : request.OutputData,
-                request.CorrelationId,
-                stepInstanceId,
-                request.Attempt);
+        var command = new CompleteStepCommand(
+            instanceId,
+            stepDefinitionId,
+            request.Success,
+            string.IsNullOrEmpty(request.OutputData) ? null : request.OutputData,
+            request.CorrelationId,
+            stepInstanceId,
+            request.Attempt);
 
-            var result = await mediator.Send(command, context.CancellationToken);
-            return result.IsError ? throw ((List<Error>)result.Errors).ToRpcException() : new GrpcResponse();
-        }
-        catch (ValidationException ex)
-        {
-            throw ex.ToRpcException();
-        }
+        var result = await mediator.Send(command, context.CancellationToken);
+        return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();
     }
 }

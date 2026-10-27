@@ -1,4 +1,3 @@
-using FluentValidation;
 using MediatR;
 using WorkflowScheduler.Common;
 using WorkflowScheduler.Domain.Steps;
@@ -30,18 +29,11 @@ public sealed class RegisterProcessDefinitionEndpoint(IMediator mediator) : Grpc
                     ParseOptionalId(s.CompensationStepId)));
         }
 
-        try
-        {
-            var command = new RegisterProcessDefinitionCommand(request.Name, request.Version, steps);
-            var result = await mediator.Send(command, context.CancellationToken);
-            return result.IsError
-                ? throw result.Errors.ToRpcException()
-                : new GrpcResponse { DefinitionId = result.Value.DefinitionId.ToString() };
-        }
-        catch (ValidationException ex)
-        {
-            throw ex.ToRpcException();
-        }
+        var command = new RegisterProcessDefinitionCommand(request.Name, request.Version, steps);
+        var result = await mediator.Send(command, context.CancellationToken);
+        return result.IsError
+            ? throw result.Errors.ToRpcException()
+            : new GrpcResponse { DefinitionId = result.Value.DefinitionId.ToString() };
     }
 
     private static Guid? ParseOptionalId(string value)
