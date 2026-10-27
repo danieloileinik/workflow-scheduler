@@ -35,14 +35,17 @@ public class ProcessConcurrencyTests(TestInfrastructure infrastructure)
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({AdvisoryLock.ForProcess(process)})",
             timeout.Token);
+
         IRequest<ErrorOr<Success>> cancel = new CancelProcessCommand(process);
 
         // Act: queue both operations behind the same lock in a known order.
         var firstTask = app.Send(cancelFirst ? cancel : callback, timeout.Token);
         await WaitForBlockedCommands(app, 1);
+
         var secondTask = app.Send(cancelFirst ? callback : cancel, timeout.Token);
         await WaitForBlockedCommands(app, 2);
         await transaction.CommitAsync(timeout.Token);
+
         var results = await Task.WhenAll(firstTask, secondTask);
         var status = await app.Send(new GetProcessStatusQuery(process), timeout.Token);
 
@@ -50,6 +53,7 @@ public class ProcessConcurrencyTests(TestInfrastructure infrastructure)
         Assert.False(results[0].IsError);
         Assert.Equal(cancelFirst, results[1].IsError);
         Assert.Equal("Cancelled", status!.Status);
+
         string[] expectedStates = cancelFirst ? ["Cancelled"] : ["Completed", "Cancelled", "Running"];
         Assert.Equal(expectedStates, status.StepHistory.Select(step => step.Status));
         Assert.Equal(cancelFirst ? 1 : 3, await app.WithDb(context => context.OutboxMessages.CountAsync()));
@@ -76,6 +80,7 @@ public class ProcessConcurrencyTests(TestInfrastructure infrastructure)
             .ExecuteUpdateAsync(update => update.SetProperty(
                 step => step.NextRetryAt,
                 DateTime.UtcNow.AddSeconds(-1))));
+
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -83,15 +88,18 @@ public class ProcessConcurrencyTests(TestInfrastructure infrastructure)
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({AdvisoryLock.ForProcess(process)})",
             timeout.Token);
+
         IRequest<ErrorOr<Success>> cancel = new CancelProcessCommand(process);
         IRequest<ErrorOr<Success>> retry = new RetryStepsCommand(process);
 
         // Act
         var first = app.Send(cancelFirst ? cancel : retry, timeout.Token);
         await WaitForBlockedCommands(app, 1);
+
         var second = app.Send(cancelFirst ? retry : cancel, timeout.Token);
         await WaitForBlockedCommands(app, 2);
         await transaction.CommitAsync(timeout.Token);
+
         var results = await Task.WhenAll(first, second);
         var status = await app.Send(new GetProcessStatusQuery(process), timeout.Token);
 
@@ -122,11 +130,13 @@ public class ProcessConcurrencyTests(TestInfrastructure infrastructure)
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({AdvisoryLock.ForProcess(blockedProcess)})",
             timeout.Token);
+
         var blocked = app.Complete(blockedProcess, call.Id);
         await WaitForBlockedCommands(app, 1);
 
         // Act
         ErrorOr<Success> independent;
+
         try
         {
             independent = await app.Complete(independentProcess, call.Id).WaitAsync(TimeSpan.FromSeconds(5));

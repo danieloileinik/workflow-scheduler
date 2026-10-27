@@ -85,6 +85,7 @@ public class ConcurrencyTests(TestInfrastructure infrastructure)
                 Assert.Equal("Process.DuplicateEvent", result.FirstError.Code));
         Assert.Equal(1, await app.WithDb(db => db.EventLogs.CountAsync(timeout.Token)));
         Assert.Equal(2, await app.WithDb(db => db.OutboxMessages.CountAsync()));
+
         var persisted = await app.Send(new GetProcessStatusQuery(process), timeout.Token);
         Assert.Equal([first.Id, second.Id], persisted!.StepHistory.Select(step => step.StepDefinitionId));
         Assert.Equal(["Completed", "Running"], persisted.StepHistory.Select(step => step.Status));

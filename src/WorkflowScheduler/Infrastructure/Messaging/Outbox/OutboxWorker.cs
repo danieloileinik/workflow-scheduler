@@ -13,7 +13,8 @@ public class OutboxWorker(IServiceScopeFactory scopes, ILogger<OutboxWorker> log
                     .ServiceProvider
                     .GetRequiredService<OutboxDispatcher>()
                     .DispatchAsync(stoppingToken);
-                if (count == OutboxDispatcher.BatchSize) continue;
+                if (count == OutboxDispatcher.BatchSize)
+                    continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

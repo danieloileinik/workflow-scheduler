@@ -23,6 +23,7 @@ public class WorkflowWorkerTests
         client
             .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(true), Task.FromResult(true));
+
         var trace = new ScopeTrace();
         client
             .CompleteStepAsync(
@@ -33,17 +34,21 @@ public class WorkflowWorkerTests
             .Returns(_ =>
             {
                 Assert.Equal(trace.Created, trace.Disposed);
+
                 return Task.CompletedTask;
             });
+
         var services = Services(client);
         services.AddSingleton(trace);
         services.AddScoped<ScopedDependency>();
         services.AddWorkflowSchedulerWorker(Configure).Handle<Input, Output, ScopedHandler>("Charge");
+
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var processor = provider.GetRequiredService<WorkflowMessageProcessor>();
 
         // Act
         var processing = processor.ProcessAsync(command, CancellationToken.None);
+
         try
         {
             await trace.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -64,8 +69,10 @@ public class WorkflowWorkerTests
         Assert.Equal(trace.Created, trace.Disposed);
         Assert.Equal(new[] { 42, 42 }, trace.Inputs);
         Assert.All(trace.Contexts, context => Assert.Equal("Charge", context.Command));
+
         var calls = client.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "CompleteStepAsync").ToList();
         Assert.Equal(2, calls.Count);
+
         var firstOutput = (JsonElement)calls[0].GetArguments()[1]!;
         Assert.Equal(42, firstOutput.GetProperty("orderId").GetInt32());
         Assert.Equal("worker:" + command.StepInstanceId.ToString("N") + ":0", calls[0].GetArguments()[2]);
@@ -85,6 +92,7 @@ public class WorkflowWorkerTests
                 Arg.Any<string>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException(unavailable), _ => Task.CompletedTask);
+
         await using var provider = Provider(
             client,
             builder => builder.Handle<Input, Output>(
@@ -94,12 +102,14 @@ public class WorkflowWorkerTests
                     effects++;
                     Assert.Equal(command.CorrelationId, context.CorrelationId);
                     Assert.Equal(command.StepInstanceId.ToString("N") + ":2", context.IdempotencyKey);
+
                     return Task.FromResult(new Output(input.OrderId));
                 }));
 
         await provider.GetRequiredService<WorkflowMessageProcessor>().ProcessAsync(command, CancellationToken.None);
 
         Assert.Equal(1, effects);
+
         var calls = client.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "CompleteStepAsync").ToList();
         Assert.Equal(2, calls.Count);
         Assert.Equal(
@@ -128,6 +138,7 @@ public class WorkflowWorkerTests
                 Arg.Any<string>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException(unavailable), _ => Task.FromException(conflict));
+
         var effects = 0;
         await using var provider = Provider(
             client,
@@ -164,6 +175,7 @@ public class WorkflowWorkerTests
                 Arg.Any<string>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromException(failure));
+
         var effects = 0;
         await using var provider = Provider(
             client,
@@ -194,6 +206,7 @@ public class WorkflowWorkerTests
             .Returns(
                 _ => Task.FromException<bool>(unavailable),
                 _ => Task.FromResult(true));
+
         var effects = 0;
         await using var provider = Provider(
             client,
@@ -215,6 +228,7 @@ public class WorkflowWorkerTests
         client
             .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(false));
+
         var effects = 0;
         await using var provider = Provider(
             client,
@@ -241,6 +255,7 @@ public class WorkflowWorkerTests
                 (_, context, _) =>
                 {
                     seen = context;
+
                     return Task.FromResult(true);
                 }));
 
@@ -257,6 +272,7 @@ public class WorkflowWorkerTests
     public async Task BusinessFailureInvalidInputAndMissingHandler_ReportFailure(string cause)
     {
         var command = Command();
+
         switch (cause)
         {
             case "input":
@@ -280,6 +296,7 @@ public class WorkflowWorkerTests
         var failure = Assert.Single(client.ReceivedCalls(), call => call.GetMethodInfo().Name == "FailStepAsync");
         var message = (string)failure.GetArguments()[1]!;
         Assert.InRange(message.Length, 1, 2048);
+
         switch (cause)
         {
             case "handler":
@@ -307,6 +324,7 @@ public class WorkflowWorkerTests
                 {
                     entered.SetResult();
                     await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+
                     return 1;
                 }));
         using var cancellation = new CancellationTokenSource();
@@ -334,6 +352,7 @@ public class WorkflowWorkerTests
                 async (_, _, ct) =>
                 {
                     await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+
                     return 0;
                 }),
             options => options.HandlerTimeout = TimeSpan.FromMilliseconds(30));
@@ -375,6 +394,7 @@ public class WorkflowWorkerTests
         Assert.Throws<JsonException>(() => WorkflowMessageProcessor.ReadCommand(
             JsonSerializer.Serialize(command with { Attempt = -1 }),
             command.ProcessInstanceId.ToString()));
+
         var a = new WorkflowCommandContext(
             new StepExecution(command.ProcessInstanceId, command.StepDefinitionId, command.StepInstanceId, 0),
             "Charge",
@@ -390,6 +410,7 @@ public class WorkflowWorkerTests
     {
         var services = Services(Client(Command()));
         Assert.Throws<ArgumentException>(() => services.AddWorkflowSchedulerWorker(_ => { }));
+
         WorkflowWorkerOptions? original = null;
         var builder = services.AddWorkflowSchedulerWorker(options =>
         {
@@ -405,6 +426,7 @@ public class WorkflowWorkerTests
         Assert.Throws<InvalidOperationException>(() => services.AddWorkflowSchedulerWorker(Configure));
         original!.ServiceName = "mutated";
         original.JsonSerializerOptions.PropertyNamingPolicy = null;
+
         using var provider = services.BuildServiceProvider();
         var snapshot = provider.GetRequiredService<WorkerRegistration>().Options;
         Assert.Equal("process.commands.billing", snapshot.Topic);
@@ -429,6 +451,7 @@ public class WorkflowWorkerTests
         Assert.ThrowsAny<ArgumentException>(() => services.AddWorkflowSchedulerWorker(options =>
         {
             Configure(options);
+
             switch (error)
             {
                 case "service": options.ServiceName = "billing/orders"; break;
@@ -446,6 +469,7 @@ public class WorkflowWorkerTests
     {
         var services = Services(Client(Command()));
         services.AddWorkflowSchedulerWorker(Configure);
+
         using var provider = services.BuildServiceProvider();
         Assert.Throws<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray());
     }
@@ -455,6 +479,7 @@ public class WorkflowWorkerTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(client);
+
         return services;
     }
 
@@ -469,6 +494,7 @@ public class WorkflowWorkerTests
             configure?.Invoke(options);
         });
         handlers(builder);
+
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
 
@@ -497,6 +523,7 @@ public class WorkflowWorkerTests
         client
             .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(true));
+
         return client;
     }
 
@@ -526,6 +553,7 @@ public class WorkflowWorkerTests
         public ValueTask DisposeAsync()
         {
             trace.Disposed.Add(Id);
+
             return ValueTask.CompletedTask;
         }
     }
@@ -543,6 +571,7 @@ public class WorkflowWorkerTests
             trace.Entered.TrySetResult();
             await trace.Release.Task.WaitAsync(cancellationToken);
             Assert.DoesNotContain(dependency.Id, trace.Disposed);
+
             return new Output(input.OrderId);
         }
     }

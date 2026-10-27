@@ -22,6 +22,7 @@ internal sealed class KafkaProbe : IDisposable
                 AutoOffsetReset = AutoOffsetReset.Error,
                 FetchWaitMaxMs = 50
             }).Build();
+
         try
         {
             // Capture end offsets BEFORE triggering a workflow. Old test records are ignored
@@ -34,6 +35,7 @@ internal sealed class KafkaProbe : IDisposable
                         var partition = new TopicPartition($"process.commands.{service}", new Partition(0));
                         var end = _consumer.QueryWatermarkOffsets(partition, TimeSpan.FromSeconds(10)).High;
                         _nextOffsets.Add(partition, end);
+
                         return new TopicPartitionOffset(partition, end);
                     })
             ]);
@@ -59,10 +61,12 @@ internal sealed class KafkaProbe : IDisposable
         {
             var command = _buffer[buffered].Command;
             _buffer.RemoveAt(buffered);
+
             return command;
         }
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
         try
         {
             return await Task.Run(
@@ -72,9 +76,12 @@ internal sealed class KafkaProbe : IDisposable
                     {
                         var record = _consumer.Consume(timeout.Token);
                         _nextOffsets[record.TopicPartition] = record.Offset + 1;
+
                         var command = JsonSerializer.Deserialize<ExecuteStepCommand>(record.Message.Value)!;
                         Assert.Equal(command.ProcessInstanceId.ToString(), record.Message.Key);
-                        if (record.Topic == topic && command.ProcessInstanceId == processId) return command;
+                        if (record.Topic == topic && command.ProcessInstanceId == processId)
+                            return command;
+
                         _buffer.Add((record.Topic, record.Message.Key, command));
                     }
                 },
@@ -96,12 +103,15 @@ internal sealed class KafkaProbe : IDisposable
             partition => partition,
             partition => _consumer.QueryWatermarkOffsets(partition, TimeSpan.FromSeconds(10)).High);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
         while (ends.Any(partition => _nextOffsets[partition.Key] < partition.Value))
         {
             var record = _consumer.Consume(timeout.Token);
             _nextOffsets[record.TopicPartition] = record.Offset + 1;
+
             var command = JsonSerializer.Deserialize<ExecuteStepCommand>(record.Message.Value)!;
-            if (command.ProcessInstanceId == processId) count++;
+            if (command.ProcessInstanceId == processId)
+                count++;
             else _buffer.Add((record.Topic, record.Message.Key, command));
         }
 

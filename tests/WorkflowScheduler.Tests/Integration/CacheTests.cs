@@ -41,15 +41,18 @@ public class CacheTests(TestInfrastructure infrastructure)
 
         // Act
         app.Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+
         var result = await app.Complete(process, first.Id);
 
         // Assert
         Assert.False(result.IsError);
+
         await using var scope = app.Services.CreateAsyncScope();
         var cached = await scope.ServiceProvider.GetRequiredService<IProcessDefinitionCache>().GetAsync(definition);
         Assert.NotNull(cached);
         Assert.Equal([first.Id, second.Id], cached.Steps.Select(step => step.Id));
         Assert.Equal([first.Metadata, second.Metadata], cached.Steps.Select(step => step.Metadata));
+
         var status = await app.Send(new GetProcessStatusQuery(process));
         Assert.Equal("Waiting", status!.Status);
         Assert.Equal(["Completed", "Waiting"], status.StepHistory.Select(step => step.Status));
@@ -84,6 +87,7 @@ public class CacheTests(TestInfrastructure infrastructure)
 
         // Act
         await app.Start(definition);
+
         await using var scope = app.Services.CreateAsyncScope();
         var cached = await scope.ServiceProvider.GetRequiredService<IProcessDefinitionCache>().GetAsync(definition);
         var redis = app.Services.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
@@ -108,13 +112,16 @@ public class CacheTests(TestInfrastructure infrastructure)
         var call = TestWorkflow.Call();
         var definition = await app.Register(call);
         await app.Start(definition);
+
         var redis = app.Services.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
         var key = $"proc-def:v2:{definition}";
-        if (corrupt) await redis.StringSetAsync(key, "{broken-json");
+        if (corrupt)
+            await redis.StringSetAsync(key, "{broken-json");
         else await redis.KeyDeleteAsync(key);
 
         // Act
         app.Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+
         var process = await app.Start(definition);
         await using var scope = app.Services.CreateAsyncScope();
         var cached = await scope.ServiceProvider.GetRequiredService<IProcessDefinitionCache>().GetAsync(definition);
@@ -124,6 +131,7 @@ public class CacheTests(TestInfrastructure infrastructure)
         Assert.Equal(call.Id, cached.GetFirstStep().Value.Id);
         Assert.Equal(2, await app.WithDb(db => db.ProcessInstances.CountAsync()));
         Assert.Equal(2, await app.WithDb(db => db.StartRequests.CountAsync()));
+
         var status = await app.Send(new GetProcessStatusQuery(process));
         Assert.Equal(call.Id, status!.StepHistory.Single().StepDefinitionId);
         Assert.Equal("Running", status.StepHistory.Single().Status);

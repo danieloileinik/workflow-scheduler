@@ -25,6 +25,7 @@ internal sealed class WorkflowMessageProcessor(
             || string.IsNullOrWhiteSpace(command.CorrelationId) || command.CorrelationId.Length > 256
             || !Guid.TryParse(key, out var processId) || processId != command.ProcessInstanceId)
             throw new JsonException("Invalid step command identity, attempt, correlation or Kafka process key.");
+
         return command;
     }
 
@@ -36,6 +37,7 @@ internal sealed class WorkflowMessageProcessor(
                 "Skipping inactive execution {StepInstanceId}, attempt {Attempt}",
                 command.StepInstanceId,
                 command.Attempt);
+
             return;
         }
 
@@ -60,6 +62,7 @@ internal sealed class WorkflowMessageProcessor(
             await using var scope = scopes.CreateAsyncScope();
             using var handlerTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             handlerTimeout.CancelAfter(_options.HandlerTimeout);
+
             try
             {
                 output = await handler(
@@ -76,7 +79,9 @@ internal sealed class WorkflowMessageProcessor(
             catch (Exception exception)
             {
                 failure = handlerTimeout.IsCancellationRequested ? "Command handler timed out." : exception.Message;
-                if (string.IsNullOrWhiteSpace(failure)) failure = exception.GetType().Name;
+                if (string.IsNullOrWhiteSpace(failure))
+                    failure = exception.GetType().Name;
+
                 logger.LogWarning(
                     exception,
                     "Command {Command} failed for {StepInstanceId}, attempt {Attempt}",
@@ -88,6 +93,7 @@ internal sealed class WorkflowMessageProcessor(
 
         if (failure is null && !WorkflowProtocol.OutputFitsMessage(JsonSerializer.Serialize(output)))
             failure = "Command output exceeds the callback message size limit.";
+
         failure = failure?[..Math.Min(failure.Length, 2048)];
         ct.ThrowIfCancellationRequested();
 
@@ -124,7 +130,9 @@ internal sealed class WorkflowMessageProcessor(
                 {
                     // The previous RPC may have committed before its response was lost. Reconcile
                     // with persisted state instead of treating every conflict as an acknowledgement.
-                    if (await IsActiveAsync(command, token)) throw;
+                    if (await IsActiveAsync(command, token))
+                        throw;
+
                     logger.LogInformation(
                         "Execution {StepInstanceId}, attempt {Attempt} is no longer active",
                         command.StepInstanceId,

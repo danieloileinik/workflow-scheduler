@@ -24,23 +24,29 @@ public class Program
             options.Interceptors.Add<ValidationExceptionInterceptor>();
         });
         builder.Services.AddWorkflowScheduler(builder.Configuration);
+
         var app = builder.Build();
         if (args.Contains("--initialize-database"))
         {
             await using var scope = app.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await DatabaseInitializer.InitializeAsync(db);
+
             return;
         }
 
-        app.MapHealthChecks("/health/live", new HealthCheckOptions
-        {
-            Predicate = _ => false
-        });
-        app.MapHealthChecks("/health/ready", new HealthCheckOptions
-        {
-            Predicate = check => check.Tags.Contains("ready")
-        });
+        app.MapHealthChecks(
+            "/health/live",
+            new HealthCheckOptions
+            {
+                Predicate = _ => false
+            });
+        app.MapHealthChecks(
+            "/health/ready",
+            new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("ready")
+            });
 
         app.MapGrpcService<RegisterProcessDefinitionEndpoint>();
         app.MapGrpcService<GetProcessDefinitionEndpoint>();

@@ -30,36 +30,48 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
 
     public ErrorOr<StepInstance> Start(Guid firstStepDefinitionId)
     {
-        if (Status != ProcessStatus.Created) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+        if (Status != ProcessStatus.Created)
+            return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+
         var step = CreateStepInstance(firstStepDefinitionId);
         Status = ProcessStatus.Running;
         CurrentStepId = step.Id;
         UpdatedAt = DateTime.UtcNow;
+
         return step;
     }
 
     public ErrorOr<StepInstance> MoveToStep(Guid stepDefinitionId)
     {
-        if (Status != ProcessStatus.Running) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+        if (Status != ProcessStatus.Running)
+            return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+
         var step = CreateStepInstance(stepDefinitionId);
         CurrentStepId = step.Id;
         UpdatedAt = DateTime.UtcNow;
+
         return step;
     }
 
     public ErrorOr<Success> Wait()
     {
-        if (Status != ProcessStatus.Running) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Waiting);
+        if (Status != ProcessStatus.Running)
+            return ProcessErrors.InvalidTransition(Status, ProcessStatus.Waiting);
+
         Status = ProcessStatus.Waiting;
         UpdatedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
     public ErrorOr<Success> Resume()
     {
-        if (Status != ProcessStatus.Waiting) return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+        if (Status != ProcessStatus.Waiting)
+            return ProcessErrors.InvalidTransition(Status, ProcessStatus.Running);
+
         Status = ProcessStatus.Running;
         UpdatedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
@@ -67,8 +79,10 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
     {
         if (Status is not (ProcessStatus.Running or ProcessStatus.Waiting))
             return ProcessErrors.InvalidTransition(Status, ProcessStatus.Completed);
+
         Status = ProcessStatus.Completed;
         UpdatedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
@@ -76,8 +90,10 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
     {
         if (Status is ProcessStatus.Completed or ProcessStatus.Cancelled)
             return ProcessErrors.InvalidTransition(Status, ProcessStatus.Failed);
+
         Status = ProcessStatus.Failed;
         UpdatedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
@@ -93,6 +109,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
 
         Status = ProcessStatus.Cancelled;
         UpdatedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
@@ -101,6 +118,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
         var step = new StepInstance(Id, stepDefinitionId);
         step.SetSequence(_nextStepSequence++, true);
         _steps.Add(step);
+
         return step;
     }
 
@@ -114,6 +132,7 @@ public class ProcessInstance(Guid id, Guid definitionId, string businessKey, str
         var step = new StepInstance(Id, stepId);
         step.SetSequence(_nextStepSequence++);
         _steps.Add(step);
+
         return step;
     }
 }

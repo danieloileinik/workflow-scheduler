@@ -21,16 +21,20 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (_definitions.Get<PreparedProcessDefinition>(definitionId) is { } cached) return cached;
+        if (_definitions.Get<PreparedProcessDefinition>(definitionId) is { } cached)
+            return cached;
 
         SemaphoreSlim loadLock = _loadLocks[definitionId.GetHashCode() & (_loadLocks.Length - 1)];
         await loadLock.WaitAsync(ct);
+
         try
         {
-            if (_definitions.Get<PreparedProcessDefinition>(definitionId) is { } loaded) return loaded;
+            if (_definitions.Get<PreparedProcessDefinition>(definitionId) is { } loaded)
+                return loaded;
 
             ProcessDefinition? definition = await load(ct);
-            if (definition is null) return null;
+            if (definition is null)
+                return null;
 
             var prepared = new PreparedProcessDefinition(definition);
             // Approximate retained strings and per-step objects; oversized definitions are not cached.
@@ -40,6 +44,7 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
                 Size = size,
                 SlidingExpiration = TimeSpan.FromMinutes(30)
             });
+
             return prepared;
         }
         finally
@@ -56,6 +61,8 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
     public void Dispose()
     {
         _definitions.Dispose();
-        foreach (SemaphoreSlim loadLock in _loadLocks) loadLock.Dispose();
+
+        foreach (SemaphoreSlim loadLock in _loadLocks)
+            loadLock.Dispose();
     }
 }

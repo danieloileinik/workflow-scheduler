@@ -31,6 +31,7 @@ public sealed class RegisterProcessDefinitionEndpoint(IMediator mediator) : Grpc
 
         var command = new RegisterProcessDefinitionCommand(request.Name, request.Version, steps);
         var result = await mediator.Send(command, context.CancellationToken);
+
         return result.IsError
             ? throw result.Errors.ToRpcException()
             : new GrpcResponse { DefinitionId = result.Value.DefinitionId.ToString() };
@@ -38,8 +39,11 @@ public sealed class RegisterProcessDefinitionEndpoint(IMediator mediator) : Grpc
 
     private static Guid? ParseOptionalId(string value)
     {
-        if (string.IsNullOrEmpty(value)) return null;
-        if (Guid.TryParse(value, out var id) && id != Guid.Empty) return id;
+        if (string.IsNullOrEmpty(value))
+            return null;
+        if (Guid.TryParse(value, out var id) && id != Guid.Empty)
+            return id;
+
         throw new RpcException(new Status(StatusCode.InvalidArgument, $"Invalid step reference: {value}"));
     }
 

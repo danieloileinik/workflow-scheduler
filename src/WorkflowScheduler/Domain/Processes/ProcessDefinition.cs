@@ -27,15 +27,22 @@ public class ProcessDefinition(Guid id, string name, int version)
 
     public ErrorOr<StepDefinition> GetFirstStep()
     {
-        if (_steps.Count == 0) return ProcessErrors.NoStepsDefined;
+        if (_steps.Count == 0)
+            return ProcessErrors.NoStepsDefined;
+
         return _steps.MinBy(s => s.Position)!;
     }
 
     public StepDefinition? FindStep(Guid stepId)
     {
-        if (_stepsById is not null && _indexedStepCount == _steps.Count) return _stepsById.GetValueOrDefault(stepId);
+        if (_stepsById is not null && _indexedStepCount == _steps.Count)
+            return _stepsById.GetValueOrDefault(stepId);
+
         _stepsById = new Dictionary<Guid, StepDefinition>(_steps.Count);
-        foreach (var step in _steps) _stepsById.TryAdd(step.Id, step);
+
+        foreach (var step in _steps)
+            _stepsById.TryAdd(step.Id, step);
+
         _indexedStepCount = _steps.Count;
 
         return _stepsById.GetValueOrDefault(stepId);

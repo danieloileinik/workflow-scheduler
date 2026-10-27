@@ -12,21 +12,28 @@ public class CancelProcessHandler(AppDbContext db, CachedProcessDefinitionProvid
     public async Task<ErrorOr<Success>> Handle(CancelProcessCommand request, CancellationToken ct)
     {
         var instance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
-        if (instance is null) return ProcessErrors.NotFound;
+        if (instance is null)
+            return ProcessErrors.NotFound;
+
         var result = instance.Cancel();
-        if (result.IsError) return result;
+        if (result.IsError)
+            return result;
+
         foreach (var step in instance.Steps.Where(x => x is
-                 {
-                     IsCompensation: false, Status: StepStatus.Pending or StepStatus.Running
+        {
+            IsCompensation: false, Status: StepStatus.Pending or StepStatus.Running
                      or StepStatus.Waiting
-                 }))
+        }))
         {
             var cancel = step.Cancel();
-            if (cancel.IsError) return cancel;
+            if (cancel.IsError)
+                return cancel;
         }
 
         var definition = await definitions.GetOrLoadAsync(instance.DefinitionId, ct);
-        if (definition is null) return ProcessErrors.DefinitionNotFound;
+        if (definition is null)
+            return ProcessErrors.DefinitionNotFound;
+
         return await saga.ScheduleAsync(instance, definition, ct);
     }
 }

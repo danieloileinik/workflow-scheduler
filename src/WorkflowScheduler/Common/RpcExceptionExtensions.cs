@@ -23,6 +23,7 @@ public static class RpcExceptionExtensions
     public static RpcException ToRpcException(this ValidationException ex)
     {
         var description = string.Join("; ", ex.Errors.Select(e => e.ErrorMessage));
+
         return new RpcException(new Status(StatusCode.InvalidArgument, description));
     }
 }

@@ -20,8 +20,11 @@ public class ConditionStepStrategyTests
             JsonSerializer.Serialize(
                 new
                 {
-                    inputKey = "amount", @operator = "eq", value = "yes",
-                    trueNextStepId = yes, falseNextStepId = no
+                    inputKey = "amount",
+                    @operator = "eq",
+                    value = "yes",
+                    trueNextStepId = yes,
+                    falseNextStepId = no
                 }));
         var strategy = new ConditionStepStrategy();
         var prepared = new PreparedStepDefinition(definition);

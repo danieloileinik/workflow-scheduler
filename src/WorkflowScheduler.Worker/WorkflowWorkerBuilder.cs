@@ -24,9 +24,11 @@ public sealed class WorkflowWorkerBuilder
             {
                 var typed = ReadInput<TInput>(input, json);
                 var output = await services.GetRequiredService<THandler>().HandleAsync(typed, context, ct);
+
                 return JsonSerializer.SerializeToElement(output, json);
             });
         Services.TryAddScoped<THandler>();
+
         return this;
     }
 
@@ -38,6 +40,7 @@ public sealed class WorkflowWorkerBuilder
             command,
             async (_, input, context, json, ct) =>
                 JsonSerializer.SerializeToElement(await handler(ReadInput<TInput>(input, json), context, ct), json));
+
         return this;
     }
 

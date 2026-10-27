@@ -22,12 +22,15 @@ internal sealed class WorkflowWorker(
         using var deadLetters = new ProducerBuilder<string, string>(options.DeadLetterProducerConfig).Build();
         consumer.Subscribe(options.Topic);
         logger.LogInformation("Workflow worker consuming {Topic} in group {GroupId}", options.Topic, options.GroupId);
+
         var consumeFailures = 0;
+
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
                 ConsumeResult<string, string> record;
+
                 try
                 {
                     record = consumer.Consume(stoppingToken);
@@ -41,9 +44,12 @@ internal sealed class WorkflowWorker(
                     continue;
                 }
 
-                if (record.IsPartitionEOF) continue;
+                if (record.IsPartitionEOF)
+                    continue;
+
                 ExecuteStepCommand? command = null;
                 string? malformed = null;
+
                 try
                 {
                     command = WorkflowMessageProcessor.ReadCommand(record.Message?.Value, record.Message?.Key);
@@ -82,6 +88,7 @@ internal sealed class WorkflowWorker(
                 }
 
                 stoppingToken.ThrowIfCancellationRequested();
+
                 try
                 {
                     consumer.StoreOffset(record);

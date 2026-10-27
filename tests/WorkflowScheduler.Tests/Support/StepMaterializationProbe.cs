@@ -8,7 +8,9 @@ internal sealed class StepMaterializationProbe : IMaterializationInterceptor
 
     public object InitializedInstance(MaterializationInterceptionData materializationData, object entity)
     {
-        if (entity is StepInstance step) Steps.Add(step);
+        if (entity is StepInstance step)
+            Steps.Add(step);
+
         return entity;
     }
 }

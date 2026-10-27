@@ -28,6 +28,7 @@ public sealed class WorkflowBuilder
     {
         ValidateCall(service, command);
         Append(NewStep(name ?? command, WorkflowStepKind.Call, new { serviceName = service, command }));
+
         return this;
     }
 
@@ -35,6 +36,7 @@ public sealed class WorkflowBuilder
     {
         Guard.Text(eventName, nameof(eventName), WorkflowProtocol.MaxEventNameLength);
         Append(NewStep(name ?? eventName, WorkflowStepKind.WaitEvent, new { eventName }));
+
         return this;
     }
 
@@ -45,13 +47,16 @@ public sealed class WorkflowBuilder
             throw new InvalidOperationException("CompensateWith must follow a Call step.");
         if (_last.CompensationStepId is not null)
             throw new InvalidOperationException("This Call step already has a compensation.");
+
         ValidateCall(service, command);
+
         var compensation = NewStep(
             name ?? command,
             WorkflowStepKind.Call,
             new { serviceName = service, command });
         compensation.IsCompensation = true;
         _last.CompensationStepId = compensation.Id;
+
         return this;
     }
 
@@ -77,6 +82,7 @@ public sealed class WorkflowBuilder
         ArgumentNullException.ThrowIfNull(value);
         ArgumentNullException.ThrowIfNull(whenTrue);
         ArgumentNullException.ThrowIfNull(whenFalse);
+
         var op = comparison switch
         {
             WorkflowComparison.Equal => "eq",
@@ -93,9 +99,11 @@ public sealed class WorkflowBuilder
 
         var condition = NewStep(name ?? $"Check {inputKey}", WorkflowStepKind.Condition, new { });
         Append(condition);
+
         var yes = new WorkflowBuilder(_definition, false);
         var no = new WorkflowBuilder(_definition, false);
         _insideBranch = true;
+
         try
         {
             whenTrue(yes);
@@ -121,21 +129,28 @@ public sealed class WorkflowBuilder
         condition.Metadata = JsonSerializer.Serialize(
             new
             {
-                inputKey, @operator = op, value,
-                trueNextStepId = yes._first.Id, falseNextStepId = no._first.Id
+                inputKey,
+                @operator = op,
+                value,
+                trueNextStepId = yes._first.Id,
+                falseNextStepId = no._first.Id
             },
             MetadataOptions);
         _tails.Clear();
         _tails.AddRange(yes._tails);
         _tails.AddRange(no._tails);
+
         return this;
     }
 
     public WorkflowDefinition Build()
     {
         EnsureEditable();
-        if (!_root) throw new InvalidOperationException("Build is only available on the root workflow builder.");
-        if (_first is null) throw new InvalidOperationException("A workflow must contain at least one step.");
+        if (!_root)
+            throw new InvalidOperationException("Build is only available on the root workflow builder.");
+        if (_first is null)
+            throw new InvalidOperationException("A workflow must contain at least one step.");
+
         var steps = _definition
             .Steps
             .Where(step => !step.IsCompensation)
@@ -148,6 +163,7 @@ public sealed class WorkflowBuilder
                 step.NextStepId,
                 step.CompensationStepId))
             .ToArray();
+
         return new WorkflowDefinition(_definition.Name, _definition.Version, steps);
     }
 
@@ -177,13 +193,17 @@ public sealed class WorkflowBuilder
         var id = new Guid(SHA256.HashData(identity).AsSpan(0, 16));
         var step = new MutableStep(id, name, kind, JsonSerializer.Serialize(metadata, MetadataOptions));
         _definition.Steps.Add(step);
+
         return step;
     }
 
     private void Append(MutableStep step)
     {
         _first ??= step;
-        foreach (var previous in _tails) previous.NextStepId = step.Id;
+
+        foreach (var previous in _tails)
+            previous.NextStepId = step.Id;
+
         _tails.Clear();
         _tails.Add(step);
         _last = step;

@@ -50,6 +50,7 @@ public class FailureTests(TestInfrastructure infrastructure)
             var step = await db.StepInstances.SingleAsync(x =>
                 x.ProcessInstanceId == process && x.StepDefinitionId == failing.Id);
             db.Entry(step).Property(x => x.RetryCount).CurrentValue = step.MaxRetries;
+
             return await db.SaveChangesAsync();
         });
         // Act
@@ -84,6 +85,7 @@ public class FailureTests(TestInfrastructure infrastructure)
         {
             var step = await db.StepInstances.SingleAsync(x => x.ProcessInstanceId == process && x.IsCompensation);
             db.Entry(step).Property(x => x.RetryCount).CurrentValue = step.MaxRetries;
+
             return await db.SaveChangesAsync();
         });
         // Act
@@ -111,6 +113,7 @@ public class FailureTests(TestInfrastructure infrastructure)
         // Act
         await app.Send(new CancelProcessCommand(process));
         await app.Send(new RetryStepsCommand(process));
+
         var status = await app.Send(new GetProcessStatusQuery(process));
         // Assert
         Assert.Equal("Cancelled", status!.StepHistory.Single().Status);

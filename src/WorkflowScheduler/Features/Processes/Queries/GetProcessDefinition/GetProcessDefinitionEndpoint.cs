@@ -15,6 +15,7 @@ public sealed class GetProcessDefinitionEndpoint(IMediator mediator) : GrpcServi
         var id = await mediator.Send(
             new GetProcessDefinitionQuery(request.Name, request.Version),
             context.CancellationToken);
+
         return id is null
             ? throw new RpcException(new Status(StatusCode.NotFound, "Process definition not found"))
             : new GrpcResponse { DefinitionId = id.Value.ToString() };

@@ -24,7 +24,10 @@ public class BranchTests(TestInfrastructure infrastructure)
             JsonSerializer.Serialize(
                 new
                 {
-                    inputKey = "amount", @operator = "gte", value = "100.50", trueNextStepId = yes.Id,
+                    inputKey = "amount",
+                    @operator = "gte",
+                    value = "100.50",
+                    trueNextStepId = yes.Id,
                     falseNextStepId = no.Id
                 }),
             null,
@@ -34,6 +37,7 @@ public class BranchTests(TestInfrastructure infrastructure)
         // Act
         var process = await app.Send(start);
         await app.Dispatch();
+
         var status = await app.Send(new GetProcessStatusQuery(process.Value.ProcessInstanceId));
         // Assert
         Assert.Equal("Completed", status!.StepHistory[0].Status);
@@ -50,6 +54,7 @@ public class BranchTests(TestInfrastructure infrastructure)
         var call = TestWorkflow.Call();
         var wait = TestWorkflow.Wait(call.Id);
         call = call with { NextStepId = wait.Id };
+
         var process = await app.Start(await app.Register(call, wait));
         var initial = await app.Send(new GetProcessStatusQuery(process));
         var oldCallback = new CompleteStepCommand(

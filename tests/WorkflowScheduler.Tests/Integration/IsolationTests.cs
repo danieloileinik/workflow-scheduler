@@ -15,6 +15,7 @@ public class IsolationTests(TestInfrastructure infrastructure)
         var oldDefinition = await previous.Register(TestWorkflow.Call());
         var oldProcess = await previous.Start(oldDefinition);
         await previous.Dispatch();
+
         var redis = previous.Services.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
         Assert.True(await redis.KeyExistsAsync($"proc-def:v2:{oldDefinition}"));
 
@@ -24,6 +25,7 @@ public class IsolationTests(TestInfrastructure infrastructure)
         var definition = await current.Register(TestWorkflow.Call());
         var process = await current.Start(definition);
         await current.Dispatch();
+
         var delivered = await broker.ReadAsync("billing", process);
 
         // Assert

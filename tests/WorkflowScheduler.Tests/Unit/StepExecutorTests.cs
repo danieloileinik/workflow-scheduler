@@ -19,6 +19,7 @@ public class StepExecutorTests
         var definition = new ProcessDefinition("custom-step", 1);
         var stepDefinition = new StepDefinition(definition.Id, "custom", type, """{"serviceName":"test","command":"Run","eventName":"Event"}""");
         definition.AddStep(stepDefinition);
+
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         var strategy = new ResultStrategy(type, state);
@@ -43,10 +44,12 @@ public class StepExecutorTests
         var definition = new ProcessDefinition("completed-step", 1);
         var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
+
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         Assert.False(step.MarkRunning().IsError);
         Assert.False(step.Complete("saved output").IsError);
+
         var completedAt = step.CompletedAt;
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
@@ -72,8 +75,10 @@ public class StepExecutorTests
         var definition = new ProcessDefinition("compensation", 1);
         var stepDefinition = new StepDefinition(definition.Id, "undo", StepType.Call, """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
+
         var process = new ProcessInstance(definition.Id, "order", "{}");
         Assert.False(process.Cancel().IsError);
+
         var step = process.AddCompensationStep(stepDefinition.Id);
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
@@ -96,6 +101,7 @@ public class StepExecutorTests
         var definition = new ProcessDefinition("invalid-outcome", 1);
         var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
+
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         var strategy = new ResultStrategy(StepType.Call, (StepExecutionState)(-1));
@@ -126,6 +132,7 @@ public class StepExecutorTests
             stepId,
             null);
         definition.AddStep(stepDefinition);
+
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var start = process.Start(stepId);
         var strategy = new ContinueStrategy(stepId);
@@ -169,6 +176,7 @@ public class StepExecutorTests
             PreparedStepDefinition stepDefinition)
         {
             Executions++;
+
             return new StepExecutionResult(state);
         }
     }

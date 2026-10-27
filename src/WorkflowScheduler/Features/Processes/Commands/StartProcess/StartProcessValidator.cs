@@ -22,6 +22,7 @@ public class StartProcessValidator : AbstractValidator<StartProcessCommand>
         try
         {
             using var doc = JsonDocument.Parse(input);
+
             return doc.RootElement.ValueKind == JsonValueKind.Object;
         }
         catch (Exception ex) when (ex is JsonException or ArgumentNullException)

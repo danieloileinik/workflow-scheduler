@@ -19,6 +19,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         // Arrange
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var effects = 0;
@@ -30,6 +31,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
                 (input, _, _) =>
                 {
                     Interlocked.Increment(ref effects);
+
                     return Task.FromResult(input.OrderId == 1 ? new string('x', 5_000_000) : "small");
                 }));
         var definition = await client.RegisterAsync(
@@ -41,8 +43,10 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         // Act
         var large = await client.StartAsync(definition, new Input(1), "large", Guid.NewGuid());
         await worker.WaitForOffsetAsync(1);
+
         var small = await client.StartAsync(definition, new Input(2), "small", Guid.NewGuid());
         await worker.WaitForOffsetAsync(2);
+
         var pending = await client.GetStatusAsync(large);
         var completed = await client.GetStatusAsync(small);
         var tooLarge = await Assert.ThrowsAsync<RpcException>(async () =>
@@ -77,6 +81,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var handled = new ConcurrentQueue<(Input Input, WorkflowCommandContext Context)>();
@@ -84,6 +89,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         Task<Output> Handle(Input input, WorkflowCommandContext context, CancellationToken _)
         {
             handled.Enqueue((input, context));
+
             return Task.FromResult(new Output(input.OrderId, context.Command));
         }
 
@@ -117,6 +123,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         await worker.WaitForOffsetAsync(2);
         Assert.Single(handled);
         await client.SendEventAsync(process, "Approved", new { Approved = true }, "approve-42");
+
         var completed = await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
             state => state.Status == WorkflowProcessStatus.Completed,
@@ -143,6 +150,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var attempts = new ConcurrentQueue<WorkflowCommandContext>();
@@ -156,6 +164,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
                     attempts.Enqueue(context);
                     if (context.Execution.Attempt == 0)
                         throw new InvalidOperationException("Temporary payment failure");
+
                     return Task.FromResult(new Output(input.OrderId, context.Command));
                 }));
         var definition = await client.RegisterAsync(
@@ -172,6 +181,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
             .ExecuteUpdateAsync(update => update.SetProperty(
                 step => step.NextRetryAt,
                 DateTime.UtcNow.AddSeconds(-1))));
+
         var completed = await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
             state => state.Status == WorkflowProcessStatus.Completed,
@@ -193,6 +203,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var executions = new ConcurrentQueue<WorkflowCommandContext>();
@@ -200,6 +211,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         Task<Output> Handle(Input input, WorkflowCommandContext context, CancellationToken _)
         {
             executions.Enqueue(context);
+
             return Task.FromResult(new Output(input.OrderId, context.Command));
         }
 
@@ -222,6 +234,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
             state => state.StepHistory is [_, { Status: WorkflowStepStatus.Waiting }],
             "Forward call is complete");
         await client.CancelAsync(process);
+
         var cancelled = await Eventually.UntilAsync(
             ct => client.GetStatusAsync(process, ct),
             state => state.StepHistory is [{ Status: WorkflowStepStatus.Compensated }, _, _],
@@ -230,6 +243,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
 
         Assert.Equal(WorkflowProcessStatus.Cancelled, cancelled.Status);
         Assert.Equal(WorkflowStepStatus.Completed, cancelled.StepHistory[2].Status);
+
         var observed = executions.ToArray();
         Assert.Equal(["Charge", "Refund"], observed.Select(context => context.Command));
         Assert.False(observed[0].IsCompensation);
@@ -241,6 +255,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var transport = new AckLosingClient(client, await WorkerTestHost.ClientFailureAsync(StatusCode.Unavailable));
@@ -255,6 +270,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
 
         var process = await client.StartAsync(definition, new Input(42), "order", Guid.NewGuid());
         await worker.WaitForOffsetAsync(1);
+
         var completed = await client.GetStatusAsync(process);
 
         Assert.Equal(WorkflowProcessStatus.Completed, completed.Status);
@@ -268,6 +284,7 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var output = new string('a', 1_100_000);
@@ -280,10 +297,13 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
                 (_, _, _) =>
                 {
                     Interlocked.Increment(ref effects);
+
                     return Task.FromResult(output);
                 }));
         var workflow = Workflow.Define("large-history-" + Guid.NewGuid());
+
         for (var index = 0; index < 5; index++) workflow.Call(worker.ServiceName, "Large");
+
         var definition = await client.RegisterAsync(workflow.Build());
 
         var process = await client.StartAsync(definition, new Input(42), "order", Guid.NewGuid());
@@ -297,12 +317,15 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
                 .Where(instance => instance.Id == process)
                 .Select(instance => instance.Status)
                 .SingleAsync()));
+
         var tooLarge = await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetStatusAsync(process));
         Assert.Equal(StatusCode.ResourceExhausted, tooLarge.StatusCode);
+
         var page = await client.GetStatusPageAsync(process);
         Assert.Equal(5, page.TotalStepCount);
         Assert.Equal(5, page.StepHistory.Count);
         Assert.All(page.StepHistory, step => Assert.Null(step.OutputData));
+
         var outputPage = await client.GetStatusPageAsync(process, pageSize: 1, includeOutputs: true);
         Assert.Equal(output, outputPage.StepHistory.Single().ReadOutput<string>());
     }
@@ -323,7 +346,8 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
         {
             var attempt = Interlocked.Increment(ref CompleteAttempts);
             await inner.CompleteStepAsync(execution, output, correlationId, cancellationToken);
-            if (attempt == 1) throw failure;
+            if (attempt == 1)
+                throw failure;
         }
 
         public Task<RegisteredWorkflow> RegisterAsync(WorkflowDefinition definition,

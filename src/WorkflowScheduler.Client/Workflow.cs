@@ -6,6 +6,7 @@ public static class Workflow
     {
         Guard.Text(name, nameof(name), 256);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(version);
+
         return new WorkflowBuilder(new WorkflowBuilder.DefinitionState(name, version), true);
     }
 }

@@ -26,16 +26,20 @@ public class StartProcessHandler(
             return previous.RequestHash == hash
                 ? new StartProcessResponse(previous.ProcessInstanceId)
                 : Error.Conflict("Process.IdempotencyKeyConflict", "Idempotency key was used with a different request");
+
         var processDefinition = await definitions.GetOrLoadAsync(request.DefinitionId, ct);
-        if (processDefinition is null) return ProcessErrors.DefinitionNotFound;
+        if (processDefinition is null)
+            return ProcessErrors.DefinitionNotFound;
 
         var firstStepResult = processDefinition.GetFirstStep();
-        if (firstStepResult.IsError) return firstStepResult.Errors;
+        if (firstStepResult.IsError)
+            return firstStepResult.Errors;
 
         var processInstance = new ProcessInstance(request.DefinitionId, request.BusinessKey, request.InputData);
 
         var startResult = processInstance.Start(firstStepResult.Value.Id);
-        if (startResult.IsError) return startResult.Errors;
+        if (startResult.IsError)
+            return startResult.Errors;
 
         var runResult = executor.Run(
             processDefinition,
@@ -43,7 +47,8 @@ public class StartProcessHandler(
             firstStepResult.Value,
             startResult.Value,
             ct);
-        if (runResult.IsError) return runResult.Errors;
+        if (runResult.IsError)
+            return runResult.Errors;
 
         db.ProcessInstances.Add(processInstance);
         db.StartRequests.Add(

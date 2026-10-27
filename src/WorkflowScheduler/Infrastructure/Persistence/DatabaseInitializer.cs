@@ -5,7 +5,9 @@ public static class DatabaseInitializer
     public static async Task InitializeAsync(AppDbContext db, CancellationToken ct = default)
     {
         await db.Database.EnsureCreatedAsync(ct);
+
         string[] resources = ["OutboxDelivery", "ExecutionSequence"];
+
         foreach (var resource in resources)
         {
             await using var script = typeof(DatabaseInitializer).Assembly.GetManifestResourceStream(

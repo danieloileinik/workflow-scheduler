@@ -25,13 +25,15 @@ public class ConditionStepStrategy : IStepStrategy
 
         var result = Evaluate(_input, condition);
         var nextStepId = result ? condition.TrueNextStepId : condition.FalseNextStepId;
+
         return new StepExecutionResult(StepExecutionState.Completed, nextStepId);
     }
 
     private static bool Evaluate(JsonElement input, StepMetadata.Condition condition)
     {
         if (input.ValueKind != JsonValueKind.Object ||
-            !input.TryGetProperty(condition.InputKey, out var element)) return false;
+            !input.TryGetProperty(condition.InputKey, out var element))
+            return false;
 
         var value = element.ValueKind == JsonValueKind.String
             ? element.GetString() ?? string.Empty
@@ -47,7 +49,9 @@ public class ConditionStepStrategy : IStepStrategy
 
     private static bool CompareNumeric(string left, string op, decimal right)
     {
-        if (!decimal.TryParse(left, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value)) return false;
+        if (!decimal.TryParse(left, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value))
+            return false;
+
         return op switch
         {
             "gt" => value > right,

@@ -17,6 +17,7 @@ public class BoundedExecutionHistoryTests(TestInfrastructure infrastructure)
         var wait = TestWorkflow.Wait();
         var call = TestWorkflow.Call(wait.Id, undo.Id);
         wait = wait with { NextStepId = call.Id };
+
         var processId = await app.Start(await app.Register(call, wait, undo));
         var currentId = await app.WithDb(db => db
             .ProcessInstances
@@ -36,16 +37,19 @@ public class BoundedExecutionHistoryTests(TestInfrastructure infrastructure)
 
             return await db.SaveChangesAsync();
         });
+
         var probe = new StepMaterializationProbe();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AppDbContext>(options => options.AddInterceptors(probe));
         services.AddWorkflowScheduler(infrastructure.Configuration(infrastructure.IntegrationPostgres, 0));
+
         await using var provider = services.BuildServiceProvider();
 
         async Task Send(IRequest<ErrorOr<Success>> command)
         {
             probe.Steps.Clear();
+
             await using var scope = provider.CreateAsyncScope();
             var result = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(command);
             Assert.False(result.IsError, result.IsError ? result.FirstError.Description : "");
@@ -71,6 +75,7 @@ public class BoundedExecutionHistoryTests(TestInfrastructure infrastructure)
                     DateTime.UtcNow.AddSeconds(-1))));
         await Send(new RetryStepsCommand(processId));
         await Send(new CancelProcessCommand(processId));
+
         for (var index = 0; index < 13; index++)
         {
             var execution = await app.WithDb(db => db

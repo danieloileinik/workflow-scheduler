@@ -9,11 +9,13 @@ internal sealed class WorkerRetry(WorkflowWorkerOptions options, ILogger logger)
 {
     public async Task<T> RunAsync<T>(string operation, Func<CancellationToken, Task<T>> action, CancellationToken ct)
     {
-        for (var attempt = 1;; attempt++)
+        for (var attempt = 1; ; attempt++)
         {
             ct.ThrowIfCancellationRequested();
+
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(options.RpcTimeout);
+
             try
             {
                 return await action(timeout.Token);
@@ -22,6 +24,7 @@ internal sealed class WorkerRetry(WorkflowWorkerOptions options, ILogger logger)
             {
                 if (attempt == options.MaxDeliveryAttempts)
                     throw new TimeoutException($"{operation} timed out after {attempt} attempts.", exception);
+
                 logger.LogWarning("{Operation} timed out; retry {Attempt}", operation, attempt);
             }
             catch (Exception exception) when (attempt < options.MaxDeliveryAttempts && IsTransient(exception))

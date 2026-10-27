@@ -18,17 +18,24 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
         try
         {
             ct.ThrowIfCancellationRequested();
+
             var value = await Db.StringGetAsync(Key(definitionId)).WaitAsync(ct);
-            if (value.IsNullOrEmpty) return null;
+            if (value.IsNullOrEmpty)
+                return null;
 
             var snapshot = JsonSerializer.Deserialize<DefinitionSnapshot>(value.ToString());
             if (snapshot is null || snapshot.Id != definitionId || snapshot.Steps is not { Count: > 0 }
-                || string.IsNullOrWhiteSpace(snapshot.Name) || snapshot.Version <= 0) return null;
+                || string.IsNullOrWhiteSpace(snapshot.Name) || snapshot.Version <= 0)
+                return null;
+
             var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version)
-                { CreatedAt = snapshot.CreatedAt };
+            { CreatedAt = snapshot.CreatedAt };
+
             foreach (var step in snapshot.Steps)
             {
-                if (step is null) return null;
+                if (step is null)
+                    return null;
+
                 definition.AddStep(
                     new StepDefinition(
                         step.Id,
@@ -40,13 +47,15 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
                         step.CompensationStepId));
             }
 
-            if (!Validator.Validate(definition).IsValid) return null;
+            if (!Validator.Validate(definition).IsValid)
+                return null;
 
             return definition;
         }
         catch (Exception ex) when (ex is RedisException or JsonException)
         {
             logger.LogWarning(ex, "Definition cache unavailable or invalid for {DefinitionId}", definitionId);
+
             return null;
         }
     }

@@ -43,19 +43,23 @@ internal sealed class TestHarness : IAsyncDisposable
     public Task ClearCacheAsync()
     {
         Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+
         var redis = Services.GetRequiredService<IConnectionMultiplexer>();
+
         return redis.GetServer(redis.GetEndPoints().Single()).FlushDatabaseAsync(redis.GetDatabase().Database);
     }
 
     public async Task<T> Send<T>(IRequest<T> command, CancellationToken ct = default)
     {
         await using var scope = Services.CreateAsyncScope();
+
         return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(command, ct);
     }
 
     public async Task<T> WithDb<T>(Func<AppDbContext, Task<T>> action)
     {
         await using var scope = Services.CreateAsyncScope();
+
         return await action(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
@@ -63,6 +67,7 @@ internal sealed class TestHarness : IAsyncDisposable
     {
         var result = await Send(TestWorkflow.Register(steps));
         Assert.False(result.IsError, result.IsError ? result.FirstError.Description : "");
+
         return result.Value.DefinitionId;
     }
 
@@ -70,6 +75,7 @@ internal sealed class TestHarness : IAsyncDisposable
     {
         var result = await Send(new StartProcessCommand(id, key ?? Guid.NewGuid(), "order-42", "{}"));
         Assert.False(result.IsError);
+
         return result.Value.ProcessInstanceId;
     }
 
@@ -81,6 +87,7 @@ internal sealed class TestHarness : IAsyncDisposable
     {
         var status = await Send(new GetProcessStatusQuery(processId));
         var step = status!.StepHistory.Last(x => x.StepDefinitionId == stepId);
+
         return await Send(
             new CompleteStepCommand(
                 processId,
@@ -95,6 +102,7 @@ internal sealed class TestHarness : IAsyncDisposable
     public async Task<int> Dispatch(CancellationToken ct = default)
     {
         await using var scope = Services.CreateAsyncScope();
+
         return await scope.ServiceProvider.GetRequiredService<OutboxDispatcher>().DispatchAsync(ct);
     }
 }

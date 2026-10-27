@@ -13,9 +13,11 @@ public class CachedProcessDefinitionProviderTests
         // Arrange
         var definition = new ProcessDefinition("workflow", 1);
         definition.AddStep(new StepDefinition(definition.Id, "wait", StepType.WaitEvent, """{"eventName":"Approved"}"""));
+
         var cache = Substitute.For<IProcessDefinitionCache>();
         var loaded = new TaskCompletionSource<ProcessDefinition?>(TaskCreationOptions.RunContinuationsAsynchronously);
         cache.GetAsync(definition.Id, Arg.Any<CancellationToken>()).Returns(loaded.Task);
+
         await using ServiceProvider services = CreateServices(cache);
         await using var scope = services.CreateAsyncScope();
         CachedProcessDefinitionProvider provider = scope.ServiceProvider.GetRequiredService<CachedProcessDefinitionProvider>();
@@ -25,6 +27,7 @@ public class CachedProcessDefinitionProviderTests
             .. Enumerable.Range(0, 16).Select(_ => provider.GetOrLoadAsync(definition.Id, CancellationToken.None))
         ];
         loaded.SetResult(definition);
+
         PreparedProcessDefinition?[] results = await Task.WhenAll(requests);
         definition.AddStep(new StepDefinition(definition.Id, "later", StepType.WaitEvent, """{"eventName":"Later"}"""));
 
@@ -43,8 +46,10 @@ public class CachedProcessDefinitionProviderTests
         // Arrange
         var definition = new ProcessDefinition("workflow", 1);
         definition.AddStep(new StepDefinition(definition.Id, "wait", StepType.WaitEvent, """{"eventName":"Approved"}"""));
+
         var cache = Substitute.For<IProcessDefinitionCache>();
         cache.GetAsync(definition.Id, Arg.Any<CancellationToken>()).Returns(Task.FromResult<ProcessDefinition?>(definition));
+
         await using ServiceProvider services = CreateServices(cache, 1);
         await using var scope = services.CreateAsyncScope();
         CachedProcessDefinitionProvider provider = scope.ServiceProvider.GetRequiredService<CachedProcessDefinitionProvider>();
@@ -66,12 +71,15 @@ public class CachedProcessDefinitionProviderTests
         // Arrange
         var definition = new ProcessDefinition("workflow", 1);
         definition.AddStep(new StepDefinition(definition.Id, "wait", StepType.WaitEvent, """{"eventName":"Approved"}"""));
+
         var cache = Substitute.For<IProcessDefinitionCache>();
         cache.GetAsync(definition.Id, Arg.Any<CancellationToken>()).Returns(Task.FromResult<ProcessDefinition?>(definition));
+
         await using ServiceProvider services = CreateServices(cache);
         await using var scope = services.CreateAsyncScope();
         CachedProcessDefinitionProvider provider = scope.ServiceProvider.GetRequiredService<CachedProcessDefinitionProvider>();
         await provider.GetOrLoadAsync(definition.Id, CancellationToken.None);
+
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -89,6 +97,7 @@ public class CachedProcessDefinitionProviderTests
         services.AddSingleton(_ => new PreparedProcessDefinitionCache(capacityBytes));
         services.AddScoped(_ => new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options));
         services.AddScoped<CachedProcessDefinitionProvider>();
+
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
 }

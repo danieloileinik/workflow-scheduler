@@ -15,6 +15,7 @@ public sealed class CancelProcessEndpoint(IMediator mediator) : GrpcServiceBase
 
         var command = new CancelProcessCommand(instanceId);
         var result = await mediator.Send(command, context.CancellationToken);
+
         return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();
     }
 }

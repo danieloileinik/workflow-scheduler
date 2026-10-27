@@ -22,8 +22,11 @@ public class CompleteStepHandler(
                      && e.EventName == "CompleteStep" && e.CorrelationId == request.CorrelationId,
                 ct))
             return ProcessErrors.DuplicateEvent;
+
         var instance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
-        if (instance is null) return ProcessErrors.NotFound;
+        if (instance is null)
+            return ProcessErrors.NotFound;
+
         var step = instance.Steps.FirstOrDefault(x => x.Id == request.StepInstanceId);
         if (step is null)
         {
@@ -32,26 +35,35 @@ public class CompleteStepHandler(
                              && candidate.Id == request.StepInstanceId &&
                              candidate.StepDefinitionId == request.StepDefinitionId,
                 ct);
+
             return exists
                 ? Error.Conflict("ProcessStep.StaleCallback", "Step is not running this attempt")
                 : ProcessErrors.StepNotFound;
         }
 
-        if (step.StepDefinitionId != request.StepDefinitionId) return ProcessErrors.StepNotFound;
+        if (step.StepDefinitionId != request.StepDefinitionId)
+            return ProcessErrors.StepNotFound;
         if (step.Status != StepStatus.Running || step.RetryCount != request.Attempt)
             return Error.Conflict("ProcessStep.StaleCallback", "Step is not running this attempt");
         if (!step.IsCompensation && (instance.Status != ProcessStatus.Waiting || instance.CurrentStepId != step.Id))
             return ProcessErrors.NotWaiting;
+
         var definition = await definitions.GetOrLoadAsync(instance.DefinitionId, ct);
-        if (definition is null) return ProcessErrors.DefinitionNotFound;
+        if (definition is null)
+            return ProcessErrors.DefinitionNotFound;
+
         var stepDefinition = definition.FindStep(step.StepDefinitionId);
-        if (stepDefinition is null) return ProcessErrors.StepNotFound;
-        if (stepDefinition.Type != StepType.Call) return ProcessErrors.StepTypeMismatch;
+        if (stepDefinition is null)
+            return ProcessErrors.StepNotFound;
+        if (stepDefinition.Type != StepType.Call)
+            return ProcessErrors.StepTypeMismatch;
+
         ErrorOr<Success> result;
         if (request.Success)
         {
             var complete = step.Complete(request.OutputData);
-            if (complete.IsError) return complete;
+            if (complete.IsError)
+                return complete;
             if (step.IsCompensation)
             {
                 result = await saga.CompleteAsync(instance, definition, step, ct);
@@ -59,7 +71,9 @@ public class CompleteStepHandler(
             else
             {
                 var resume = instance.Resume();
-                if (resume.IsError) return resume;
+                if (resume.IsError)
+                    return resume;
+
                 result = stepDefinition.NextStepId is null
                     ? instance.Complete()
                     : executor.Execute(definition, instance, stepDefinition.NextStepId.Value, ct);
@@ -70,8 +84,11 @@ public class CompleteStepHandler(
             result = await HandleFailureAsync(instance, definition, step, request.OutputData, ct);
         }
 
-        if (result.IsError) return result;
+        if (result.IsError)
+            return result;
+
         db.EventLogs.Add(new EventLog(instance.Id, "CompleteStep", request.CorrelationId));
+
         return Result.Success;
     }
 
@@ -82,22 +99,30 @@ public class CompleteStepHandler(
         CancellationToken ct)
     {
         var retry = step.TryScheduleRetry(TimeSpan.FromSeconds(30));
-        if (retry.IsError) return retry.Errors;
-        if (retry.Value) return Result.Success;
+        if (retry.IsError)
+            return retry.Errors;
+        if (retry.Value)
+            return Result.Success;
 
         var error = outputData ?? "Step failed after max retries";
         var failStep = step.Fail(error[..Math.Min(error.Length, 2048)]);
-        if (failStep.IsError) return failStep;
+        if (failStep.IsError)
+            return failStep;
         if (step.IsCompensation)
         {
             var log = await db.SagaCompensationLogs.FirstOrDefaultAsync(x => x.StepInstanceId == step.Id, ct);
-            if (log is null) return ProcessErrors.StepNotFound;
+            if (log is null)
+                return ProcessErrors.StepNotFound;
+
             log.Fail(step.Error!);
+
             return Result.Success;
         }
 
         var fail = instance.Fail();
-        if (fail.IsError) return fail;
+        if (fail.IsError)
+            return fail;
+
         return await saga.ScheduleAsync(instance, definition, ct);
     }
 }

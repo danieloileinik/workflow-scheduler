@@ -45,10 +45,12 @@ public sealed class TestInfrastructure : IAsyncLifetime
 
             IntegrationPostgres = _postgres.GetConnectionString();
             EndToEndPostgres = new NpgsqlConnectionStringBuilder(IntegrationPostgres)
-                { Database = "workflow_e2e" }.ConnectionString;
+            { Database = "workflow_e2e" }.ConnectionString;
+
             await using (var connection = new NpgsqlConnection(IntegrationPostgres))
             {
                 await connection.OpenAsync(startupTimeout.Token);
+
                 await using var command = new NpgsqlCommand("CREATE DATABASE workflow_e2e", connection);
                 await command.ExecuteNonQueryAsync(startupTimeout.Token);
             }
@@ -62,6 +64,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
         catch (Exception exception)
         {
             var failure = exception;
+
             try
             {
                 await DisposeAsync();
@@ -84,11 +87,15 @@ public sealed class TestInfrastructure : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
+
         _disposed = true;
+
         try
         {
-            if (_harness is not null) await _harness.DisposeAsync();
+            if (_harness is not null)
+                await _harness.DisposeAsync();
         }
         finally
         {
@@ -105,6 +112,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
         var redis = ConfigurationOptions.Parse(_redis!.GetConnectionString());
         redis.DefaultDatabase = redisDatabase;
         redis.AllowAdmin = true;
+
         return new ConfigurationBuilder()
             .AddInMemoryCollection(
                 new Dictionary<string, string?>
@@ -120,6 +128,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
     internal async Task<TestHarness> CreateHarnessAsync()
     {
         await _harness!.ResetAsync();
+
         return _harness;
     }
 
@@ -130,8 +139,10 @@ public sealed class TestInfrastructure : IAsyncLifetime
         var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(EndToEndPostgres).Options;
         await using var db = new AppDbContext(options);
         await ResetDatabaseAsync(db);
+
         var redis = _harness!.Services.GetRequiredService<IConnectionMultiplexer>();
         await redis.GetServer(redis.GetEndPoints().Single()).FlushDatabaseAsync(1);
+
         return new GrpcApp(this);
     }
 
@@ -143,6 +154,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
     internal static async Task ResetAsync(IServiceProvider services)
     {
         services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await ResetDatabaseAsync(db);
@@ -162,6 +174,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
             .Distinct();
         // Identifiers come from EF metadata and are escaped by the provider.
         var statement = $"TRUNCATE TABLE {string.Join(", ", tables)} RESTART IDENTITY CASCADE";
+
         return db.Database.ExecuteSqlRawAsync(statement);
     }
 
@@ -176,12 +189,14 @@ public sealed class TestInfrastructure : IAsyncLifetime
     {
         using var admin = new AdminClientBuilder(
             new AdminClientConfig
-                { BootstrapServers = BootstrapServers }).Build();
+            { BootstrapServers = BootstrapServers }).Build();
         await admin.CreateTopicsAsync(
             new[] { "billing", "shipping", "refund", "undo-a", "undo-b", "high", "low" }
                 .Select(service => new TopicSpecification
                 {
-                    Name = $"process.commands.{service}", NumPartitions = 1, ReplicationFactor = 1
+                    Name = $"process.commands.{service}",
+                    NumPartitions = 1,
+                    ReplicationFactor = 1
                 }),
             new CreateTopicsOptions { RequestTimeout = TimeSpan.FromSeconds(30) });
     }

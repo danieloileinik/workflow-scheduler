@@ -241,8 +241,11 @@ public class StepInstanceTests
     private static StepInstance CreateStep(StepStatus status, int retryCount = 0, int maxRetries = 3)
     {
         var step = new StepInstance(Guid.NewGuid(), Guid.NewGuid(), retryCount, maxRetries);
-        if (status == StepStatus.Pending) return step;
+        if (status == StepStatus.Pending)
+            return step;
+
         Assert.False(step.MarkRunning().IsError);
+
         switch (status)
         {
             case StepStatus.Waiting:
@@ -269,6 +272,7 @@ public class StepInstanceTests
         }
 
         Assert.Equal(status, step.Status);
+
         return step;
     }
 }

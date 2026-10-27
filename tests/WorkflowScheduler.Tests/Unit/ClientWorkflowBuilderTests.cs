@@ -19,6 +19,7 @@ public class ClientWorkflowBuilderTests
             .Build();
 
         Assert.Equal(4, workflow.Steps.Count);
+
         var reserve = workflow.Steps[0];
         var wait = workflow.Steps[1];
         var ship = workflow.Steps[2];
@@ -68,9 +69,11 @@ public class ClientWorkflowBuilderTests
     public void Conditions_UseSupportedOperatorsAndInvariantValues(WorkflowComparison comparison, string op)
     {
         var previous = CultureInfo.CurrentCulture;
+
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ru-RU");
+
             var workflow = Workflow
                 .Define("numeric")
                 .Condition(
@@ -98,6 +101,7 @@ public class ClientWorkflowBuilderTests
         Assert.Equal(first.Steps, Build("order", 1).Steps);
         Assert.Empty(first.Steps.Select(step => step.Id).Intersect(Build("order", 2).Steps.Select(step => step.Id)));
         Assert.Empty(first.Steps.Select(step => step.Id).Intersect(Build("another", 1).Steps.Select(step => step.Id)));
+
         return;
 
         static WorkflowDefinition Build(string name, int version)
@@ -157,6 +161,7 @@ public class ClientWorkflowBuilderTests
             _ => { },
             no => no.Call("billing", "No")));
         Assert.Throws<InvalidOperationException>(empty.Build);
+
         var faulty = Workflow.Define("faulty-branch");
         Assert.Throws<ArgumentException>(() => faulty.Condition(
             "x",

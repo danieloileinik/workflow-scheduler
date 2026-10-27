@@ -14,26 +14,34 @@ public static class OrderEndpoints
         app.MapGet("/api/orders/{id:guid}", async (Guid id, OrderDb db, OrderDetailsReader reader, CancellationToken ct) =>
         {
             var order = await db.Orders.AsNoTracking().SingleOrDefaultAsync(order => order.Id == id, ct);
+
             return order is null ? Results.NotFound() : Results.Ok(await reader.ReadAsync(order, ct));
         });
         app.MapPost("/api/orders/{id:guid}/approve", async (Guid id, OrderDb db,
             IWorkflowSchedulerClient scheduler, CancellationToken ct) =>
         {
             var order = await db.Orders.FindAsync([id], ct);
-            if (order?.ProcessId is not Guid processId) return Results.NotFound();
+            if (order?.ProcessId is not Guid processId)
+                return Results.NotFound();
+
             await scheduler.SendEventAsync(processId, DemoCommands.Approval, new { Approved = true }, $"approve:{id:N}", ct);
+
             return Results.NoContent();
         });
         app.MapPost("/api/orders/{id:guid}/cancel", async (Guid id, OrderDb db,
             IWorkflowSchedulerClient scheduler, CancellationToken ct) =>
         {
             var order = await db.Orders.FindAsync([id], ct);
-            if (order?.ProcessId is not Guid processId) return Results.NotFound();
+            if (order?.ProcessId is not Guid processId)
+                return Results.NotFound();
+
             var process = await scheduler.GetStatusPageAsync(processId, cancellationToken: ct);
             var current = process.StepHistory.FirstOrDefault(step => step.Id == process.CurrentStepId);
             if (process.Status != WorkflowProcessStatus.Waiting || current?.Status != WorkflowStepStatus.Waiting)
                 return Results.Conflict(new { detail = "Для демонстрации компенсации дождитесь подтверждения заказа." });
+
             await scheduler.CancelAsync(processId, ct);
+
             return Results.NoContent();
         });
     }
@@ -51,6 +59,7 @@ public static class OrderEndpoints
             INSERT INTO orders ("Id", "Amount", "PaymentFailure", "CreatedAt")
             VALUES ({input.OrderId}, {input.Amount}, {failure}, {createdAt}) ON CONFLICT ("Id") DO NOTHING
             """, ct);
+
         var order = await db.Orders.AsNoTracking().SingleAsync(value => value.Id == input.OrderId, ct);
         if (order.Amount != input.Amount || order.PaymentFailure != input.PaymentFailure)
             return Results.Conflict(new { detail = "Этот UUID уже использован для другого заказа." });

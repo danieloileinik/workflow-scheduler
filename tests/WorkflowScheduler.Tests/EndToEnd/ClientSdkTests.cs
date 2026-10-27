@@ -18,6 +18,7 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         using var broker = infrastructure.CreateProbe("billing", "high", "low", "shipping");
@@ -42,12 +43,16 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         var replay = await client.StartAsync(registered, input, "order-42", key);
         var billing = await broker.ReadAsync("billing", process);
         await client.CompleteStepAsync(Execution(billing), new { Charged = true }, "billing-callback");
+
         var waiting = await client.GetStatusAsync(process);
         await client.SendEventAsync(process, "Approved", new { Actor = "manager" }, "approval-42");
+
         var branch = await broker.ReadAsync(selected, process);
         await client.CompleteStepAsync(Execution(branch), new { Accepted = true }, "branch-callback");
+
         var shipping = await broker.ReadAsync("shipping", process);
         await client.CompleteStepAsync(Execution(shipping), new { Shipped = true }, "shipping-callback");
+
         var completed = await client.GetStatusAsync(process);
         await app.WaitForOutboxAsync(3);
 
@@ -68,6 +73,7 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         using var broker = infrastructure.CreateProbe("billing");
@@ -79,8 +85,10 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         var process = await client.StartAsync(registered, new { OrderId = 42 }, "order", Guid.NewGuid());
         var command = await broker.ReadAsync("billing", process);
         await client.FailStepAsync(Execution(command), "temporary failure", "failed-call");
+
         var pending = await client.GetStatusAsync(process);
         await client.CancelAsync(process);
+
         var cancelled = await client.GetStatusAsync(process);
         var late = await Assert.ThrowsAsync<WorkflowClientException>(() =>
             client.CompleteStepAsync(Execution(command), new { }, "late-callback"));
@@ -107,10 +115,12 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var definition = Workflow.Define("recover-registration-" + Guid.NewGuid(), 3).WaitFor("Approved").Build();
         await client.RegisterAsync(definition);
+
         var conflict = await Assert.ThrowsAsync<WorkflowClientException>(() => client.RegisterAsync(definition));
 
         var recovered = await client.GetDefinitionAsync(definition.Name, definition.Version);
@@ -119,6 +129,7 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
         Assert.Equal(StatusCode.FailedPrecondition, conflict.StatusCode);
         Assert.Equal(recovered.Id, (await client.GetStatusAsync(process)).DefinitionId);
         Assert.Equal(1, await app.WithDb(db => db.ProcessDefinitions.CountAsync()));
+
         var missing =
             await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetDefinitionAsync(definition.Name, 4));
         Assert.Equal(StatusCode.NotFound, missing.StatusCode);
@@ -129,12 +140,16 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();
         app.StartServer();
+
         using var client =
             new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
         var workflow = Workflow.Define("paged-history-" + Guid.NewGuid());
+
         for (var index = 0; index < 5; index++) workflow.WaitFor("Approved");
+
         var definition = await client.RegisterAsync(workflow.Build());
         var process = await client.StartAsync(definition, new { }, "order", Guid.NewGuid());
+
         for (var index = 0; index < 4; index++)
             await client.SendEventAsync(process, "Approved", new { index }, "approval-" + index);
 
@@ -151,9 +166,11 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
             full.StepHistory.Select(step => step.Id),
             first.StepHistory.Concat(second.StepHistory).Concat(last.StepHistory).Select(step => step.Id));
         Assert.All(first.StepHistory, step => Assert.Null(step.OutputData));
+
         var withOutputs = await client.GetStatusPageAsync(process, pageSize: 2, includeOutputs: true);
         Assert.All(withOutputs.StepHistory, step => Assert.NotNull(step.OutputData));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => client.GetStatusPageAsync(process, pageSize: 101));
+
         var invalid = await Assert.ThrowsAsync<RpcException>(() =>
             new GetProcessStatusGrpcClient(app.CallInvoker).GetProcessStatusAsync(
                     new GetProcessStatusRequest { ProcessInstanceId = process.ToString(), HistoryPageSize = 101 })

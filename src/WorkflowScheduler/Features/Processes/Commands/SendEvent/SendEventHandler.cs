@@ -20,39 +20,49 @@ public class SendEventHandler(
                  && e.EventName == $"event:{request.EventName.ToUpperInvariant()}"
                  && e.CorrelationId == request.CorrelationId,
             ct);
-        if (duplicate) return ProcessErrors.DuplicateEvent;
+        if (duplicate)
+            return ProcessErrors.DuplicateEvent;
 
         var processInstance = await db.LoadActiveProcessAsync(request.ProcessInstanceId, ct);
-        if (processInstance is null) return ProcessErrors.NotFound;
+        if (processInstance is null)
+            return ProcessErrors.NotFound;
 
-        if (processInstance.Status != ProcessStatus.Waiting) return ProcessErrors.NotWaiting;
+        if (processInstance.Status != ProcessStatus.Waiting)
+            return ProcessErrors.NotWaiting;
 
         var stepInstance = processInstance.GetCurrentStepInstance();
-        if (stepInstance is null) return ProcessErrors.StepNotFound;
+        if (stepInstance is null)
+            return ProcessErrors.StepNotFound;
 
         var processDefinition = await definitions.GetOrLoadAsync(processInstance.DefinitionId, ct);
-        if (processDefinition is null) return ProcessErrors.DefinitionNotFound;
+        if (processDefinition is null)
+            return ProcessErrors.DefinitionNotFound;
 
         var stepDefinition = processDefinition.FindStep(stepInstance.StepDefinitionId);
-        if (stepDefinition is null) return ProcessErrors.StepNotFound;
+        if (stepDefinition is null)
+            return ProcessErrors.StepNotFound;
 
-        if (stepDefinition.Type != StepType.WaitEvent) return ProcessErrors.StepTypeMismatch;
+        if (stepDefinition.Type != StepType.WaitEvent)
+            return ProcessErrors.StepTypeMismatch;
 
         StepMetadata.WaitEvent metadata = (StepMetadata.WaitEvent)stepDefinition.Metadata;
         if (!string.Equals(metadata.EventName, request.EventName, StringComparison.OrdinalIgnoreCase))
             return ProcessErrors.EventNameMismatch;
 
         var completeResult = stepInstance.Complete(request.Payload);
-        if (completeResult.IsError) return completeResult;
+        if (completeResult.IsError)
+            return completeResult;
 
         var resumeResult = processInstance.Resume();
-        if (resumeResult.IsError) return resumeResult.Errors;
+        if (resumeResult.IsError)
+            return resumeResult.Errors;
 
         var result = stepDefinition.NextStepId is null
             ? processInstance.Complete()
             : stepExecutor.Execute(processDefinition, processInstance, stepDefinition.NextStepId.Value, ct);
 
-        if (result.IsError) return result.Errors;
+        if (result.IsError)
+            return result.Errors;
 
         db.EventLogs.Add(
             new EventLog(

@@ -23,7 +23,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         var source = "process.commands." + service;
         using var admin = new AdminClientBuilder(
             new AdminClientConfig
-                { BootstrapServers = infrastructure.BootstrapServers }).Build();
+            { BootstrapServers = infrastructure.BootstrapServers }).Build();
         await admin.CreateTopicsAsync(
         [
             new TopicSpecification { Name = source, NumPartitions = 1, ReplicationFactor = 1 },
@@ -33,6 +33,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 Configs = new Dictionary<string, string> { ["max.message.bytes"] = "128" }
             }
         ]);
+
         await using var worker = await WorkerTestHost.StartAsync(
             infrastructure,
             client,
@@ -42,6 +43,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
 
         // Act
         await worker.PublishRawAsync("bad-key", "{invalid" + new string('x', 1000));
+
         var failure =
             await Assert.ThrowsAsync<ProduceException<string, string>>(() =>
                 worker.Execution.WaitAsync(TimeSpan.FromSeconds(20)));
@@ -78,11 +80,13 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 await release.Task.WaitAsync(call.ArgAt<CancellationToken>(3));
                 Interlocked.Exchange(ref acknowledged, 1);
             });
+
         await using var worker = await WorkerTestHost.StartAsync(
             infrastructure,
             client,
             builder =>
                 builder.Handle<Input, int>("Charge", (_, _, _) => Task.FromResult(Interlocked.Increment(ref effects))));
+
         try
         {
             await worker.PublishAsync(command);
@@ -121,6 +125,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 Arg.Any<string>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromException(unavailable));
+
         var effects = 0;
         await using var worker = await WorkerTestHost.StartAsync(
             infrastructure,
@@ -156,13 +161,16 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         using var consumer = new ConsumerBuilder<string, string>(
             new ConsumerConfig
             {
-                BootstrapServers = infrastructure.BootstrapServers, GroupId = "dead-letter-probe-" + Guid.NewGuid(),
+                BootstrapServers = infrastructure.BootstrapServers,
+                GroupId = "dead-letter-probe-" + Guid.NewGuid(),
                 EnableAutoCommit = false
             }).Build();
         consumer.Assign(new TopicPartitionOffset(worker.Topic + ".dead-letter", new Partition(0), Offset.Beginning));
+
         var invalid = oversizedEnvelope ? new string('"', 700_000) : "{not-json";
 
         await worker.PublishRawAsync("bad-key", invalid);
+
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var record = await Task.Run(() => consumer.Consume(timeout.Token), timeout.Token);
         await worker.WaitForOffsetAsync(1);
@@ -203,6 +211,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 {
                     entered.SetResult();
                     await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+
                     return 0;
                 }));
         await first.PublishAsync(command);
@@ -213,6 +222,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         Assert.DoesNotContain(
             client.ReceivedCalls(),
             call => call.GetMethodInfo().Name is "CompleteStepAsync" or "FailStepAsync");
+
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var second = await WorkerTestHost.StartAsync(
             infrastructure,
@@ -222,6 +232,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
                 (_, _, _) =>
                 {
                     completed.SetResult();
+
                     return Task.FromResult(42);
                 }),
             first.ServiceName,
@@ -256,6 +267,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         client
             .IsStepActiveAsync(Arg.Any<StepExecution>(), command.IsCompensation, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(true));
+
         return client;
     }
 

@@ -22,6 +22,7 @@ public class ExecutionStateTests(TestInfrastructure infrastructure)
         var process = await app.Start(await app.Register(call));
         var snapshot = await app.Send(new GetProcessStatusQuery(process));
         var query = new IsStepActiveQuery(process, call.Id, snapshot!.CurrentStepId!.Value, 0, false);
+
         switch (change)
         {
             case "cancelled": await app.Send(new CancelProcessCommand(process)); break;

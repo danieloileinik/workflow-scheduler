@@ -101,6 +101,7 @@ public class RegisterProcessDefinitionValidatorTests
             call.Id,
             null);
         call = call with { NextStepId = wait.Id };
+
         var command = CreateDefinition(call, wait);
 
         // Act
@@ -129,6 +130,7 @@ public class RegisterProcessDefinitionValidatorTests
     {
         var metadata = new Dictionary<string, string> { ["serviceName"] = "billing", ["command"] = "Execute" };
         metadata[property] = new string('x', length);
+
         var step = CreateCallStep() with
         {
             Type = property == "eventName" ? StepType.WaitEvent : StepType.Call,

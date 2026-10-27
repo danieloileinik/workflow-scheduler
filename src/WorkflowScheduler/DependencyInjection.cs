@@ -16,7 +16,8 @@ public static class DependencyInjection
     {
         public IServiceCollection AddWorkflowScheduler(IConfiguration configuration)
         {
-            services.AddHealthChecks()
+            services
+                .AddHealthChecks()
                 .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"], timeout: TimeSpan.FromSeconds(3));
 
             services.AddDbContext<AppDbContext>(opt =>
@@ -33,6 +34,7 @@ public static class DependencyInjection
                 {
                     var options = ConfigurationOptions.Parse(redisConnection);
                     options.AbortOnConnectFail = false;
+
                     return ConnectionMultiplexer.Connect(options);
                 });
                 services.AddScoped<IProcessDefinitionCache, ProcessDefinitionCache>();
@@ -44,6 +46,7 @@ public static class DependencyInjection
             services.AddHostedService<OutboxWorker>();
 
             services.AddHostedService<RetryWorker>();
+
             return services.AddWorkflowApplication();
         }
 

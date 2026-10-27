@@ -48,6 +48,7 @@ public class ProcessInstanceTests
         // Arrange
         var process = new ProcessInstance(Guid.NewGuid(), "order", "{}");
         process.Start(Guid.NewGuid());
+
         var nextDefinitionId = Guid.NewGuid();
 
         // Act

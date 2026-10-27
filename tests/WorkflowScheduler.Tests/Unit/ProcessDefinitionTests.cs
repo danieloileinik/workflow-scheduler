@@ -10,6 +10,7 @@ public class ProcessDefinitionTests
         var first = new StepDefinition(definition.Id, "first", StepType.Call, "{}");
         definition.AddStep(first);
         Assert.Same(first, definition.FindStep(first.Id));
+
         var second = new StepDefinition(definition.Id, "second", StepType.Call, "{}");
 
         definition.AddStep(second);

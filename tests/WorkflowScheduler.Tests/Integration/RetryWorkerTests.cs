@@ -24,6 +24,7 @@ public class RetryWorkerTests(TestInfrastructure infrastructure)
         await app.Complete(good, call.Id, false);
         await app.WithDb(db => db.StepInstances.ExecuteUpdateAsync(update =>
             update.SetProperty(step => step.NextRetryAt, DateTime.UtcNow.AddMinutes(-1))));
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddWorkflowScheduler(infrastructure.Configuration(infrastructure.IntegrationPostgres, 0));
@@ -36,13 +37,17 @@ public class RetryWorkerTests(TestInfrastructure infrastructure)
                 .Returns(callInfo =>
                 {
                     var command = callInfo.Arg<RetryStepsCommand>();
-                    if (command.ProcessInstanceId != bad) return inner.Send(command, callInfo.Arg<CancellationToken>());
+                    if (command.ProcessInstanceId != bad)
+                        return inner.Send(command, callInfo.Arg<CancellationToken>());
+
                     return throws
                         ? Task.FromException<ErrorOr<Success>>(new InvalidOperationException("Injected retry failure"))
                         : Task.FromResult<ErrorOr<Success>>(Error.Failure("Retry.Failed", "Injected rejection"));
                 });
+
             return mediator;
         });
+
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var worker = new RetryWorker(
             provider.GetRequiredService<IServiceScopeFactory>(),

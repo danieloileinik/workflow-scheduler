@@ -29,6 +29,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
     {
         ServiceName = serviceName;
         GroupId = groupId;
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(client);
@@ -49,7 +50,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
             new ProducerConfig { BootstrapServers = bootstrap, EnableIdempotence = true }).Build();
         _offsets = new ConsumerBuilder<string, string>(
             new ConsumerConfig
-                { BootstrapServers = bootstrap, GroupId = groupId, EnableAutoCommit = false }).Build();
+            { BootstrapServers = bootstrap, GroupId = groupId, EnableAutoCommit = false }).Build();
     }
 
     public string ServiceName { get; }
@@ -89,7 +90,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
             await admin.CreateTopicsAsync(
                 new[] { "process.commands." + serviceName, "process.commands." + serviceName + ".dead-letter" }
                     .Select(topic => new TopicSpecification
-                        { Name = topic, NumPartitions = 1, ReplicationFactor = 1 }));
+                    { Name = topic, NumPartitions = 1, ReplicationFactor = 1 }));
         }
 
         var host = new WorkerTestHost(
@@ -99,9 +100,11 @@ internal sealed class WorkerTestHost : IAsyncDisposable
             client,
             handlers,
             deliveryAttempts);
+
         try
         {
             await host._worker.StartAsync(CancellationToken.None);
+
             return host;
         }
         catch
@@ -167,7 +170,9 @@ internal sealed class WorkerTestHost : IAsyncDisposable
                 () => Status.DefaultSuccess,
                 () => [],
                 () => { }));
+
         using var client = new WorkflowSchedulerClient(invoker);
+
         return await Assert.ThrowsAsync<WorkflowClientException>(() => client.GetStatusAsync(Guid.NewGuid()));
     }
 }

@@ -18,7 +18,7 @@ public class WorkflowSchedulerClientTests
         var key = Guid.NewGuid();
         var process = Guid.NewGuid();
         var invoker = new RecordingInvoker(_ => new StartProcessResponse
-            { ProcessInstanceId = process.ToString() });
+        { ProcessInstanceId = process.ToString() });
         using var client = Client(invoker);
         var first = await client.StartAsync(definition, new { OrderId = 42 }, "order-42", key);
         var replay = await client.StartAsync(definition, new { OrderId = 42 }, "order-42", key);
@@ -32,6 +32,7 @@ public class WorkflowSchedulerClientTests
                 Assert.Equal(definition.ToString(), request.DefinitionId);
                 Assert.Equal(key.ToString(), request.IdempotencyKey);
                 Assert.Equal("order-42", request.BusinessKey);
+
                 using var payload = JsonDocument.Parse(request.InputData);
                 Assert.Equal(42, payload.RootElement.GetProperty("orderId").GetInt32());
             });
@@ -42,7 +43,7 @@ public class WorkflowSchedulerClientTests
     {
         var id = Guid.NewGuid();
         var invoker = new RecordingInvoker(_ => new RegisterProcessDefinitionResponse
-            { DefinitionId = id.ToString() });
+        { DefinitionId = id.ToString() });
         using var client = Client(invoker);
         var definition = Workflow
             .Define("order", 2)
@@ -52,6 +53,7 @@ public class WorkflowSchedulerClientTests
             .Build();
         var registered = await client.RegisterAsync(definition);
         Assert.Equal(new RegisteredWorkflow(id, "order", 2), registered);
+
         var request = Assert.IsType<RegisterProcessDefinitionRequest>(Assert.Single(invoker.Requests).Request);
         Assert.Equal(definition.Steps.Select(step => step.Id.ToString()), request.Steps.Select(step => step.Id));
         Assert.Equal(definition.Steps[0].CompensationStepId!.Value.ToString(), request.Steps[0].CompensationStepId);
@@ -68,15 +70,18 @@ public class WorkflowSchedulerClientTests
         await client.SendEventAsync(execution.ProcessInstanceId, "Approved", new { Actor = "manager" }, "event-1");
         await client.CompleteStepAsync(execution, new { Reserved = true }, "callback-1");
         await client.FailStepAsync(execution, "temporary error", "callback-2");
+
         var sent = Assert.IsType<SendEventRequest>(invoker.Requests[0].Request);
         Assert.Equal("event-1", sent.CorrelationId);
         Assert.Equal("{\"actor\":\"manager\"}", sent.Payload);
+
         var completed = Assert.IsType<CompleteStepRequest>(invoker.Requests[1].Request);
         Assert.Equal(execution.StepInstanceId.ToString(), completed.StepInstanceId);
         Assert.Equal(execution.StepDefinitionId.ToString(), completed.StepDefinitionId);
         Assert.Equal(2, completed.Attempt);
         Assert.True(completed.Success);
         Assert.Equal("callback-1", completed.CorrelationId);
+
         var failed = Assert.IsType<CompleteStepRequest>(invoker.Requests[2].Request);
         Assert.False(failed.Success);
         Assert.Equal("temporary error", failed.OutputData);
@@ -92,21 +97,30 @@ public class WorkflowSchedulerClientTests
         var at = DateTimeOffset.UtcNow;
         var response = new GrpcStatusResponse
         {
-            Id = process.ToString(), DefinitionId = Guid.NewGuid().ToString(), BusinessKey = "order",
-            Status = "Waiting", CurrentStepId = step.ToString(), CreatedAt = at.ToString("O"),
+            Id = process.ToString(),
+            DefinitionId = Guid.NewGuid().ToString(),
+            BusinessKey = "order",
+            Status = "Waiting",
+            CurrentStepId = step.ToString(),
+            CreatedAt = at.ToString("O"),
             UpdatedAt = at.ToString("O")
         };
         response.StepHistory.Add(
             new StepHistoryEntry
             {
-                Id = step.ToString(), StepDefinitionId = definitionStep.ToString(), Status = "Running",
-                StartedAt = at.ToString("O"), RetryCount = 2
+                Id = step.ToString(),
+                StepDefinitionId = definitionStep.ToString(),
+                Status = "Running",
+                StartedAt = at.ToString("O"),
+                RetryCount = 2
             });
+
         using var client = Client(new RecordingInvoker(_ => response));
         var status = await client.GetStatusAsync(process);
         Assert.Equal(WorkflowProcessStatus.Waiting, status.Status);
         Assert.Equal(step, status.CurrentStepId);
         Assert.Equal(at, status.CreatedAt);
+
         var history = Assert.Single(status.StepHistory);
         Assert.Equal(WorkflowStepStatus.Running, history.Status);
         Assert.Null(history.CompletedAt);
@@ -174,6 +188,7 @@ public class WorkflowSchedulerClientTests
             new { },
             "order",
             Guid.Empty));
+
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.CancelAsync(
@@ -202,7 +217,7 @@ public class WorkflowSchedulerClientTests
     {
         var options = new WorkflowClientOptions();
         var invoker = new RecordingInvoker(_ => new StartProcessResponse
-            { ProcessInstanceId = Guid.NewGuid().ToString() });
+        { ProcessInstanceId = Guid.NewGuid().ToString() });
         var client = Client(invoker, options);
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
         await client.StartAsync(Guid.NewGuid(), new { OrderId = 42 }, "order", Guid.NewGuid());
@@ -227,6 +242,7 @@ public class WorkflowSchedulerClientTests
             options.Address = new Uri("http://localhost:5010");
             options.HeadersFactory = () => new Metadata { { "authorization", "token" } };
         });
+
         using var provider = services.BuildServiceProvider();
         Assert.Same(
             provider.GetRequiredService<IWorkflowSchedulerClient>(),
@@ -266,7 +282,9 @@ public class WorkflowSchedulerClientTests
             TRequest request)
         {
             Requests.Add((request, options));
+
             Task<TResponse> response;
+
             try
             {
                 response = Task.FromResult((TResponse)respond(method.Name));

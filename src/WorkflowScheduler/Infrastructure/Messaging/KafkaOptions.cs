@@ -11,6 +11,7 @@ public class KafkaOptions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(BootstrapServers);
         ArgumentNullException.ThrowIfNull(ProducerConfig);
+
         return new ProducerConfig(ProducerConfig.ToDictionary(entry => entry.Key, entry => entry.Value))
         {
             BootstrapServers = BootstrapServers,

@@ -42,6 +42,7 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
             _channel ??= GrpcChannel.ForAddress(
                 _httpClient.BaseAddress!,
                 new GrpcChannelOptions { HttpClient = _httpClient });
+
             return _callInvoker ??= _channel.Intercept(new RpcDeadlineInterceptor());
         }
     }
@@ -57,12 +58,14 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
         // Supply them before Program executes, rather than through the later web-host callback.
         builder.ConfigureHostConfiguration(configuration => configuration.AddConfiguration(
             _infrastructure.Configuration(_infrastructure.EndToEndPostgres, 1)));
+
         return base.CreateHost(builder);
     }
 
     public async Task<T> WithDb<T>(Func<AppDbContext, Task<T>> action)
     {
         await using var scope = Services.CreateAsyncScope();
+
         return await action(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
@@ -84,11 +87,14 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
     public static RegisterProcessDefinitionRequest Registration(params StepDefinitionDto[] steps)
     {
         var request = new RegisterProcessDefinitionRequest { Name = "workflow-" + Guid.NewGuid(), Version = 1 };
+
         foreach (var step in steps)
             request.Steps.Add(
                 new StepDefinitionMessage
                 {
-                    Id = step.Id.ToString(), Name = step.Name, Metadata = step.Metadata,
+                    Id = step.Id.ToString(),
+                    Name = step.Name,
+                    Metadata = step.Metadata,
                     StepType = step.Type switch
                     {
                         StepType.Call => StepTypeMessage.Call,
@@ -98,6 +104,7 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
                     NextStepId = step.NextStepId?.ToString() ?? "",
                     CompensationStepId = step.CompensationStepId?.ToString() ?? ""
                 });
+
         return request;
     }
 
@@ -108,6 +115,7 @@ internal sealed class GrpcApp : WebApplicationFactory<Program>
             AsyncUnaryCallContinuation<TRequest, TResponse> continuation)
         {
             var options = context.Options.WithDeadline(context.Options.Deadline ?? DateTime.UtcNow.AddSeconds(20));
+
             return continuation(
                 request,
                 new ClientInterceptorContext<TRequest, TResponse>(

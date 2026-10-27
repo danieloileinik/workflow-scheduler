@@ -31,15 +31,18 @@ public sealed class WorkflowWorkerOptions
         ArgumentNullException.ThrowIfNull(JsonSerializerOptions);
         ArgumentNullException.ThrowIfNull(ConsumerConfig);
         ArgumentNullException.ThrowIfNull(DeadLetterProducerConfig);
-        if (MaxDeliveryAttempts is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(MaxDeliveryAttempts));
+        if (MaxDeliveryAttempts is < 1 or > 20)
+            throw new ArgumentOutOfRangeException(nameof(MaxDeliveryAttempts));
         if (RetryDelay < TimeSpan.Zero || RetryDelay > TimeSpan.FromMinutes(1))
             throw new ArgumentOutOfRangeException(nameof(RetryDelay));
         if (RpcTimeout <= TimeSpan.Zero || RpcTimeout > TimeSpan.FromMinutes(5))
             throw new ArgumentOutOfRangeException(nameof(RpcTimeout));
         if (HandlerTimeout <= TimeSpan.Zero || HandlerTimeout > TimeSpan.FromHours(1))
             throw new ArgumentOutOfRangeException(nameof(HandlerTimeout));
+
         var group = GroupId ?? "workflow-" + ServiceName;
         ArgumentException.ThrowIfNullOrWhiteSpace(group);
+
         var deadLetter = DeadLetterTopic ?? Topic + ".dead-letter";
         ValidateTopic(Topic);
         ValidateTopic(deadLetter);
@@ -48,21 +51,27 @@ public sealed class WorkflowWorkerOptions
 
         var consumer = new ConsumerConfig(ConsumerConfig)
         {
-            BootstrapServers = BootstrapServers, GroupId = group,
+            BootstrapServers = BootstrapServers,
+            GroupId = group,
             // Store only acknowledged results; librdkafka batches commits in the background.
-            EnableAutoCommit = true, EnableAutoOffsetStore = false
+            EnableAutoCommit = true,
+            EnableAutoOffsetStore = false
         };
         consumer.AutoOffsetReset ??= AutoOffsetReset.Earliest;
         consumer.AutoCommitIntervalMs ??= 1000;
         consumer.MaxPollIntervalMs ??= 900_000;
+
         var budget = HandlerTimeout + (RpcTimeout + RetryDelay) * (MaxDeliveryAttempts * (MaxDeliveryAttempts + 2));
         if (consumer.MaxPollIntervalMs <= budget.TotalMilliseconds)
             throw new ArgumentException(
                 "MaxPollIntervalMs must exceed the handler and RPC retry budget.",
                 nameof(ConsumerConfig));
+
         var producer = new ProducerConfig(DeadLetterProducerConfig)
         {
-            BootstrapServers = BootstrapServers, EnableIdempotence = true, Acks = Acks.All
+            BootstrapServers = BootstrapServers,
+            EnableIdempotence = true,
+            Acks = Acks.All
         };
         producer.MessageTimeoutMs ??= (int)RpcTimeout.TotalMilliseconds;
         producer.MessageMaxBytes ??= 1_000_000;
@@ -70,15 +79,23 @@ public sealed class WorkflowWorkerOptions
             throw new ArgumentException(
                 "Dead-letter MessageMaxBytes must be at least 8192 bytes.",
                 nameof(DeadLetterProducerConfig));
+
         var json = new JsonSerializerOptions(JsonSerializerOptions);
         json.MakeReadOnly(true);
+
         return new WorkflowWorkerOptions
         {
-            ServiceName = ServiceName, BootstrapServers = BootstrapServers, GroupId = group,
+            ServiceName = ServiceName,
+            BootstrapServers = BootstrapServers,
+            GroupId = group,
             DeadLetterTopic = deadLetter,
-            MaxDeliveryAttempts = MaxDeliveryAttempts, RetryDelay = RetryDelay, RpcTimeout = RpcTimeout,
-            HandlerTimeout = HandlerTimeout, JsonSerializerOptions = json,
-            ConsumerConfig = consumer, DeadLetterProducerConfig = producer
+            MaxDeliveryAttempts = MaxDeliveryAttempts,
+            RetryDelay = RetryDelay,
+            RpcTimeout = RpcTimeout,
+            HandlerTimeout = HandlerTimeout,
+            JsonSerializerOptions = json,
+            ConsumerConfig = consumer,
+            DeadLetterProducerConfig = producer
         };
     }
 

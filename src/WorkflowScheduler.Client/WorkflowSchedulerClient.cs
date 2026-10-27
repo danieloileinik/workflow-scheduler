@@ -52,7 +52,9 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
+
         _disposed = true;
         _ownedChannel?.Dispose();
     }
@@ -61,12 +63,16 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
+
         var request = new RegisterProcessDefinitionRequest { Name = definition.Name, Version = definition.Version };
+
         foreach (var step in definition.Steps)
             request.Steps.Add(
                 new StepDefinitionMessage
                 {
-                    Id = step.Id.ToString(), Name = step.Name, Metadata = step.Metadata,
+                    Id = step.Id.ToString(),
+                    Name = step.Name,
+                    Metadata = step.Metadata,
                     StepType = step.Kind switch
                     {
                         WorkflowStepKind.Call => StepTypeMessage.Call,
@@ -77,6 +83,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                     NextStepId = step.NextStepId?.ToString() ?? "",
                     CompensationStepId = step.CompensationStepId?.ToString() ?? ""
                 });
+
         return InvokeAsync(
             nameof(RegisterAsync),
             async options =>
@@ -86,6 +93,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                         request,
                         options);
                 var response = await call.ResponseAsync.ConfigureAwait(false);
+
                 return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), definition.Name, definition.Version);
             },
             cancellationToken);
@@ -98,6 +106,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
+
         return StartAsync(definition.Id, input, businessKey, idempotencyKey, cancellationToken);
     }
 
@@ -107,7 +116,9 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
     {
         Guard.Text(name, nameof(name), 256);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(version);
+
         var request = new GetProcessDefinitionRequest { Name = name, Version = version };
+
         return InvokeAsync(
             nameof(GetDefinitionAsync),
             async options =>
@@ -115,6 +126,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                 using var call =
                     new GetProcessDefinitionGrpcClient(_callInvoker).GetProcessDefinitionAsync(request, options);
                 var response = await call.ResponseAsync.ConfigureAwait(false);
+
                 return new RegisteredWorkflow(Guid.Parse(response.DefinitionId), name, version);
             },
             cancellationToken);
@@ -129,9 +141,11 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         Guard.Id(definitionId, nameof(definitionId));
         Guard.Id(idempotencyKey, nameof(idempotencyKey));
         Guard.Text(businessKey, nameof(businessKey), 512);
+
         var json = JsonSerializer.Serialize(input, _json);
         if (!WorkflowProtocol.InputFitsMessage(json))
             throw new ArgumentException("Workflow input exceeds the command message size limit.", nameof(input));
+
         using (var document = JsonDocument.Parse(json))
         {
             if (document.RootElement.ValueKind != JsonValueKind.Object)
@@ -140,14 +154,18 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
 
         var request = new StartProcessRequest
         {
-            DefinitionId = definitionId.ToString(), InputData = json, BusinessKey = businessKey,
+            DefinitionId = definitionId.ToString(),
+            InputData = json,
+            BusinessKey = businessKey,
             IdempotencyKey = idempotencyKey.ToString()
         };
+
         return InvokeAsync(
             nameof(StartAsync),
             async options =>
             {
                 using var call = new StartProcessGrpcClient(_callInvoker).StartProcessAsync(request, options);
+
                 return Guid.Parse((await call.ResponseAsync.ConfigureAwait(false)).ProcessInstanceId);
             },
             cancellationToken);
@@ -162,17 +180,22 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         Guard.Id(processInstanceId, nameof(processInstanceId));
         Guard.Text(eventName, nameof(eventName), WorkflowProtocol.MaxEventNameLength);
         Guard.Text(correlationId, nameof(correlationId), 256);
+
         var request = new SendEventRequest
         {
-            ProcessInstanceId = processInstanceId.ToString(), EventName = eventName,
-            Payload = SerializeOptional(payload), CorrelationId = correlationId
+            ProcessInstanceId = processInstanceId.ToString(),
+            EventName = eventName,
+            Payload = SerializeOptional(payload),
+            CorrelationId = correlationId
         };
+
         return InvokeAsync(
             nameof(SendEventAsync),
             async options =>
             {
                 using var call = new SendEventGrpcClient(_callInvoker).SendEventAsync(request, options);
                 await call.ResponseAsync.ConfigureAwait(false);
+
                 return true;
             },
             cancellationToken);
@@ -192,21 +215,24 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         Guard.Text(error, nameof(error));
+
         return CompleteAsync(execution, false, error, correlationId, cancellationToken);
     }
 
     public Task CancelAsync(Guid processInstanceId, CancellationToken cancellationToken = default)
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
+
         return InvokeAsync(
             nameof(CancelAsync),
             async options =>
             {
                 using var call = new CancelProcessGrpcClient(_callInvoker).CancelProcessAsync(
                     new CancelProcessRequest
-                        { ProcessInstanceId = processInstanceId.ToString() },
+                    { ProcessInstanceId = processInstanceId.ToString() },
                     options);
                 await call.ResponseAsync.ConfigureAwait(false);
+
                 return true;
             },
             cancellationToken);
@@ -216,6 +242,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
+
         return GetStatusAsync(
             new GetProcessStatusRequest { ProcessInstanceId = processInstanceId.ToString() },
             nameof(GetStatusAsync),
@@ -230,12 +257,16 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
     {
         Guard.Id(processInstanceId, nameof(processInstanceId));
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
-        if (pageSize is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        if (pageSize is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(pageSize));
+
         return GetStatusAsync(
             new GetProcessStatusRequest
             {
-                ProcessInstanceId = processInstanceId.ToString(), HistoryOffset = offset,
-                HistoryPageSize = pageSize, OmitOutputData = !includeOutputs
+                ProcessInstanceId = processInstanceId.ToString(),
+                HistoryOffset = offset,
+                HistoryPageSize = pageSize,
+                OmitOutputData = !includeOutputs
             },
             nameof(GetStatusPageAsync),
             cancellationToken);
@@ -246,6 +277,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         CancellationToken cancellationToken = default)
     {
         ValidateExecution(execution);
+
         var request = new IsStepActiveRequest
         {
             ProcessInstanceId = execution.ProcessInstanceId.ToString(),
@@ -254,11 +286,13 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             Attempt = execution.Attempt,
             IsCompensation = isCompensation
         };
+
         return InvokeAsync(
             nameof(IsStepActiveAsync),
             async options =>
             {
                 using var call = new IsStepActiveGrpcClient(_callInvoker).IsStepActiveAsync(request, options);
+
                 return (await call.ResponseAsync.ConfigureAwait(false)).Active;
             },
             cancellationToken);
@@ -286,6 +320,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                         NullIfEmpty(step.Error),
                         step.RetryCount))
                     .ToArray();
+
                 return new WorkflowProcessSnapshot(
                     Guid.Parse(response.Id),
                     Guid.Parse(response.DefinitionId),
@@ -296,7 +331,8 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                     ParseTime(response.UpdatedAt),
                     Array.AsReadOnly(history))
                 {
-                    TotalStepCount = response.TotalStepCount, HistoryOffset = response.HistoryOffset
+                    TotalStepCount = response.TotalStepCount,
+                    HistoryOffset = response.HistoryOffset
                 };
             },
             cancellationToken);
@@ -332,19 +368,25 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
         Guard.Text(correlationId, nameof(correlationId), 256);
         if (!WorkflowProtocol.OutputFitsMessage(output))
             throw new ArgumentException("Step output exceeds the callback message size limit.", nameof(output));
+
         var request = new CompleteStepRequest
         {
             ProcessInstanceId = execution.ProcessInstanceId.ToString(),
             StepDefinitionId = execution.StepDefinitionId.ToString(),
-            StepInstanceId = execution.StepInstanceId.ToString(), Attempt = execution.Attempt,
-            Success = success, OutputData = output, CorrelationId = correlationId
+            StepInstanceId = execution.StepInstanceId.ToString(),
+            Attempt = execution.Attempt,
+            Success = success,
+            OutputData = output,
+            CorrelationId = correlationId
         };
+
         return InvokeAsync(
             success ? nameof(CompleteStepAsync) : nameof(FailStepAsync),
             async options =>
             {
                 using var call = new CompleteStepGrpcClient(_callInvoker).CompleteStepAsync(request, options);
                 await call.ResponseAsync.ConfigureAwait(false);
+
                 return true;
             },
             cancellationToken);
@@ -354,10 +396,12 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ct.ThrowIfCancellationRequested();
+
         var options = new CallOptions(
             _headers?.Invoke(),
             cancellationToken: ct,
             deadline: _timeout == Timeout.InfiniteTimeSpan ? null : DateTime.UtcNow.Add(_timeout));
+
         try
         {
             return await action(options).ConfigureAwait(false);
@@ -391,6 +435,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
     {
         var options = new JsonSerializerOptions(original);
         options.MakeReadOnly(true);
+
         return options;
     }
 }

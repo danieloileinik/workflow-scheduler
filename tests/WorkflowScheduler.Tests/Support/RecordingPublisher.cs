@@ -13,8 +13,11 @@ internal sealed class RecordingPublisher(IMessagePublisher inner) : IMessagePubl
     public async Task PublishAsync(string topic, string key, string value, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (Fail) throw new InvalidOperationException(new string('x', 3000));
-        if (BeforePublishAsync is { } before) await before(ct);
+        if (Fail)
+            throw new InvalidOperationException(new string('x', 3000));
+        if (BeforePublishAsync is { } before)
+            await before(ct);
+
         await inner.PublishAsync(topic, key, value, ct);
         _messages.Enqueue((topic, key, value));
     }

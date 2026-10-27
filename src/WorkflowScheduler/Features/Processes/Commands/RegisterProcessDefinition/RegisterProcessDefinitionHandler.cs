@@ -15,13 +15,15 @@ public class RegisterProcessDefinitionHandler(AppDbContext db)
         var exists = await db.ProcessDefinitions
             .AnyAsync(d => d.Name == request.Name && d.Version == request.Version, ct);
 
-        if (exists) return ProcessErrors.DefinitionVersionConflict;
+        if (exists)
+            return ProcessErrors.DefinitionVersionConflict;
 
         var stepIds = request.Steps.Select(s => s.Id).ToArray();
         if (await db.StepDefinitions.AnyAsync(s => stepIds.AsEnumerable().Contains(s.Id), ct))
             return Error.Conflict(
                 "ProcessDefinition.StepIdConflict",
                 "Step ids are already used by another definition");
+
         db.ProcessDefinitions.Add(request.Definition);
 
         return new RegisterProcessDefinitionResponse(request.Definition.Id);

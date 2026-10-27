@@ -47,16 +47,22 @@ public class StepInstance(
 
     public ErrorOr<Success> MarkRunning()
     {
-        if (Status != StepStatus.Pending) return StepErrors.InvalidTransition(Status, StepStatus.Running);
+        if (Status != StepStatus.Pending)
+            return StepErrors.InvalidTransition(Status, StepStatus.Running);
+
         Status = StepStatus.Running;
         NextRetryAt = null;
+
         return Result.Success;
     }
 
     public ErrorOr<Success> MarkWaiting()
     {
-        if (Status != StepStatus.Running) return StepErrors.InvalidTransition(Status, StepStatus.Waiting);
+        if (Status != StepStatus.Running)
+            return StepErrors.InvalidTransition(Status, StepStatus.Waiting);
+
         Status = StepStatus.Waiting;
+
         return Result.Success;
     }
 
@@ -64,9 +70,11 @@ public class StepInstance(
     {
         if (Status is not (StepStatus.Running or StepStatus.Waiting))
             return StepErrors.InvalidTransition(Status, StepStatus.Completed);
+
         Status = StepStatus.Completed;
         OutputData = outputData;
         CompletedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
@@ -74,12 +82,15 @@ public class StepInstance(
     {
         if (Status is not (StepStatus.Running or StepStatus.Failed or StepStatus.TimedOut))
             return StepErrors.InvalidTransition(Status, StepStatus.Pending);
-        if (RetryCount >= MaxRetries) return false;
+        if (RetryCount >= MaxRetries)
+            return false;
+
         RetryCount++;
         Status = StepStatus.Pending;
         NextRetryAt = DateTime.UtcNow.Add(delay);
         Error = null;
         CompletedAt = null;
+
         return true;
     }
 
@@ -87,9 +98,11 @@ public class StepInstance(
     {
         if (Status is not (StepStatus.Running or StepStatus.Waiting))
             return StepErrors.InvalidTransition(Status, StepStatus.Failed);
+
         Status = StepStatus.Failed;
         Error = error;
         CompletedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 
@@ -97,9 +110,11 @@ public class StepInstance(
     {
         if (Status is not (StepStatus.Pending or StepStatus.Running or StepStatus.Waiting))
             return StepErrors.InvalidTransition(Status, StepStatus.Cancelled);
+
         Status = StepStatus.Cancelled;
         NextRetryAt = null;
         CompletedAt = DateTime.UtcNow;
+
         return Result.Success;
     }
 }

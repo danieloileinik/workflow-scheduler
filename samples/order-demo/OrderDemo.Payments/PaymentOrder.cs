@@ -10,7 +10,9 @@ public sealed class PaymentOrder(Guid id, decimal amount)
 
     public (bool Success, string Detail) Apply(OrderInput input, string command, int attempt)
     {
-        if (input.Amount != Amount) return (false, "The payment amount cannot change for an existing order.");
+        if (input.Amount != Amount)
+            return (false, "The payment amount cannot change for an existing order.");
+
         switch (command)
         {
             case DemoCommands.Refund:

@@ -30,9 +30,11 @@ public class RetryWorker(IServiceScopeFactory scopes, ILogger<RetryWorker> logge
             .Take(100)
             .Select(process => process.Id)
             .ToArrayAsync(ct);
+
         foreach (var id in ids)
         {
             var failed = false;
+
             try
             {
                 await using var commandScope = scopes.CreateAsyncScope();
@@ -78,7 +80,8 @@ public class RetryWorker(IServiceScopeFactory scopes, ILogger<RetryWorker> logge
         {
             try
             {
-                if (await DispatchAsync(stoppingToken) == 100) continue;
+                if (await DispatchAsync(stoppingToken) == 100)
+                    continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

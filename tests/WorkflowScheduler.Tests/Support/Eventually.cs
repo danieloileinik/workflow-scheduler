@@ -10,12 +10,15 @@ internal static class Eventually
         var limit = timeout ?? TimeSpan.FromSeconds(20);
         using var deadline = new CancellationTokenSource(limit);
         T? last = default;
+
         try
         {
             while (true)
             {
                 last = await read(deadline.Token);
-                if (matches(last)) return last;
+                if (matches(last))
+                    return last;
+
                 await Task.Delay(TimeSpan.FromMilliseconds(50), deadline.Token);
             }
         }

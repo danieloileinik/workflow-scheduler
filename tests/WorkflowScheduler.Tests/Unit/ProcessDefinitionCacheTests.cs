@@ -50,6 +50,7 @@ public class ProcessDefinitionCacheTests
                     new RedisConnectionException(
                         ConnectionFailureType.UnableToConnect,
                         "offline")));
+
         var definition = new ProcessDefinition("workflow", 1);
 
         // Act
@@ -70,6 +71,7 @@ public class ProcessDefinitionCacheTests
     {
         // Arrange
         var (cache, database) = CreateCache();
+
         RedisValue value = snapshot;
         database.StringGetAsync(Arg.Any<RedisKey>(), Arg.Any<CommandFlags>()).Returns(value);
 
@@ -85,6 +87,7 @@ public class ProcessDefinitionCacheTests
     {
         // Arrange
         var (cache, database) = CreateCache();
+
         var definition = new ProcessDefinition("workflow", 7)
         {
             CreatedAt = DateTime.UtcNow.AddDays(-1)
@@ -95,6 +98,7 @@ public class ProcessDefinitionCacheTests
         var second = new StepDefinition(definition.Id, "second", StepType.WaitEvent, waitMetadata);
         definition.AddStep(first);
         definition.AddStep(second);
+
         var savedSnapshot = RedisValue.Null;
         database
             .StringSetAsync(
@@ -130,6 +134,7 @@ public class ProcessDefinitionCacheTests
     public async Task GetAsync_WithInvalidStepSnapshots_ReturnsCacheMiss(string steps)
     {
         var (cache, database) = CreateCache();
+
         var id = Guid.NewGuid();
         RedisValue snapshot = $$"""{"Id":"{{id}}","Name":"workflow","Version":1,"Steps":{{steps}}} """;
         database.StringGetAsync(Arg.Any<RedisKey>(), Arg.Any<CommandFlags>()).Returns(snapshot);
@@ -142,7 +147,9 @@ public class ProcessDefinitionCacheTests
         var redis = Substitute.For<IConnectionMultiplexer>();
         var database = Substitute.For<IDatabase>();
         redis.GetDatabase().Returns(database);
+
         var cache = new ProcessDefinitionCache(redis, NullLogger<ProcessDefinitionCache>.Instance);
+
         return (cache, database);
     }
 }

@@ -33,7 +33,9 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
                 GrpcApp.Registration(billing, approval, shipping));
         var startRequest = new StartProcessRequest
         {
-            DefinitionId = registered.DefinitionId, BusinessKey = "order-42", InputData = "{\"amount\":42}",
+            DefinitionId = registered.DefinitionId,
+            BusinessKey = "order-42",
+            InputData = "{\"amount\":42}",
             IdempotencyKey = Guid.NewGuid().ToString()
         };
         // Act
@@ -42,16 +44,21 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var processId = Guid.Parse(started.ProcessInstanceId);
         var billingCommand = await broker.ReadAsync("billing", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(billingCommand));
+
         var waiting = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest { ProcessInstanceId = started.ProcessInstanceId });
         await new SendEventGrpcClient(invoker).SendEventAsync(
             new SendEventRequest
             {
-                ProcessInstanceId = started.ProcessInstanceId, EventName = "Approved", CorrelationId = "approval-42",
+                ProcessInstanceId = started.ProcessInstanceId,
+                EventName = "Approved",
+                CorrelationId = "approval-42",
                 Payload = "{}"
             });
+
         var shippingCommand = await broker.ReadAsync("shipping", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(shippingCommand));
+
         var status = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest { ProcessInstanceId = started.ProcessInstanceId });
         await app.WaitForOutboxAsync(2);
@@ -113,6 +120,7 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var invoker = app.CallInvoker;
         var registration = GrpcApp.Registration(TestWorkflow.Call());
         registration.Name = "";
+
         Func<Task> invoke = operation switch
         {
             "register" => () => new RegisterProcessDefinitionGrpcClient(invoker)
@@ -121,8 +129,10 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
             "start" => () => new StartProcessGrpcClient(invoker).StartProcessAsync(
                     new StartProcessRequest
                     {
-                        DefinitionId = Guid.Empty.ToString(), IdempotencyKey = Guid.NewGuid().ToString(),
-                        BusinessKey = "order", InputData = "{}"
+                        DefinitionId = Guid.Empty.ToString(),
+                        IdempotencyKey = Guid.NewGuid().ToString(),
+                        BusinessKey = "order",
+                        InputData = "{}"
                     })
                 .ResponseAsync,
             "cancel" => () => new CancelProcessGrpcClient(invoker).CancelProcessAsync(
@@ -131,7 +141,8 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
             "complete" => () => new CompleteStepGrpcClient(invoker).CompleteStepAsync(
                     new CompleteStepRequest
                     {
-                        ProcessInstanceId = Guid.NewGuid().ToString(), StepDefinitionId = Guid.NewGuid().ToString(),
+                        ProcessInstanceId = Guid.NewGuid().ToString(),
+                        StepDefinitionId = Guid.NewGuid().ToString(),
                         StepInstanceId = Guid.NewGuid().ToString()
                     })
                 .ResponseAsync,
@@ -161,13 +172,16 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var started = await new StartProcessGrpcClient(app.CallInvoker).StartProcessAsync(
             new StartProcessRequest
             {
-                DefinitionId = definition.DefinitionId, IdempotencyKey = Guid.NewGuid().ToString(),
-                BusinessKey = "order", InputData = "{}"
+                DefinitionId = definition.DefinitionId,
+                IdempotencyKey = Guid.NewGuid().ToString(),
+                BusinessKey = "order",
+                InputData = "{}"
             });
         var command = await broker.ReadAsync("billing", Guid.Parse(started.ProcessInstanceId));
         var cancel = new CancelProcessRequest { ProcessInstanceId = started.ProcessInstanceId };
         // Act
         await new CancelProcessGrpcClient(app.CallInvoker).CancelProcessAsync(cancel);
+
         var repeated = await Assert.ThrowsAsync<RpcException>(async () =>
             await new CancelProcessGrpcClient(app.CallInvoker).CancelProcessAsync(cancel));
         var late = await Assert.ThrowsAsync<RpcException>(async () =>
@@ -191,8 +205,10 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var started = await new StartProcessGrpcClient(invoker).StartProcessAsync(
             new StartProcessRequest
             {
-                DefinitionId = definition.DefinitionId, IdempotencyKey = Guid.NewGuid().ToString(),
-                BusinessKey = "retry-order", InputData = "{}"
+                DefinitionId = definition.DefinitionId,
+                IdempotencyKey = Guid.NewGuid().ToString(),
+                BusinessKey = "retry-order",
+                InputData = "{}"
             });
         var processId = Guid.Parse(started.ProcessInstanceId);
         var initial = await broker.ReadAsync("billing", processId);
@@ -202,23 +218,27 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
 
         // Act
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(failure);
+
         var pending = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-                { ProcessInstanceId = processId.ToString() });
+            { ProcessInstanceId = processId.ToString() });
         // Advance the persisted deadline; the real RetryWorker must discover and dispatch it.
         await app.WithDb(async db =>
         {
             var step = await db.StepInstances.SingleAsync(step => step.Id == initial.StepInstanceId);
             db.Entry(step).Property(step => step.NextRetryAt).CurrentValue = DateTime.UtcNow.AddSeconds(-1);
+
             return await db.SaveChangesAsync();
         });
+
         var retry = await broker.ReadAsync("billing", processId);
         var stale = await Assert.ThrowsAsync<RpcException>(async () =>
             await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(initial)));
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(retry));
+
         var completed = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-                { ProcessInstanceId = processId.ToString() });
+            { ProcessInstanceId = processId.ToString() });
         await app.WaitForOutboxAsync(2);
 
         // Assert
@@ -251,28 +271,34 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var started = await new StartProcessGrpcClient(invoker).StartProcessAsync(
             new StartProcessRequest
             {
-                DefinitionId = definition.DefinitionId, IdempotencyKey = Guid.NewGuid().ToString(),
-                BusinessKey = "cancel-order", InputData = "{}"
+                DefinitionId = definition.DefinitionId,
+                IdempotencyKey = Guid.NewGuid().ToString(),
+                BusinessKey = "cancel-order",
+                InputData = "{}"
             });
         var processId = Guid.Parse(started.ProcessInstanceId);
         var billed = await broker.ReadAsync("billing", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(billed));
+
         var shipped = await broker.ReadAsync("shipping", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(shipped));
 
         // Act
         await new CancelProcessGrpcClient(invoker).CancelProcessAsync(
             new CancelProcessRequest { ProcessInstanceId = processId.ToString() });
+
         var undoSecond = await broker.ReadAsync("undo-b", processId);
         var midway = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-                { ProcessInstanceId = processId.ToString() });
+            { ProcessInstanceId = processId.ToString() });
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(undoSecond));
+
         var undoFirst = await broker.ReadAsync("undo-a", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(undoFirst));
+
         var completed = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-                { ProcessInstanceId = processId.ToString() });
+            { ProcessInstanceId = processId.ToString() });
         await app.WaitForOutboxAsync(4);
 
         // Assert
@@ -308,7 +334,9 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
                 GrpcApp.Registration(billing, shipping));
         var request = new StartProcessRequest
         {
-            DefinitionId = definition.DefinitionId, BusinessKey = "concurrent-order", InputData = "{}",
+            DefinitionId = definition.DefinitionId,
+            BusinessKey = "concurrent-order",
+            InputData = "{}",
             IdempotencyKey = Guid.NewGuid().ToString()
         };
 
@@ -320,11 +348,14 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var processId = Guid.Parse(starts[0].ProcessInstanceId);
         var first = await broker.ReadAsync("billing", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(first));
+
         var second = await broker.ReadAsync("shipping", processId);
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(second));
+
         var status = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest { ProcessInstanceId = processId.ToString() });
         await app.WaitForOutboxAsync(2);
+
         await using var scope = app.Services.CreateAsyncScope();
         var cache = scope.ServiceProvider.GetRequiredService<IProcessDefinitionCache>();
         var cached = await cache.GetAsync(Guid.Parse(definition.DefinitionId));
@@ -354,8 +385,11 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         {
             ProcessInstanceId = command.ProcessInstanceId.ToString(),
             StepDefinitionId = command.StepDefinitionId.ToString(),
-            StepInstanceId = command.StepInstanceId.ToString(), Attempt = command.Attempt,
-            CorrelationId = Guid.NewGuid().ToString(), Success = true, OutputData = "{}"
+            StepInstanceId = command.StepInstanceId.ToString(),
+            Attempt = command.Attempt,
+            CorrelationId = Guid.NewGuid().ToString(),
+            Success = true,
+            OutputData = "{}"
         };
     }
 }

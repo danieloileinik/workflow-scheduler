@@ -12,6 +12,7 @@ public sealed class PaymentHandler(PaymentDb db) : IWorkflowCommandHandler<Order
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var lockId = BinaryPrimitives.ReadInt64BigEndian(input.OrderId.ToByteArray());
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})", ct);
+
         var receipt = await db.Executions.FindAsync([context.IdempotencyKey], ct);
         if (receipt is null)
         {
@@ -30,6 +31,7 @@ public sealed class PaymentHandler(PaymentDb db) : IWorkflowCommandHandler<Order
         }
 
         await transaction.CommitAsync(ct);
+
         return receipt.Success ? new OperationResult(receipt.Detail) : throw new InvalidOperationException(receipt.Detail);
     }
 }

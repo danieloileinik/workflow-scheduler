@@ -20,7 +20,8 @@ public sealed record WorkflowDeadLetter(
     internal string Serialize(int maxBytes)
     {
         var json = JsonSerializer.Serialize(this);
-        if (Encoding.UTF8.GetByteCount(json) <= maxBytes) return json;
+        if (Encoding.UTF8.GetByteCount(json) <= maxBytes)
+            return json;
 
         var reduced = this with
         {
@@ -42,13 +43,17 @@ public sealed record WorkflowDeadLetter(
 
         // A UTF-16 code unit requires at most six bytes when escaped by the default JSON encoder.
         reduced = reduced with { Payload = Prefix(Payload, Math.Max(0, (maxBytes - overhead - 2) / 6)) };
+
         return JsonSerializer.Serialize(reduced);
     }
 
     private static string? Prefix(string? value, int length)
     {
-        if (value is null || value.Length <= length) return value;
-        if (length > 0 && char.IsHighSurrogate(value[length - 1])) length--;
+        if (value is null || value.Length <= length)
+            return value;
+        if (length > 0 && char.IsHighSurrogate(value[length - 1]))
+            length--;
+
         return value[..length];
     }
 }

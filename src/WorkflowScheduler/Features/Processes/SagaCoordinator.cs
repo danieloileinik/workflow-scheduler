@@ -38,7 +38,9 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
 
         foreach (var step in completed)
         {
-            if (!scheduled.Add(step.Id)) continue;
+            if (!scheduled.Add(step.Id))
+                continue;
+
             var log = new SagaCompensationLog(
                 instance.Id,
                 compensations[step.StepDefinitionId],
@@ -69,14 +71,17 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
                 candidate => candidate.ProcessInstanceId == instance.Id
                              && candidate.StepInstanceId == step.Id && candidate.Status == CompensationStatus.Running,
                 ct);
-        if (log is null) return ProcessErrors.StepNotFound;
+        if (log is null)
+            return ProcessErrors.StepNotFound;
 
         var compensated = await db
             .StepInstances
             .Where(original => original.ProcessInstanceId == instance.Id
                                && original.Id == log.OriginalStepInstanceId && original.Status == StepStatus.Completed)
             .ExecuteUpdateAsync(update => update.SetProperty(original => original.Status, StepStatus.Compensated), ct);
-        if (compensated != 1) return ProcessErrors.StepNotFound;
+        if (compensated != 1)
+            return ProcessErrors.StepNotFound;
+
         log.Complete();
 
         if (await db.SagaCompensationLogs.AnyAsync(
@@ -93,6 +98,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
                 candidate.ProcessInstanceId == instance.Id && candidate.Status == CompensationStatus.Pending)
             .OrderBy(candidate => candidate.Sequence)
             .FirstOrDefaultAsync(ct);
+
         return StartNext(instance, definition, next, ct);
     }
 
@@ -101,13 +107,18 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
         SagaCompensationLog? next,
         CancellationToken ct)
     {
-        if (next is null) return Result.Success;
+        if (next is null)
+            return Result.Success;
+
         var target = definition.FindStep(next.StepDefinitionId);
 
-        if (target is null || target.Type != StepType.Call) return ProcessErrors.StepTypeMismatch;
+        if (target is null || target.Type != StepType.Call)
+            return ProcessErrors.StepTypeMismatch;
+
         var step = instance.AddCompensationStep(target.Id);
 
         next.MarkRunning(step.Id);
+
         return executor.Run(definition, instance, target, step, ct);
     }
 }

@@ -21,11 +21,14 @@ public abstract record StepMetadata
     public static StepMetadata Parse(StepType type, string json)
     {
         using var document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind != JsonValueKind.Object) throw new FormatException();
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new FormatException();
 
         var properties = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
         foreach (JsonProperty property in document.RootElement.EnumerateObject())
-            if (!properties.TryAdd(property.Name, property.Value)) throw new FormatException();
+            if (!properties.TryAdd(property.Name, property.Value))
+                throw new FormatException();
 
         string RequiredString(string name, bool allowEmpty = false)
         {
@@ -33,6 +36,7 @@ public abstract record StepMetadata
                 throw new FormatException();
 
             string text = value.GetString()!;
+
             return allowEmpty || !string.IsNullOrWhiteSpace(text) ? text : throw new FormatException();
         }
 
@@ -42,25 +46,29 @@ public abstract record StepMetadata
                 string service = RequiredString("ServiceName");
                 string command = RequiredString("Command");
                 if (!WorkflowProtocol.IsValidTopic(WorkflowProtocol.CommandTopic(service))
-                    || command.Length > WorkflowProtocol.MaxCommandLength) throw new FormatException();
+                    || command.Length > WorkflowProtocol.MaxCommandLength)
+                    throw new FormatException();
                 return new Call(service, command);
 
             case StepType.WaitEvent:
                 string eventName = RequiredString("EventName");
-                if (eventName.Length > WorkflowProtocol.MaxEventNameLength) throw new FormatException();
+                if (eventName.Length > WorkflowProtocol.MaxEventNameLength)
+                    throw new FormatException();
                 return new WaitEvent(eventName);
 
             case StepType.Condition:
                 string inputKey = RequiredString("InputKey");
                 string op = RequiredString("Operator");
                 string value = RequiredString("Value", true);
-                if (op is not ("eq" or "ne" or "gt" or "lt" or "gte" or "lte")) throw new FormatException();
+                if (op is not ("eq" or "ne" or "gt" or "lt" or "gte" or "lte"))
+                    throw new FormatException();
 
                 decimal? numericValue = null;
                 if (op is not ("eq" or "ne"))
                 {
                     if (!decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal number))
                         throw new FormatException();
+
                     numericValue = number;
                 }
 

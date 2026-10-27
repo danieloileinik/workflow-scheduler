@@ -11,7 +11,9 @@ public class TransactionBehavior<TRequest, TResponse>(AppDbContext db)
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
-        if (request is IQuery) return await next(ct);
+        if (request is IQuery)
+            return await next(ct);
+
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // A transaction-scoped PostgreSQL lock survives slow requests and releases only on commit/rollback.
         var key = request switch
@@ -49,11 +51,13 @@ public class TransactionBehavior<TRequest, TResponse>(AppDbContext db)
             {
                 await transaction.RollbackAsync(ct);
                 db.ChangeTracker.Clear();
+
                 return response;
             }
 
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
+
             return response;
         }
         catch

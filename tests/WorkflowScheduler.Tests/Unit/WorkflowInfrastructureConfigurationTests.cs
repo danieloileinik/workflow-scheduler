@@ -27,6 +27,7 @@ public class WorkflowInfrastructureConfigurationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddWorkflowScheduler(configuration);
+
         await using var provider = services.BuildServiceProvider();
         await using var scope = provider.CreateAsyncScope();
         var definition = new ProcessDefinition("workflow", 1);
@@ -35,6 +36,7 @@ public class WorkflowInfrastructureConfigurationTests
         var definitions = scope.ServiceProvider.GetRequiredService<CachedProcessDefinitionProvider>();
         var cache = scope.ServiceProvider.GetRequiredService<IProcessDefinitionCache>();
         await cache.SetAsync(definition);
+
         var cached = await cache.GetAsync(definition.Id);
 
         // Assert
@@ -88,6 +90,7 @@ public class WorkflowInfrastructureConfigurationTests
             .Build();
         var services = new ServiceCollection();
         services.Configure<KafkaOptions>(configuration.GetSection("Kafka"));
+
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<KafkaOptions>>().Value;
 

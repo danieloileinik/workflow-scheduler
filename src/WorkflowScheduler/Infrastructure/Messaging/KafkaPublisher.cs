@@ -14,6 +14,7 @@ public sealed class KafkaPublisher(IOptions<KafkaOptions> options) : IMessagePub
     {
         _producer.Flush(TimeSpan.FromSeconds(5));
         _producer.Dispose();
+
         return ValueTask.CompletedTask;
     }
 

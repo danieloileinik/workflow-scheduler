@@ -29,6 +29,7 @@ public sealed class CompleteStepEndpoint(IMediator mediator) : GrpcServiceBase
             request.Attempt);
 
         var result = await mediator.Send(command, context.CancellationToken);
+
         return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();
     }
 }

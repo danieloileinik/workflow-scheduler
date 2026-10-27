@@ -20,11 +20,13 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
         var claimId = Guid.NewGuid();
         var claimedUntil = now + Lease;
         var pending = await ClaimAsync(claimId, now, claimedUntil, ct);
-        if (pending.Count == 0) return 0;
+        if (pending.Count == 0)
+            return 0;
 
         try
         {
             var commands = new Dictionary<Guid, ExecuteStepCommand>();
+
             foreach (var message in pending)
                 try
                 {
@@ -42,8 +44,11 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
             {
                 ct.ThrowIfCancellationRequested();
                 // Leave enough lease time for one bounded publish. Unfinished claims are released below.
-                if (DateTime.UtcNow + PublishTimeout >= claimedUntil) break;
-                if (!commands.TryGetValue(message.Id, out var command)) continue;
+                if (DateTime.UtcNow + PublishTimeout >= claimedUntil)
+                    break;
+                if (!commands.TryGetValue(message.Id, out var command))
+                    continue;
+
                 try
                 {
                     await PublishAsync(message, command, claimId, ct);
@@ -63,6 +68,7 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
         finally
         {
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
             try
             {
                 await db
@@ -92,17 +98,20 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(PublishTimeout);
+
         await using var transaction = await db.Database.BeginTransactionAsync(timeout.Token);
         // Serialize one bounded delivery with process mutations, including cancellation.
         // A later message in the batch observes any cancellation committed between deliveries.
         var lockId = AdvisoryLock.ForProcess(command.ProcessInstanceId);
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockId})", timeout.Token);
+
         var now = DateTime.UtcNow;
         var ownsClaim = await db.OutboxMessages.AnyAsync(
             candidate => candidate.Id == message.Id && candidate.ClaimId == claimId
                                                     && candidate.ClaimedUntil > now + PublishTimeout,
             timeout.Token);
-        if (!ownsClaim) return;
+        if (!ownsClaim)
+            return;
 
         var status = await db
             .ProcessInstances
@@ -168,6 +177,7 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
         }
 
         await transaction.CommitAsync(ct);
+
         return pending;
     }
 

@@ -45,8 +45,10 @@ public class ProcessTests(TestInfrastructure infrastructure)
                     StepType.Call,
                     """{"ServiceName":"billing","Command":"Execute"}"""));
             db.Add(definition);
+
             return await db.SaveChangesAsync();
         });
+
         var retry = await app.Send(command);
         // Assert
         Assert.Equal("ProcessDefinition.NotFound", missing.FirstError.Code);
@@ -111,16 +113,20 @@ public class ProcessTests(TestInfrastructure infrastructure)
         {
             var failure = await app.Complete(process, call.Id, false, attempt);
             Assert.False(failure.IsError);
-            if (attempt == 3) break;
+            if (attempt == 3)
+                break;
+
             await app.Send(new RetryStepsCommand(process));
             Assert.Equal(attempt + 1, await app.WithDb(db => db.OutboxMessages.CountAsync()));
             await app.WithDb(async db =>
             {
                 var step = await db.StepInstances.SingleAsync(x => x.ProcessInstanceId == process);
                 db.Entry(step).Property(x => x.NextRetryAt).CurrentValue = DateTime.UtcNow.AddSeconds(-1);
+
                 return await db.SaveChangesAsync();
             });
             await app.Send(new RetryStepsCommand(process));
+
             var stale = await app.Complete(process, call.Id, true, attempt);
             Assert.Equal("ProcessStep.StaleCallback", stale.FirstError.Code);
         }
@@ -144,6 +150,7 @@ public class ProcessTests(TestInfrastructure infrastructure)
         {
             var definition = await db.StepDefinitions.SingleAsync(x => x.Id == call.Id);
             db.Entry(definition).Property(x => x.NextStepId).CurrentValue = Guid.NewGuid();
+
             return await db.SaveChangesAsync();
         });
         await app.ClearCacheAsync();

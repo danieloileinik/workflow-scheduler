@@ -20,6 +20,7 @@ public sealed class SendEventEndpoint(IMediator mediator) : GrpcServiceBase
             request.CorrelationId);
 
         var result = await mediator.Send(command, context.CancellationToken);
+
         return result.IsError ? throw result.Errors.ToRpcException() : new GrpcResponse();
     }
 }

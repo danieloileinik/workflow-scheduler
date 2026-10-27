@@ -19,6 +19,7 @@ public sealed class StartProcessEndpoint(IMediator mediator) : GrpcServiceBase
         var command = new StartProcessCommand(definitionId, idempotencyKey, request.BusinessKey, request.InputData);
 
         var result = await mediator.Send(command, context.CancellationToken);
+
         return result.IsError
             ? throw result.Errors.ToRpcException()
             : new GrpcResponse { ProcessInstanceId = result.Value.ProcessInstanceId.ToString() };
