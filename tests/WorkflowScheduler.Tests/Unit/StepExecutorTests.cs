@@ -1,3 +1,4 @@
+using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Features.Steps.Strategies;
 
 namespace WorkflowScheduler.Tests.Unit;
@@ -16,15 +17,16 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("custom-step", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "custom", type, "{}");
+        var stepDefinition = new StepDefinition(definition.Id, "custom", type, """{"serviceName":"test","command":"Run","eventName":"Event"}""");
         definition.AddStep(stepDefinition);
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         var strategy = new ResultStrategy(type, state);
         var executor = new StepExecutor([strategy]);
+        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
+        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
 
         // Assert
         Assert.False(result.IsError);
@@ -39,7 +41,7 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("completed-step", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, "{}");
+        var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
@@ -48,9 +50,10 @@ public class StepExecutorTests
         var completedAt = step.CompletedAt;
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
+        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
+        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsError);
@@ -67,16 +70,17 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("compensation", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "undo", StepType.Call, "{}");
+        var stepDefinition = new StepDefinition(definition.Id, "undo", StepType.Call, """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
         var process = new ProcessInstance(definition.Id, "order", "{}");
         Assert.False(process.Cancel().IsError);
         var step = process.AddCompensationStep(stepDefinition.Id);
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
+        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
+        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
 
         // Assert
         Assert.False(result.IsError);
@@ -90,15 +94,16 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("invalid-outcome", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, "{}");
+        var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         var strategy = new ResultStrategy(StepType.Call, (StepExecutionState)(-1));
         var executor = new StepExecutor([strategy]);
+        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(definition, process, stepDefinition, step, CancellationToken.None);
+        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsError);
@@ -117,7 +122,7 @@ public class StepExecutorTests
             definition.Id,
             "loop",
             StepType.Condition,
-            "{}",
+            $$"""{"inputKey":"x","operator":"eq","value":"1","trueNextStepId":"{{stepId}}","falseNextStepId":"{{stepId}}"}""",
             stepId,
             null);
         definition.AddStep(stepDefinition);
@@ -125,12 +130,13 @@ public class StepExecutorTests
         var start = process.Start(stepId);
         var strategy = new ContinueStrategy(stepId);
         var executor = new StepExecutor([strategy]);
+        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
         var result = executor.Run(
-            definition,
+            prepared,
             process,
-            stepDefinition,
+            prepared.FindStep(stepDefinition.Id)!,
             start.Value,
             CancellationToken.None);
 
@@ -147,7 +153,7 @@ public class StepExecutorTests
         public StepExecutionResult Execute(
             ProcessInstance processInstance,
             StepInstance stepInstance,
-            StepDefinition stepDefinition)
+            PreparedStepDefinition stepDefinition)
         {
             return new StepExecutionResult(StepExecutionState.Completed, nextStepId);
         }
@@ -160,7 +166,7 @@ public class StepExecutorTests
 
         public StepExecutionResult Execute(ProcessInstance processInstance,
             StepInstance stepInstance,
-            StepDefinition stepDefinition)
+            PreparedStepDefinition stepDefinition)
         {
             Executions++;
             return new StepExecutionResult(state);

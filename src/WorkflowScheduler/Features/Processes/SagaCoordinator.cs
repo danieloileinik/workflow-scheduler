@@ -9,27 +9,33 @@ namespace WorkflowScheduler.Features.Processes;
 public class SagaCoordinator(AppDbContext db, StepExecutor executor)
 {
     public async Task<ErrorOr<Success>> ScheduleAsync(ProcessInstance instance,
-        ProcessDefinition definition,
+        PreparedProcessDefinition definition,
         CancellationToken ct)
     {
         var existing = await db
             .SagaCompensationLogs
             .Where(x => x.ProcessInstanceId == instance.Id)
             .ToListAsync(ct);
+
         var scheduled = existing.Select(log => log.OriginalStepInstanceId).ToHashSet();
         var compensations = definition
             .Steps
             .Where(step => step.CompensationStepId.HasValue)
             .ToDictionary(step => step.Id, step => step.CompensationStepId!.Value);
+
         var compensatableIds = compensations.Keys.ToArray();
+
         var completed = await db
             .StepInstances
             .Where(step => step.ProcessInstanceId == instance.Id && !step.IsCompensation
                                                                  && step.Status == StepStatus.Completed &&
-                                                                 compensatableIds.Contains(step.StepDefinitionId))
+                                                                 compensatableIds
+                                                                     .AsEnumerable()
+                                                                     .Contains(step.StepDefinitionId))
             .OrderByDescending(step => step.Sequence)
             .Select(step => new { step.Id, step.StepDefinitionId })
             .ToListAsync(ct);
+
         foreach (var step in completed)
         {
             if (!scheduled.Add(step.Id)) continue;
@@ -44,6 +50,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
 
         if (existing.Any(log => log.Status is CompensationStatus.Running or CompensationStatus.Failed))
             return Result.Success;
+
         return StartNext(
             instance,
             definition,
@@ -52,7 +59,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
     }
 
     public async Task<ErrorOr<Success>> CompleteAsync(ProcessInstance instance,
-        ProcessDefinition definition,
+        PreparedProcessDefinition definition,
         StepInstance step,
         CancellationToken ct)
     {
@@ -63,6 +70,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
                              && candidate.StepInstanceId == step.Id && candidate.Status == CompensationStatus.Running,
                 ct);
         if (log is null) return ProcessErrors.StepNotFound;
+
         var compensated = await db
             .StepInstances
             .Where(original => original.ProcessInstanceId == instance.Id
@@ -70,6 +78,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
             .ExecuteUpdateAsync(update => update.SetProperty(original => original.Status, StepStatus.Compensated), ct);
         if (compensated != 1) return ProcessErrors.StepNotFound;
         log.Complete();
+
         if (await db.SagaCompensationLogs.AnyAsync(
                 candidate => candidate.ProcessInstanceId == instance.Id
                              && candidate.Id != log.Id
@@ -77,6 +86,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
                                  candidate.Status == CompensationStatus.Failed),
                 ct))
             return Result.Success;
+
         var next = await db
             .SagaCompensationLogs
             .Where(candidate =>
@@ -87,14 +97,16 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
     }
 
     private ErrorOr<Success> StartNext(ProcessInstance instance,
-        ProcessDefinition definition,
+        PreparedProcessDefinition definition,
         SagaCompensationLog? next,
         CancellationToken ct)
     {
         if (next is null) return Result.Success;
         var target = definition.FindStep(next.StepDefinitionId);
+
         if (target is null || target.Type != StepType.Call) return ProcessErrors.StepTypeMismatch;
         var step = instance.AddCompensationStep(target.Id);
+
         next.MarkRunning(step.Id);
         return executor.Run(definition, instance, target, step, ct);
     }

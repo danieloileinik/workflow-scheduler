@@ -1,0 +1,3 @@
+namespace WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
+
+public record RegisterProcessDefinitionResponse(Guid DefinitionId);

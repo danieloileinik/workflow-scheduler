@@ -24,6 +24,7 @@ public class ConditionStepStrategyTests
                     trueNextStepId = yes, falseNextStepId = no
                 }));
         var strategy = new ConditionStepStrategy();
+        var prepared = new PreparedStepDefinition(definition);
         foreach (var (input, expected) in new[] { ("yes", yes), ("yes", yes), ("no", no), ("yes", yes) })
         {
             var process = new ProcessInstance(
@@ -33,7 +34,7 @@ public class ConditionStepStrategyTests
             var step = new StepInstance(process.Id, definition.Id);
 
             // Act
-            var result = strategy.Execute(process, step, definition);
+            var result = strategy.Execute(process, step, prepared);
 
             // Assert
             Assert.Equal(expected, result.OverrideNextStepId);
@@ -78,6 +79,7 @@ public class ConditionStepStrategyTests
                     falseNextStepId = falseStepId
                 }));
         var strategy = new ConditionStepStrategy();
+        var prepared = new PreparedStepDefinition(definition);
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ru-RU");
 
         try
@@ -86,7 +88,7 @@ public class ConditionStepStrategyTests
             var result = strategy.Execute(
                 process,
                 step,
-                definition);
+                prepared);
 
             // Assert
             Assert.Equal(StepExecutionState.Completed, result.State);
@@ -121,12 +123,13 @@ public class ConditionStepStrategyTests
                     FalseNextStepId = falseStepId
                 }));
         var strategy = new ConditionStepStrategy();
+        var prepared = new PreparedStepDefinition(definition);
 
         // Act
         var result = strategy.Execute(
             process,
             step,
-            definition);
+            prepared);
 
         // Assert
         Assert.Equal(StepExecutionState.Completed, result.State);

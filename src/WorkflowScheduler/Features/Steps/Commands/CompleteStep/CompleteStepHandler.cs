@@ -76,7 +76,7 @@ public class CompleteStepHandler(
     }
 
     private async Task<ErrorOr<Success>> HandleFailureAsync(ProcessInstance instance,
-        ProcessDefinition definition,
+        PreparedProcessDefinition definition,
         StepInstance step,
         string? outputData,
         CancellationToken ct)

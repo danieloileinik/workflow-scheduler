@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Text.Json;
 using FluentValidation;
-using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
 
@@ -45,40 +43,10 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
                     context.AddFailure("Steps", "Compensation must reference a separate terminal Call step");
             try
             {
-                using var doc = JsonDocument.Parse(step.Metadata);
-                var metadata = doc.RootElement;
-                if (metadata.ValueKind != JsonValueKind.Object) throw new FormatException();
-                var properties = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var property in metadata.EnumerateObject())
-                    if (!properties.Add(property.Name))
-                        throw new FormatException();
-                switch (step.Type)
+                if (step.ParsedMetadata is StepMetadata.Condition condition)
                 {
-                    case StepType.Call:
-                        if (!WorkflowProtocol.IsValidTopic(
-                                WorkflowProtocol.CommandTopic(
-                                    RequiredString(metadata, "ServiceName")))
-                            || RequiredString(metadata, "Command").Length > WorkflowProtocol.MaxCommandLength)
-                            throw new FormatException();
-                        break;
-                    case StepType.WaitEvent:
-                        if (RequiredString(metadata, "EventName").Length > WorkflowProtocol.MaxEventNameLength)
-                            throw new FormatException();
-                        break;
-                    case StepType.Condition:
-                        RequiredString(metadata, "InputKey");
-                        var op = RequiredString(metadata, "Operator");
-                        var value = RequiredString(metadata, "Value", true);
-                        if (op is not ("eq" or "ne" or "gt" or "lt" or "gte" or "lte")) throw new FormatException();
-                        if (op is not ("eq" or "ne") && !decimal.TryParse(
-                                value,
-                                NumberStyles.Float,
-                                CultureInfo.InvariantCulture,
-                                out _))
-                            throw new FormatException();
-                        edges[step.Id].Add(Guid.Parse(RequiredString(metadata, "TrueNextStepId")));
-                        edges[step.Id].Add(Guid.Parse(RequiredString(metadata, "FalseNextStepId")));
-                        break;
+                    edges[step.Id].Add(condition.TrueNextStepId);
+                    edges[step.Id].Add(condition.FalseNextStepId);
                 }
             }
             catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException
@@ -107,9 +75,8 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
         while (ready.TryDequeue(out var id))
         {
             count++;
-            foreach (var next in automaticEdges[id])
-                if (--degree[next] == 0)
-                    ready.Enqueue(next);
+            foreach (var next in automaticEdges[id].Where(next => --degree[next] == 0))
+                ready.Enqueue(next);
         }
 
         if (count != steps.Count) context.AddFailure("Steps", "Automatic condition chains must be acyclic");
@@ -123,16 +90,4 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
             context.AddFailure("Steps", "Compensation steps cannot be on the forward execution path");
     }
 
-    private static string RequiredString(JsonElement metadata, string name, bool allowEmpty = false)
-    {
-        foreach (var property in metadata.EnumerateObject())
-            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)
-                && property.Value.ValueKind == JsonValueKind.String)
-            {
-                var value = property.Value.GetString()!;
-                if (allowEmpty || !string.IsNullOrWhiteSpace(value)) return value;
-            }
-
-        throw new FormatException();
-    }
 }

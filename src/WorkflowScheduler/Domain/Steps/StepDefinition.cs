@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace WorkflowScheduler.Domain.Steps;
 
 public class StepDefinition(
@@ -9,6 +11,8 @@ public class StepDefinition(
     Guid? nextStepId,
     Guid? compensationStepId)
 {
+    private StepMetadata? _parsedMetadata;
+
     public StepDefinition(
         Guid processDefinitionId,
         string name,
@@ -27,6 +31,10 @@ public class StepDefinition(
     public string Name { get; init; } = name;
     public StepType Type { get; init; } = type;
     public string Metadata { get; init; } = metadata;
+
+    [NotMapped]
+    public StepMetadata ParsedMetadata => _parsedMetadata ??= StepMetadata.Parse(Type, Metadata);
+
     public Guid? NextStepId { get; init; } = nextStepId;
     public Guid? CompensationStepId { get; init; } = compensationStepId;
 

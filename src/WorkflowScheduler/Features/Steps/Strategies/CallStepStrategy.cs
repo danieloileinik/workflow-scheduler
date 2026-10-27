@@ -14,9 +14,9 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
     public StepExecutionResult Execute(
         ProcessInstance instance,
         StepInstance stepInstance,
-        StepDefinition stepDefinition)
+        PreparedStepDefinition stepDefinition)
     {
-        var metadata = JsonSerializer.Deserialize<CallMetadata>(stepDefinition.Metadata, StepMetadata.Options)!;
+        StepMetadata.Call metadata = (StepMetadata.Call)stepDefinition.Metadata;
 
         var payload = JsonSerializer.Serialize(
             new ExecuteStepCommand(
@@ -39,5 +39,4 @@ public class CallStepStrategy(AppDbContext db) : IStepStrategy
         return new StepExecutionResult(StepExecutionState.Running);
     }
 
-    private record CallMetadata(string ServiceName, string Command);
 }

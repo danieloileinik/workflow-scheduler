@@ -1,3 +1,4 @@
+using WorkflowScheduler.Infrastructure.Caching;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -8,6 +9,7 @@ using StackExchange.Redis;
 using Testcontainers.Kafka;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
+using WorkflowScheduler.Features.Processes;
 
 namespace WorkflowScheduler.Tests.Support;
 
@@ -140,6 +142,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
 
     internal static async Task ResetAsync(IServiceProvider services)
     {
+        services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await ResetDatabaseAsync(db);

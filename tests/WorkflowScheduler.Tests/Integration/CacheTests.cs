@@ -1,3 +1,4 @@
+using WorkflowScheduler.Infrastructure.Caching;
 using StackExchange.Redis;
 using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Tests.Support;
@@ -39,6 +40,7 @@ public class CacheTests(TestInfrastructure infrastructure)
         }
 
         // Act
+        app.Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
         var result = await app.Complete(process, first.Id);
 
         // Assert
@@ -112,6 +114,7 @@ public class CacheTests(TestInfrastructure infrastructure)
         else await redis.KeyDeleteAsync(key);
 
         // Act
+        app.Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
         var process = await app.Start(definition);
         await using var scope = app.Services.CreateAsyncScope();
         var cached = await scope.ServiceProvider.GetRequiredService<IProcessDefinitionCache>().GetAsync(definition);

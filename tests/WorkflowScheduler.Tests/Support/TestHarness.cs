@@ -1,5 +1,7 @@
+using WorkflowScheduler.Infrastructure.Caching;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
+using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
 using WorkflowScheduler.Infrastructure.Messaging;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
@@ -40,6 +42,7 @@ internal sealed class TestHarness : IAsyncDisposable
 
     public Task ClearCacheAsync()
     {
+        Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
         var redis = Services.GetRequiredService<IConnectionMultiplexer>();
         return redis.GetServer(redis.GetEndPoints().Single()).FlushDatabaseAsync(redis.GetDatabase().Database);
     }

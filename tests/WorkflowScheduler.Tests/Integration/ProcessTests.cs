@@ -208,7 +208,7 @@ public class ProcessTests(TestInfrastructure infrastructure)
         await app.Send(command);
         // Act
         var version = await app.Send(command);
-        var collision = await app.Send(command with { Name = "different" });
+        var collision = await app.Send(new RegisterProcessDefinitionCommand("different", command.Version, [call]));
         // Assert
         Assert.Equal("ProcessDefinition.VersionConflict", version.FirstError.Code);
         Assert.Equal("ProcessDefinition.StepIdConflict", collision.FirstError.Code);

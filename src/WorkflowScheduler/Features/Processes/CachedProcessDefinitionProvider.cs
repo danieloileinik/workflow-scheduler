@@ -1,18 +1,26 @@
 using WorkflowScheduler.Domain.Processes;
+using WorkflowScheduler.Infrastructure.Caching;
 using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Features.Processes;
 
-public sealed class CachedProcessDefinitionProvider(AppDbContext db, IProcessDefinitionCache cache)
+public sealed class CachedProcessDefinitionProvider(
+    AppDbContext db,
+    IProcessDefinitionCache cache,
+    PreparedProcessDefinitionCache prepared)
 {
-    /// <summary>Gets a cached definition, or loads it from the database and caches it when found.</summary>
-    public async Task<ProcessDefinition?> GetOrLoadAsync(Guid definitionId, CancellationToken ct)
+    public Task<PreparedProcessDefinition?> GetOrLoadAsync(Guid definitionId, CancellationToken ct)
     {
-        var cached = await cache.GetAsync(definitionId, ct);
+        return prepared.GetOrLoadAsync(definitionId, token => LoadAsync(definitionId, token), ct);
+    }
+
+    private async Task<ProcessDefinition?> LoadAsync(Guid definitionId, CancellationToken ct)
+    {
+        ProcessDefinition? cached = await cache.GetAsync(definitionId, ct);
         if (cached is not null) return cached;
 
-        var definition = await db
-            .ProcessDefinitions
+        ProcessDefinition? definition = await db.ProcessDefinitions
+            .AsNoTracking()
             .Include(candidate => candidate.Steps)
             .FirstOrDefaultAsync(candidate => candidate.Id == definitionId, ct);
 

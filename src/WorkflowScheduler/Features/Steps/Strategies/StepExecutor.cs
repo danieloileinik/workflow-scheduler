@@ -1,12 +1,13 @@
 using ErrorOr;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
+using WorkflowScheduler.Features.Processes;
 
 namespace WorkflowScheduler.Features.Steps.Strategies;
 
 public class StepExecutor(IEnumerable<IStepStrategy> strategies)
 {
-    public ErrorOr<Success> Execute(ProcessDefinition definition,
+    public ErrorOr<Success> Execute(PreparedProcessDefinition definition,
         ProcessInstance instance,
         Guid nextStepId,
         CancellationToken ct)
@@ -19,9 +20,9 @@ public class StepExecutor(IEnumerable<IStepStrategy> strategies)
             : Run(definition, instance, next, move.Value, ct);
     }
 
-    public ErrorOr<Success> Run(ProcessDefinition definition,
+    public ErrorOr<Success> Run(PreparedProcessDefinition definition,
         ProcessInstance instance,
-        StepDefinition stepDefinition,
+        PreparedStepDefinition stepDefinition,
         StepInstance step,
         CancellationToken ct)
     {

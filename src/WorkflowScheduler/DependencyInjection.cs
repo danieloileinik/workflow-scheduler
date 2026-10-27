@@ -49,6 +49,7 @@ public static class DependencyInjection
 
         private IServiceCollection AddWorkflowApplication()
         {
+            services.AddSingleton<PreparedProcessDefinitionCache>();
             services.AddScoped<CachedProcessDefinitionProvider>();
             services.AddScoped<SagaCoordinator>();
 

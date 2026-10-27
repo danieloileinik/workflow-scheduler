@@ -1,4 +1,3 @@
-using System.Text.Json;
 using ErrorOr;
 using MediatR;
 using WorkflowScheduler.Domain.Processes;
@@ -39,7 +38,7 @@ public class SendEventHandler(
 
         if (stepDefinition.Type != StepType.WaitEvent) return ProcessErrors.StepTypeMismatch;
 
-        var metadata = JsonSerializer.Deserialize<WaitEventMetadata>(stepDefinition.Metadata, StepMetadata.Options)!;
+        StepMetadata.WaitEvent metadata = (StepMetadata.WaitEvent)stepDefinition.Metadata;
         if (!string.Equals(metadata.EventName, request.EventName, StringComparison.OrdinalIgnoreCase))
             return ProcessErrors.EventNameMismatch;
 
@@ -64,5 +63,4 @@ public class SendEventHandler(
         return Result.Success;
     }
 
-    private record WaitEventMetadata(string EventName);
 }
