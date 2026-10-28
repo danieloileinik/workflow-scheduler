@@ -1,28 +1,28 @@
-#name: Tests
-#on:
-#  push:
-#    branches: [ main, 'fix/**' ]
-#  pull_request:
-#permissions:
-#  contents: read
-#jobs:
-#  test:
-#    runs-on: ubuntu-latest
-#    timeout-minutes: 15
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: actions/setup-dotnet@v4
-#        with:
-#          dotnet-version: '10.0.x'
-#      - name: Restore
-#        run: dotnet restore WorkflowScheduler.slnx
-#      - name: Build
-#        run: dotnet build WorkflowScheduler.slnx --no-restore --configuration Release --warnaserror
-#      - name: Run all tests with PostgreSQL, Redis and Kafka
-#        run: dotnet test WorkflowScheduler.slnx --no-build --configuration Release --logger 'trx;LogFileName=tests.trx' --collect:'XPlat Code Coverage' --settings coverage.runsettings
-#      - name: Upload test results and coverage
-#        if: always()
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: test-results
-#          path: tests/**/TestResults/**
+name: Tests
+on:
+  push:
+    branches: [ main, 'fix/**' ]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore WorkflowScheduler.slnx
+      - name: Build
+        run: dotnet build WorkflowScheduler.slnx --no-restore --configuration Release --warnaserror
+      - name: Run all tests with PostgreSQL, Redis and Kafka
+        run: dotnet test WorkflowScheduler.slnx --no-build --configuration Release --logger 'trx;LogFileName=tests.trx' --collect:'XPlat Code Coverage' --settings coverage.runsettings
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/**/TestResults/**
