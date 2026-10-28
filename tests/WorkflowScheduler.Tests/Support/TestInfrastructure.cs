@@ -31,8 +31,8 @@ public sealed class TestInfrastructure : IAsyncLifetime
         try
         {
             _postgres = new PostgreSqlBuilder("postgres:18.6-alpine3.24").WithDatabase("workflow_integration").Build();
-            _redis = new RedisBuilder("redis:8.10.2-alpine3.23").Build();
-            _kafka = new KafkaBuilder("apache/kafka:4.3.2")
+            _redis = new RedisBuilder("redis:8.10.3-alpine3.23").Build();
+            _kafka = new KafkaBuilder("apache/kafka:4.4.0")
                 .WithKRaft()
                 .Build();
 
