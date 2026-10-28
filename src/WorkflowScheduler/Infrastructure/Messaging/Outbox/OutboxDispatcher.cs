@@ -25,29 +25,34 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
 
         try
         {
-            var commands = new Dictionary<Guid, ExecuteStepCommand>();
+            var commands = new ExecuteStepCommand?[pending.Count];
 
-            foreach (var message in pending)
+            for (var index = 0; index < pending.Count; index++)
+            {
+                var message = pending[index];
+
                 try
                 {
-                    commands.Add(
-                        message.Id,
-                        JsonSerializer.Deserialize<ExecuteStepCommand>(message.Payload)
-                        ?? throw new JsonException("Outbox command is null"));
+                    commands[index] = JsonSerializer.Deserialize<ExecuteStepCommand>(message.Payload)
+                                      ?? throw new JsonException("Outbox command is null");
                 }
                 catch (JsonException ex)
                 {
                     await RecordFailureAsync(message, claimId, ex, ct);
                 }
+            }
 
-            foreach (var message in pending)
+            for (var index = 0; index < pending.Count; index++)
             {
                 ct.ThrowIfCancellationRequested();
                 // Leave enough lease time for one bounded publish. Unfinished claims are released below.
                 if (DateTime.UtcNow + PublishTimeout >= claimedUntil)
                     break;
-                if (!commands.TryGetValue(message.Id, out var command))
+                var command = commands[index];
+                if (command is null)
                     continue;
+
+                var message = pending[index];
 
                 try
                 {
