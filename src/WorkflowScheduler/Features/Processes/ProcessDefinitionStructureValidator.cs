@@ -30,7 +30,7 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
 
         var steps = new Dictionary<Guid, StepDefinition>(definition.Steps.Count);
         var compensationIds = new HashSet<Guid>();
-        var automaticEdges = new Dictionary<Guid, List<Guid>>();
+        var conditionEdges = new Dictionary<Guid, List<Guid>>();
         var degree = new Dictionary<Guid, int>();
 
         foreach (var step in definition.Steps)
@@ -46,7 +46,7 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
 
             if (step.Type == StepType.Condition)
             {
-                automaticEdges.Add(step.Id, []);
+                conditionEdges.Add(step.Id, []);
                 degree.Add(step.Id, 0);
             }
         }
@@ -94,6 +94,7 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
             return;
 
         // Only Condition-only cycles spin without yielding. Call/WaitEvent loops are valid.
+        // Kahn's algorithm detects cycles in the Condition-only graph.
         var ready = new Queue<Guid>(degree.Where(entry => entry.Value == 0).Select(entry => entry.Key));
         var count = 0;
 
@@ -101,12 +102,12 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
         {
             count++;
 
-            foreach (var next in automaticEdges[id])
+            foreach (var next in conditionEdges[id])
                 if (--degree[next] == 0)
                     ready.Enqueue(next);
         }
 
-        if (count != automaticEdges.Count)
+        if (count != conditionEdges.Count)
             context.AddFailure("Steps", "Automatic condition chains must be acyclic");
 
         if (compensationOnForwardPath)
@@ -122,7 +123,7 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
 
             if (source.Type == StepType.Condition && target.Type == StepType.Condition)
             {
-                automaticEdges[source.Id].Add(targetId);
+                conditionEdges[source.Id].Add(targetId);
                 degree[targetId]++;
             }
 
