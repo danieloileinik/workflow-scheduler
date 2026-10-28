@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FluentValidation;
 using StackExchange.Redis;
 using WorkflowScheduler.Domain.Processes;
 using WorkflowScheduler.Domain.Steps;
@@ -6,11 +7,13 @@ using WorkflowScheduler.Features.Processes;
 
 namespace WorkflowScheduler.Infrastructure.Caching;
 
-public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<ProcessDefinitionCache> logger)
+public class ProcessDefinitionCache(
+    IConnectionMultiplexer redis,
+    ILogger<ProcessDefinitionCache> logger,
+    IValidator<ProcessDefinition> validator)
     : IProcessDefinitionCache
 {
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
-    private static readonly ProcessDefinitionStructureValidator Validator = new();
     private IDatabase Db => redis.GetDatabase();
 
     public async Task<ProcessDefinition?> GetAsync(Guid definitionId, CancellationToken ct = default)
@@ -54,7 +57,7 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
                 steps,
                 snapshot.CreatedAt);
 
-            if (!Validator.Validate(definition).IsValid)
+            if (!validator.Validate(definition).IsValid)
                 return null;
 
             return definition;

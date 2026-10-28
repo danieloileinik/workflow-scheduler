@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WorkflowScheduler.Features.Processes;
 
 namespace WorkflowScheduler.Tests.Unit;
 
@@ -18,7 +19,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithInvalidCallMetadata_ReturnsValidationError(string metadata)
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var step = CreateCallStep() with { Metadata = metadata };
         var command = CreateDefinition(step);
 
@@ -34,7 +35,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithDuplicateStepIds_ReturnsValidationError()
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var step = CreateCallStep();
         var command = CreateDefinition(step, step);
 
@@ -50,7 +51,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithUnknownNextStep_ReturnsValidationError()
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var step = CreateCallStep(Guid.NewGuid());
         var command = CreateDefinition(step);
 
@@ -69,7 +70,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithConditionOnlyCycle_ReturnsValidationError()
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var firstId = Guid.NewGuid();
         var secondId = Guid.NewGuid();
         var first = CreateConditionStep(firstId, secondId);
@@ -91,7 +92,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithLoopThroughWaitingStep_ReturnsValidResult()
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var call = CreateCallStep();
         var wait = new StepDefinitionDto(
             Guid.NewGuid(),
@@ -117,7 +118,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithUnknownConditionBranch_ReturnsOneReferenceError(bool missingTrueBranch)
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var call = CreateCallStep();
         var missingId = Guid.NewGuid();
         var condition = CreateConditionStep(
@@ -138,7 +139,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithMissingReferenceAndInvalidMetadata_PreservesErrorOrder()
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var missing = CreateCallStep(Guid.NewGuid());
         var invalid = CreateCallStep() with { Metadata = "{}" };
         var command = CreateDefinition(missing, invalid);
@@ -159,7 +160,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithConditionLoopThroughYieldingStep_ReturnsValidResult(StepType type)
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var conditionId = Guid.NewGuid();
         var yielding = CreateCallStep(conditionId) with
         {
@@ -182,7 +183,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithBothBranchesReferencingNextCondition_ReturnsValidResult()
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var call = CreateCallStep();
         var second = CreateConditionStep(Guid.NewGuid(), call.Id);
         var first = CreateConditionStep(Guid.NewGuid(), second.Id);
@@ -203,7 +204,7 @@ public class RegisterProcessDefinitionValidatorTests
     public void Validate_WithCompensationOnForwardPath_ReturnsValidationError(string path)
     {
         // Arrange
-        var validator = new RegisterProcessDefinitionValidator();
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var undo = CreateCallStep();
         var call = CreateCallStep() with { CompensationStepId = undo.Id };
         var condition = CreateConditionStep(
@@ -245,6 +246,8 @@ public class RegisterProcessDefinitionValidatorTests
     [InlineData("eventName", 251)]
     public void Validate_WithUnusableMetadataLimits_ReturnsValidationError(string property, int length)
     {
+        // Arrange
+        var validator = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator());
         var metadata = new Dictionary<string, string> { ["serviceName"] = "billing", ["command"] = "Execute" };
         metadata[property] = new string('x', length);
 
@@ -254,7 +257,11 @@ public class RegisterProcessDefinitionValidatorTests
             Metadata = JsonSerializer.Serialize(metadata)
         };
 
-        Assert.False(new RegisterProcessDefinitionValidator().Validate(CreateDefinition(step)).IsValid);
+        // Act
+        var result = validator.Validate(CreateDefinition(step));
+
+        // Assert
+        Assert.False(result.IsValid);
     }
 
     private static StepDefinitionDto CreateConditionStep(Guid id, Guid nextStepId, Guid? falseNextStepId = null)

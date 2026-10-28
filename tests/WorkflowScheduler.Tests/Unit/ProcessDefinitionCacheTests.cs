@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackExchange.Redis;
+using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Infrastructure.Caching;
 
 namespace WorkflowScheduler.Tests.Unit;
@@ -155,7 +156,10 @@ public class ProcessDefinitionCacheTests
         var database = Substitute.For<IDatabase>();
         redis.GetDatabase().Returns(database);
 
-        var cache = new ProcessDefinitionCache(redis, NullLogger<ProcessDefinitionCache>.Instance);
+        var cache = new ProcessDefinitionCache(
+            redis,
+            NullLogger<ProcessDefinitionCache>.Instance,
+            new ProcessDefinitionStructureValidator());
 
         return (cache, database);
     }

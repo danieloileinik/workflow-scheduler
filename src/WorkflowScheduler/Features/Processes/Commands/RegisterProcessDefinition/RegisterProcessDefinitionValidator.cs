@@ -1,17 +1,16 @@
 using FluentValidation;
+using WorkflowScheduler.Domain.Processes;
 
 namespace WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
 
 public class RegisterProcessDefinitionValidator : AbstractValidator<RegisterProcessDefinitionCommand>
 {
-    private static readonly ProcessDefinitionStructureValidator Structure = new();
-
-    public RegisterProcessDefinitionValidator()
+    public RegisterProcessDefinitionValidator(IValidator<ProcessDefinition> structure)
     {
         RuleFor(command => command)
             .Custom((command, context) =>
             {
-                foreach (var failure in Structure.Validate(command.Definition).Errors)
+                foreach (var failure in structure.Validate(command.Definition).Errors)
                     context.AddFailure(failure);
             });
     }

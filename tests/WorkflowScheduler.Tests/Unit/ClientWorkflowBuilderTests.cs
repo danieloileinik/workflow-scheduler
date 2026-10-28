@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using WorkflowScheduler.Client;
+using WorkflowScheduler.Features.Processes;
 
 namespace WorkflowScheduler.Tests.Unit;
 
@@ -214,7 +215,7 @@ public class ClientWorkflowBuilderTests
                         step.NextStepId,
                         step.CompensationStepId))
             ]);
-        var result = new RegisterProcessDefinitionValidator().Validate(command);
+        var result = new RegisterProcessDefinitionValidator(new ProcessDefinitionStructureValidator()).Validate(command);
         Assert.True(result.IsValid, result.ToString());
     }
 }
