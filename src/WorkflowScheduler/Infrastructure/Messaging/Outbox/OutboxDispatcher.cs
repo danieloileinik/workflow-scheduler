@@ -10,7 +10,6 @@ namespace WorkflowScheduler.Infrastructure.Messaging.Outbox;
 public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILogger<OutboxDispatcher> logger)
 {
     public const int BatchSize = 100;
-    private const int MaxAttempts = 8;
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan PublishTimeout = TimeSpan.FromSeconds(10);
 
@@ -141,7 +140,8 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                     .SetProperty(
                         candidate => candidate.Error,
                         suppressed ? "Suppressed because the process is terminal or missing" : null)
-                    .SetProperty(candidate => candidate.Attempts, message.Attempts + (suppressed ? 0 : 1))
+                    .SetProperty(candidate => candidate.Attempts,
+                        (int)Math.Min((long)message.Attempts + (suppressed ? 0 : 1), int.MaxValue))
                     .SetProperty(candidate => candidate.NextAttemptAt, (DateTime?)null)
                     .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
                     .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null),
@@ -191,11 +191,11 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
         Exception exception,
         CancellationToken ct)
     {
-        var attempts = message.Attempts + 1;
-        var failed = attempts >= MaxAttempts || exception is JsonException or ArgumentException
+        var attempts = (int)Math.Min((long)message.Attempts + 1, int.MaxValue);
+        var failed = exception is JsonException or ArgumentException
                                              || exception is KafkaException { Error.Code: ErrorCode.MsgSizeTooLarge };
         var now = DateTime.UtcNow;
-        var nextAttempt = failed ? (DateTime?)null : now.AddSeconds(Math.Min(60, 1 << attempts));
+        var nextAttempt = failed ? (DateTime?)null : now.AddSeconds(Math.Min(60, 1 << Math.Min(attempts, 6)));
         var error = exception.Message[..Math.Min(exception.Message.Length, 2048)];
         await db
             .OutboxMessages

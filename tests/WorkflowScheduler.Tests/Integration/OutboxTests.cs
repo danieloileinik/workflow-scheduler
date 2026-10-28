@@ -382,35 +382,62 @@ public class OutboxTests(TestInfrastructure infrastructure)
     }
 
     [Fact]
-    public async Task RepeatedPublishFailures_BackOffAndQuarantineAfterBoundedAttempts()
+    public async Task RepeatedPublishFailures_KeepRetryingAndRecoverAfterBrokerReturns()
     {
+        // Arrange
         var app = await infrastructure.CreateHarnessAsync();
         await app.Start(await app.Register(TestWorkflow.Call()));
         app.Publisher.Fail = true;
 
-        for (var attempt = 1; attempt <= 8; attempt++)
+        // Act
+        for (var attempt = 1; attempt <= 35; attempt++)
         {
             Assert.Equal(1, await app.Dispatch());
 
             var message = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
             Assert.Equal(attempt, message.Attempts);
             Assert.Null(message.ProcessedAt);
-            if (attempt < 8)
-            {
-                Assert.NotNull(message.NextAttemptAt);
-                Assert.Null(message.FailedAt);
-                Assert.Equal(0, await app.Dispatch());
-                await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-                    update.SetProperty(candidate => candidate.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
-            }
-            else
-            {
-                Assert.NotNull(message.FailedAt);
-            }
+            Assert.NotNull(message.NextAttemptAt);
+            Assert.Null(message.FailedAt);
+            Assert.InRange(message.NextAttemptAt.Value - DateTime.UtcNow,
+                TimeSpan.FromSeconds(attempt >= 6 ? 50 : 0), TimeSpan.FromSeconds(60));
+            Assert.Equal(0, await app.Dispatch());
+            await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
+                update.SetProperty(candidate => candidate.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
         }
 
         app.Publisher.Fail = false;
-        Assert.Equal(0, await app.Dispatch());
+        await app.Dispatch();
+
+        // Assert
+        Assert.Single(app.Publisher.Messages);
+        var delivered = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
+        Assert.NotNull(delivered.ProcessedAt);
+        Assert.Null(delivered.FailedAt);
+        Assert.Null(delivered.NextAttemptAt);
+        Assert.Equal(36, delivered.Attempts);
+    }
+
+    [Fact]
+    public async Task PermanentPublishFailure_IsQuarantinedWithoutRepeatedDelivery()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        await app.Start(await app.Register(TestWorkflow.Call()));
+        app.Publisher.BeforePublishAsync = _ => Task.FromException(new ArgumentException("Invalid command"));
+
+        // Act
+        await app.Dispatch();
+        app.Publisher.BeforePublishAsync = null;
+        var subsequent = await app.Dispatch();
+
+        // Assert
+        var message = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
+        Assert.NotNull(message.FailedAt);
+        Assert.Null(message.ProcessedAt);
+        Assert.Null(message.NextAttemptAt);
+        Assert.Equal(1, message.Attempts);
+        Assert.Equal(0, subsequent);
         Assert.Empty(app.Publisher.Messages);
     }
 
