@@ -1,50 +1,64 @@
+using System.Collections.Frozen;
+using System.Collections.ObjectModel;
 using ErrorOr;
 using WorkflowScheduler.Domain.Steps;
 
 namespace WorkflowScheduler.Domain.Processes;
 
-public class ProcessDefinition(Guid id, string name, int version)
+public sealed class ProcessDefinition
 {
     private readonly List<StepDefinition> _steps = [];
-    private int _indexedStepCount;
-    private Dictionary<Guid, StepDefinition>? _stepsById;
+    private readonly ReadOnlyCollection<StepDefinition> _readOnlySteps;
+    private readonly Lazy<FrozenDictionary<Guid, StepDefinition>> _stepsById;
+    private readonly Lazy<StepDefinition?> _firstStep;
 
-    public ProcessDefinition(string name, int version) : this(Guid.NewGuid(), name, version)
+    private ProcessDefinition(Guid id, string name, int version, DateTime createdAt)
     {
+        Id = id;
+        Name = name;
+        Version = version;
+        CreatedAt = createdAt;
+        _readOnlySteps = _steps.AsReadOnly();
+        _stepsById = new Lazy<FrozenDictionary<Guid, StepDefinition>>(
+            () => _steps.ToFrozenDictionary(step => step.Id));
+        _firstStep = new Lazy<StepDefinition?>(() => _steps.MinBy(step => step.Position));
     }
 
-    public Guid Id { get; } = id;
-    public string Name { get; } = name;
-    public int Version { get; } = version;
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
-    public IEnumerable<StepDefinition> Steps => _steps;
-
-    public void AddStep(StepDefinition step)
+    public ProcessDefinition(
+        Guid id,
+        string name,
+        int version,
+        IEnumerable<StepDefinition> steps,
+        DateTime? createdAt = null)
+        : this(id, name, version, createdAt ?? DateTime.UtcNow)
     {
-        step.SetPosition(_steps.Count);
-        _steps.Add(step);
+        ArgumentNullException.ThrowIfNull(steps);
+        _steps.AddRange(steps.OrderBy(step => step.Position));
     }
+
+    public Guid Id { get; }
+    public string Name { get; }
+    public int Version { get; }
+    public DateTime CreatedAt { get; }
+    public IReadOnlyList<StepDefinition> Steps => _readOnlySteps;
 
     public ErrorOr<StepDefinition> GetFirstStep()
     {
-        if (_steps.Count == 0)
-            return ProcessErrors.NoStepsDefined;
-
-        return _steps.MinBy(s => s.Position)!;
+        return _firstStep.Value is { } first ? first : ProcessErrors.NoStepsDefined;
     }
 
     public StepDefinition? FindStep(Guid stepId)
     {
-        if (_stepsById is not null && _indexedStepCount == _steps.Count)
-            return _stepsById.GetValueOrDefault(stepId);
+        return _stepsById.Value.GetValueOrDefault(stepId);
+    }
 
-        _stepsById = new Dictionary<Guid, StepDefinition>(_steps.Count);
+    internal void InitializeExecution()
+    {
+        // EF populates the private navigation before the detached definition enters the shared cache.
+        _ = _stepsById.Value;
+        _ = _firstStep.Value;
 
-        foreach (var step in _steps)
-            _stepsById.TryAdd(step.Id, step);
-
-        _indexedStepCount = _steps.Count;
-
-        return _stepsById.GetValueOrDefault(stepId);
+        foreach (StepDefinition step in _steps)
+            _ = step.ParsedMetadata;
     }
 }

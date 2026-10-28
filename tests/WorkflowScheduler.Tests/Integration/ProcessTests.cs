@@ -37,13 +37,15 @@ public class ProcessTests(TestInfrastructure infrastructure)
         var missing = await app.Send(command);
         await app.WithDb(async db =>
         {
-            var definition = new ProcessDefinition(definitionId, "late", 1);
-            definition.AddStep(
+            var definition = new ProcessDefinition(definitionId, "late", 1,
+            [
                 new StepDefinition(
+                    Guid.NewGuid(),
                     definitionId,
                     "call",
                     StepType.Call,
-                    """{"ServiceName":"billing","Command":"Execute"}"""));
+                    """{"ServiceName":"billing","Command":"Execute"}""")
+            ]);
             db.Add(definition);
 
             return await db.SaveChangesAsync();

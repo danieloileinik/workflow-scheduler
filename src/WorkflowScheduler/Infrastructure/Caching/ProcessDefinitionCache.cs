@@ -28,15 +28,14 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
                 || string.IsNullOrWhiteSpace(snapshot.Name) || snapshot.Version <= 0)
                 return null;
 
-            var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version)
-                { CreatedAt = snapshot.CreatedAt };
+            var steps = new List<StepDefinition>(snapshot.Steps.Count);
 
             foreach (var step in snapshot.Steps)
             {
                 if (step is null)
                     return null;
 
-                definition.AddStep(
+                steps.Add(
                     new StepDefinition(
                         step.Id,
                         snapshot.Id,
@@ -44,8 +43,11 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
                         step.Type,
                         step.Metadata,
                         step.NextStepId,
-                        step.CompensationStepId));
+                        step.CompensationStepId,
+                        steps.Count));
             }
+
+            var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version, steps, snapshot.CreatedAt);
 
             if (!Validator.Validate(definition).IsValid)
                 return null;

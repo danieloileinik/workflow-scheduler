@@ -15,6 +15,7 @@ public class ConditionStepStrategyTests
         var no = Guid.NewGuid();
         var definition = new StepDefinition(
             Guid.NewGuid(),
+            Guid.NewGuid(),
             "condition",
             StepType.Condition,
             JsonSerializer.Serialize(
@@ -27,7 +28,6 @@ public class ConditionStepStrategyTests
                     falseNextStepId = no
                 }));
         var strategy = new ConditionStepStrategy();
-        var prepared = new PreparedStepDefinition(definition);
         foreach (var (input, expected) in new[] { ("yes", yes), ("yes", yes), ("no", no), ("yes", yes) })
         {
             var process = new ProcessInstance(
@@ -37,7 +37,7 @@ public class ConditionStepStrategyTests
             var step = new StepInstance(process.Id, definition.Id);
 
             // Act
-            var result = strategy.Execute(process, step, prepared);
+            var result = strategy.Execute(process, step, definition);
 
             // Assert
             Assert.Equal(expected, result.OverrideNextStepId);
@@ -69,6 +69,7 @@ public class ConditionStepStrategyTests
             JsonSerializer.Serialize(new { amount = input }));
         var step = new StepInstance(process.Id, Guid.NewGuid());
         var definition = new StepDefinition(
+            Guid.NewGuid(),
             process.DefinitionId,
             "condition",
             StepType.Condition,
@@ -82,7 +83,6 @@ public class ConditionStepStrategyTests
                     falseNextStepId = falseStepId
                 }));
         var strategy = new ConditionStepStrategy();
-        var prepared = new PreparedStepDefinition(definition);
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ru-RU");
 
         try
@@ -91,7 +91,7 @@ public class ConditionStepStrategyTests
             var result = strategy.Execute(
                 process,
                 step,
-                prepared);
+                definition);
 
             // Assert
             Assert.Equal(StepExecutionState.Completed, result.State);
@@ -113,6 +113,7 @@ public class ConditionStepStrategyTests
         var process = new ProcessInstance(Guid.NewGuid(), "order", input);
         var step = new StepInstance(process.Id, Guid.NewGuid());
         var definition = new StepDefinition(
+            Guid.NewGuid(),
             process.DefinitionId,
             "condition",
             StepType.Condition,
@@ -126,13 +127,12 @@ public class ConditionStepStrategyTests
                     FalseNextStepId = falseStepId
                 }));
         var strategy = new ConditionStepStrategy();
-        var prepared = new PreparedStepDefinition(definition);
 
         // Act
         var result = strategy.Execute(
             process,
             step,
-            prepared);
+            definition);
 
         // Assert
         Assert.Equal(StepExecutionState.Completed, result.State);

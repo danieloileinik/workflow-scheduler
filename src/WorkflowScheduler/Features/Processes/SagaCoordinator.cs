@@ -9,7 +9,7 @@ namespace WorkflowScheduler.Features.Processes;
 public class SagaCoordinator(AppDbContext db, StepExecutor executor)
 {
     public async Task<ErrorOr<Success>> ScheduleAsync(ProcessInstance instance,
-        PreparedProcessDefinition definition,
+        ProcessDefinition definition,
         CancellationToken ct)
     {
         var existing = await db
@@ -61,7 +61,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
     }
 
     public async Task<ErrorOr<Success>> CompleteAsync(ProcessInstance instance,
-        PreparedProcessDefinition definition,
+        ProcessDefinition definition,
         StepInstance step,
         CancellationToken ct)
     {
@@ -103,7 +103,7 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
     }
 
     private ErrorOr<Success> StartNext(ProcessInstance instance,
-        PreparedProcessDefinition definition,
+        ProcessDefinition definition,
         SagaCompensationLog? next,
         CancellationToken ct)
     {

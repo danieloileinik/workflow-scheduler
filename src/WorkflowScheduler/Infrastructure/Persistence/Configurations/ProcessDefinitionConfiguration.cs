@@ -18,6 +18,8 @@ public class ProcessDefinitionConfiguration : IEntityTypeConfiguration<ProcessDe
             .WithOne()
             .HasForeignKey(s => s.ProcessDefinitionId)
             .OnDelete(DeleteBehavior.Cascade);
-        builder.Navigation(d => d.Steps).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(d => d.Steps)
+            .HasField("_steps")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

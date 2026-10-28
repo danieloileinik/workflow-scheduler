@@ -4,47 +4,49 @@ namespace WorkflowScheduler.Tests.Unit;
 public class ProcessDefinitionTests
 {
     [Fact]
-    public void FindStep_AfterAnotherStepIsAdded_UpdatesTheLookup()
+    public void Constructor_CopiesStepsAndExposesAnUnmodifiableCollection()
     {
-        var definition = new ProcessDefinition("workflow", 1);
-        var first = new StepDefinition(definition.Id, "first", StepType.Call, "{}");
-        definition.AddStep(first);
-        Assert.Same(first, definition.FindStep(first.Id));
+        // Arrange
+        var id = Guid.NewGuid();
+        var first = new StepDefinition(Guid.NewGuid(), id, "first", StepType.WaitEvent, """{"eventName":"First"}""");
+        var second = new StepDefinition(Guid.NewGuid(), id, "second", StepType.WaitEvent, """{"eventName":"Second"}""", position: 1);
+        List<StepDefinition> supplied = [first];
+        var definition = new ProcessDefinition(id, "workflow", 1, supplied);
 
-        var second = new StepDefinition(definition.Id, "second", StepType.Call, "{}");
+        // Act
+        supplied.Add(second);
+        var stored = definition.FindStep(first.Id);
 
-        definition.AddStep(second);
-
-        Assert.Same(first, definition.FindStep(first.Id));
-        Assert.Same(second, definition.FindStep(second.Id));
-        Assert.Null(definition.FindStep(Guid.NewGuid()));
+        // Assert
+        Assert.Same(first, stored);
+        Assert.Null(definition.FindStep(second.Id));
+        Assert.Single(definition.Steps);
+        Assert.Throws<NotSupportedException>(() => ((ICollection<StepDefinition>)definition.Steps).Clear());
     }
 
     [Fact]
-    public void GetFirstStep_WhenCollectionOrderDiffersFromPositions_ReturnsLowestPosition()
+    public void GetFirstStep_WhenSuppliedOrderDiffersFromPositions_ReturnsLowestPosition()
     {
         // Arrange
-        var definition = new ProcessDefinition("workflow", 1);
-        var first = new StepDefinition(definition.Id, "first", StepType.Call, "{}");
-        var second = new StepDefinition(definition.Id, "second", StepType.Call, "{}");
-        definition.AddStep(second);
-        definition.AddStep(first);
-        first.SetPosition(0);
-        second.SetPosition(1);
+        var id = Guid.NewGuid();
+        var first = new StepDefinition(Guid.NewGuid(), id, "first", StepType.WaitEvent, """{"eventName":"First"}""");
+        var second = new StepDefinition(Guid.NewGuid(), id, "second", StepType.WaitEvent, """{"eventName":"Second"}""", position: 1);
+        var definition = new ProcessDefinition(id, "workflow", 1, [second, first]);
 
         // Act
         var result = definition.GetFirstStep();
 
         // Assert
         Assert.False(result.IsError);
-        Assert.Equal(first.Id, result.Value.Id);
+        Assert.Same(first, result.Value);
+        Assert.Equal([first, second], definition.Steps);
     }
 
     [Fact]
     public void GetFirstStep_WhenNoStepsDefined_ReturnsNoStepsError()
     {
         // Arrange
-        var definition = new ProcessDefinition("empty", 1);
+        var definition = new ProcessDefinition(Guid.NewGuid(), "empty", 1, []);
 
         // Act
         var result = definition.GetFirstStep();

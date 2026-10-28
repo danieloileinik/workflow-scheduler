@@ -152,7 +152,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
 
     internal static async Task ResetAsync(IServiceProvider services)
     {
-        services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+        services.GetRequiredService<ProcessDefinitionMemoryCache>().Clear();
 
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

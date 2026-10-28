@@ -9,7 +9,7 @@ public class WaitEventStepStrategy : IStepStrategy
 
     public StepExecutionResult Execute(ProcessInstance processInstance,
         StepInstance stepInstance,
-        PreparedStepDefinition stepDefinition)
+        StepDefinition stepDefinition)
     {
         return new StepExecutionResult(StepExecutionState.Waiting);
     }

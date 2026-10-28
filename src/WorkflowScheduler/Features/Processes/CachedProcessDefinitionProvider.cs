@@ -7,11 +7,11 @@ namespace WorkflowScheduler.Features.Processes;
 public sealed class CachedProcessDefinitionProvider(
     AppDbContext db,
     IProcessDefinitionCache cache,
-    PreparedProcessDefinitionCache prepared)
+    ProcessDefinitionMemoryCache memoryCache)
 {
-    public Task<PreparedProcessDefinition?> GetOrLoadAsync(Guid definitionId, CancellationToken ct)
+    public Task<ProcessDefinition?> GetOrLoadAsync(Guid definitionId, CancellationToken ct)
     {
-        return prepared.GetOrLoadAsync(definitionId, token => LoadAsync(definitionId, token), ct);
+        return memoryCache.GetOrLoadAsync(definitionId, token => LoadAsync(definitionId, token), ct);
     }
 
     private async Task<ProcessDefinition?> LoadAsync(Guid definitionId, CancellationToken ct)
@@ -23,7 +23,7 @@ public sealed class CachedProcessDefinitionProvider(
         var definition = await db
             .ProcessDefinitions
             .AsNoTracking()
-            .Include(candidate => candidate.Steps)
+            .Include(candidate => candidate.Steps.OrderBy(step => step.Position))
             .FirstOrDefaultAsync(candidate => candidate.Id == definitionId, ct);
 
         if (definition is not null)

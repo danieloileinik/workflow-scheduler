@@ -52,7 +52,7 @@ public static class DependencyInjection
 
         private IServiceCollection AddWorkflowApplication()
         {
-            services.AddSingleton<PreparedProcessDefinitionCache>();
+            services.AddSingleton<ProcessDefinitionMemoryCache>();
             services.AddScoped<CachedProcessDefinitionProvider>();
             services.AddScoped<SagaCoordinator>();
 

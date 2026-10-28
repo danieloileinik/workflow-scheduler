@@ -9,6 +9,36 @@ namespace WorkflowScheduler.Tests.Integration;
 [Trait("Category", "Integration")]
 public class CacheTests(TestInfrastructure infrastructure)
 {
+    [Fact]
+    public async Task DefinitionLoadedFromPostgres_PreservesIdentityAndExposesImmutableStepsWithoutTracking()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        var wait = TestWorkflow.Wait();
+        var call = TestWorkflow.Call(wait.Id);
+        var id = await app.Register(call, wait);
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var definitions = scope.ServiceProvider.GetRequiredService<CachedProcessDefinitionProvider>();
+
+        // Act
+        var definition = await definitions.GetOrLoadAsync(id, CancellationToken.None);
+        var cached = await definitions.GetOrLoadAsync(id, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(definition);
+        Assert.Same(definition, cached);
+        Assert.Equal(id, definition.Id);
+        Assert.Equal([call.Id, wait.Id], definition.Steps.Select(step => step.Id));
+        Assert.Equal([0, 1], definition.Steps.Select(step => step.Position));
+        Assert.All(definition.Steps, step => Assert.Equal(id, step.ProcessDefinitionId));
+        Assert.Same(definition.Steps[0], definition.GetFirstStep().Value);
+        Assert.Same(definition.Steps[1], definition.FindStep(wait.Id));
+        Assert.IsType<StepMetadata.Call>(definition.Steps[0].ParsedMetadata);
+        Assert.Throws<NotSupportedException>(() => ((ICollection<StepDefinition>)definition.Steps).Clear());
+        Assert.Empty(db.ChangeTracker.Entries());
+    }
+
     [Theory]
     [InlineData("missing")]
     [InlineData("invalid-json")]
@@ -40,7 +70,7 @@ public class CacheTests(TestInfrastructure infrastructure)
         }
 
         // Act
-        app.Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+        app.Services.GetRequiredService<ProcessDefinitionMemoryCache>().Clear();
 
         var result = await app.Complete(process, first.Id);
 
@@ -120,7 +150,7 @@ public class CacheTests(TestInfrastructure infrastructure)
         else await redis.KeyDeleteAsync(key);
 
         // Act
-        app.Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+        app.Services.GetRequiredService<ProcessDefinitionMemoryCache>().Clear();
 
         var process = await app.Start(definition);
         await using var scope = app.Services.CreateAsyncScope();

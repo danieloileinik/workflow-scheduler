@@ -10,5 +10,5 @@ public interface IStepStrategy
     StepExecutionResult Execute(
         ProcessInstance processInstance,
         StepInstance stepInstance,
-        PreparedStepDefinition stepDefinition);
+        StepDefinition stepDefinition);
 }

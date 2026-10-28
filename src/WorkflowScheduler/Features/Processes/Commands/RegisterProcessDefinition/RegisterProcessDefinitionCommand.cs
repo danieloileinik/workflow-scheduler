@@ -9,18 +9,20 @@ public sealed record RegisterProcessDefinitionCommand : IRequest<ErrorOr<Registe
 {
     public RegisterProcessDefinitionCommand(string name, int version, IReadOnlyList<StepDefinitionDto> steps)
     {
-        Definition = new ProcessDefinition(name, version);
-
-        foreach (var step in steps)
-            Definition.AddStep(
-                new StepDefinition(
-                    step.Id,
-                    Definition.Id,
-                    step.Name,
-                    step.Type,
-                    step.Metadata,
-                    step.NextStepId,
-                    step.CompensationStepId));
+        var id = Guid.NewGuid();
+        Definition = new ProcessDefinition(
+            id,
+            name,
+            version,
+            steps.Select((step, position) => new StepDefinition(
+                step.Id,
+                id,
+                step.Name,
+                step.Type,
+                step.Metadata,
+                step.NextStepId,
+                step.CompensationStepId,
+                position)));
     }
 
     public ProcessDefinition Definition { get; }

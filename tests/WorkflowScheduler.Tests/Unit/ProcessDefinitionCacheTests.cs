@@ -51,7 +51,7 @@ public class ProcessDefinitionCacheTests
                         ConnectionFailureType.UnableToConnect,
                         "offline")));
 
-        var definition = new ProcessDefinition("workflow", 1);
+        var definition = new ProcessDefinition(Guid.NewGuid(), "workflow", 1, []);
 
         // Act
         await cache.SetAsync(definition);
@@ -88,16 +88,12 @@ public class ProcessDefinitionCacheTests
         // Arrange
         var (cache, database) = CreateCache();
 
-        var definition = new ProcessDefinition("workflow", 7)
-        {
-            CreatedAt = DateTime.UtcNow.AddDays(-1)
-        };
+        var definitionId = Guid.NewGuid();
         const string callMetadata = """{"serviceName":"billing","command":"Execute"}""";
         const string waitMetadata = """{"eventName":"Approved"}""";
-        var first = new StepDefinition(definition.Id, "first", StepType.Call, callMetadata);
-        var second = new StepDefinition(definition.Id, "second", StepType.WaitEvent, waitMetadata);
-        definition.AddStep(first);
-        definition.AddStep(second);
+        var first = new StepDefinition(Guid.NewGuid(), definitionId, "first", StepType.Call, callMetadata);
+        var second = new StepDefinition(Guid.NewGuid(), definitionId, "second", StepType.WaitEvent, waitMetadata, position: 1);
+        var definition = new ProcessDefinition(definitionId, "workflow", 7, [first, second], DateTime.UtcNow.AddDays(-1));
 
         var savedSnapshot = RedisValue.Null;
         database

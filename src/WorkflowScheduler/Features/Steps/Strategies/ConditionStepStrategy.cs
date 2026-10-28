@@ -13,9 +13,9 @@ public class ConditionStepStrategy : IStepStrategy
 
     public StepExecutionResult Execute(ProcessInstance processInstance,
         StepInstance stepInstance,
-        PreparedStepDefinition stepDefinition)
+        StepDefinition stepDefinition)
     {
-        var condition = (StepMetadata.Condition)stepDefinition.Metadata;
+        var condition = (StepMetadata.Condition)stepDefinition.ParsedMetadata;
         // Strategies are scoped to one sequential command execution; retain its immutable parsed input.
         if (!ReferenceEquals(_inputData, processInstance.InputData))
         {

@@ -30,7 +30,7 @@ public class WorkflowInfrastructureConfigurationTests
 
         await using var provider = services.BuildServiceProvider();
         await using var scope = provider.CreateAsyncScope();
-        var definition = new ProcessDefinition("workflow", 1);
+        var definition = new ProcessDefinition(Guid.NewGuid(), "workflow", 1, []);
 
         // Act
         var definitions = scope.ServiceProvider.GetRequiredService<CachedProcessDefinitionProvider>();

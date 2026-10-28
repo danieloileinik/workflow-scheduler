@@ -41,7 +41,7 @@ internal sealed class TestHarness : IAsyncDisposable
 
     public Task ClearCacheAsync()
     {
-        Services.GetRequiredService<PreparedProcessDefinitionCache>().Clear();
+        Services.GetRequiredService<ProcessDefinitionMemoryCache>().Clear();
 
         var redis = Services.GetRequiredService<IConnectionMultiplexer>();
 

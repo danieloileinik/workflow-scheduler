@@ -1,4 +1,3 @@
-using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Features.Steps.Strategies;
 
 namespace WorkflowScheduler.Tests.Unit;
@@ -16,25 +15,25 @@ public class StepExecutorTests
         ProcessStatus expectedProcessStatus)
     {
         // Arrange
-        var definition = new ProcessDefinition("custom-step", 1);
+        var definitionId = Guid.NewGuid();
         var stepDefinition = new StepDefinition(
-            definition.Id,
+            Guid.NewGuid(),
+            definitionId,
             "custom",
             type,
             """{"serviceName":"test","command":"Run","eventName":"Event"}""");
-        definition.AddStep(stepDefinition);
+        var definition = new ProcessDefinition(definitionId, "custom-step", 1, [stepDefinition]);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         var strategy = new ResultStrategy(type, state);
         var executor = new StepExecutor([strategy]);
-        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
         var result = executor.Run(
-            prepared,
+            definition,
             process,
-            prepared.FindStep(stepDefinition.Id)!,
+            definition.FindStep(stepDefinition.Id)!,
             step,
             CancellationToken.None);
 
@@ -50,13 +49,14 @@ public class StepExecutorTests
     public void Run_WithCompletedStep_RejectsRestartBeforeExecutingStrategy()
     {
         // Arrange
-        var definition = new ProcessDefinition("completed-step", 1);
+        var definitionId = Guid.NewGuid();
         var stepDefinition = new StepDefinition(
-            definition.Id,
+            Guid.NewGuid(),
+            definitionId,
             "call",
             StepType.Call,
             """{"serviceName":"test","command":"Run"}""");
-        definition.AddStep(stepDefinition);
+        var definition = new ProcessDefinition(definitionId, "completed-step", 1, [stepDefinition]);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
@@ -66,13 +66,12 @@ public class StepExecutorTests
         var completedAt = step.CompletedAt;
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
-        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
         var result = executor.Run(
-            prepared,
+            definition,
             process,
-            prepared.FindStep(stepDefinition.Id)!,
+            definition.FindStep(stepDefinition.Id)!,
             step,
             CancellationToken.None);
 
@@ -90,13 +89,14 @@ public class StepExecutorTests
     public void Run_WithCompensation_KeepsProcessTerminalWhileExecutionRuns()
     {
         // Arrange
-        var definition = new ProcessDefinition("compensation", 1);
+        var definitionId = Guid.NewGuid();
         var stepDefinition = new StepDefinition(
-            definition.Id,
+            Guid.NewGuid(),
+            definitionId,
             "undo",
             StepType.Call,
             """{"serviceName":"test","command":"Run"}""");
-        definition.AddStep(stepDefinition);
+        var definition = new ProcessDefinition(definitionId, "compensation", 1, [stepDefinition]);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
         Assert.False(process.Cancel().IsError);
@@ -104,13 +104,12 @@ public class StepExecutorTests
         var step = process.AddCompensationStep(stepDefinition.Id);
         var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
         var executor = new StepExecutor([strategy]);
-        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
         var result = executor.Run(
-            prepared,
+            definition,
             process,
-            prepared.FindStep(stepDefinition.Id)!,
+            definition.FindStep(stepDefinition.Id)!,
             step,
             CancellationToken.None);
 
@@ -125,25 +124,25 @@ public class StepExecutorTests
     public void Run_WithUnknownStrategyOutcome_ReturnsError()
     {
         // Arrange
-        var definition = new ProcessDefinition("invalid-outcome", 1);
+        var definitionId = Guid.NewGuid();
         var stepDefinition = new StepDefinition(
-            definition.Id,
+            Guid.NewGuid(),
+            definitionId,
             "call",
             StepType.Call,
             """{"serviceName":"test","command":"Run"}""");
-        definition.AddStep(stepDefinition);
+        var definition = new ProcessDefinition(definitionId, "invalid-outcome", 1, [stepDefinition]);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var step = process.Start(stepDefinition.Id).Value;
         var strategy = new ResultStrategy(StepType.Call, (StepExecutionState)(-1));
         var executor = new StepExecutor([strategy]);
-        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
         var result = executor.Run(
-            prepared,
+            definition,
             process,
-            prepared.FindStep(stepDefinition.Id)!,
+            definition.FindStep(stepDefinition.Id)!,
             step,
             CancellationToken.None);
 
@@ -157,29 +156,28 @@ public class StepExecutorTests
     public void Run_WithAutomaticCycle_ReturnsCycleErrorWithoutRecursion()
     {
         // Arrange
-        var definition = new ProcessDefinition("cycle", 1);
+        var definitionId = Guid.NewGuid();
         var stepId = Guid.NewGuid();
         var stepDefinition = new StepDefinition(
             stepId,
-            definition.Id,
+            definitionId,
             "loop",
             StepType.Condition,
             $$"""{"inputKey":"x","operator":"eq","value":"1","trueNextStepId":"{{stepId}}","falseNextStepId":"{{stepId}}"}""",
             stepId,
             null);
-        definition.AddStep(stepDefinition);
+        var definition = new ProcessDefinition(definitionId, "cycle", 1, [stepDefinition]);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
         var start = process.Start(stepId);
         var strategy = new ContinueStrategy(stepId);
         var executor = new StepExecutor([strategy]);
-        var prepared = new PreparedProcessDefinition(definition);
 
         // Act
         var result = executor.Run(
-            prepared,
+            definition,
             process,
-            prepared.FindStep(stepDefinition.Id)!,
+            definition.FindStep(stepDefinition.Id)!,
             start.Value,
             CancellationToken.None);
 
@@ -196,7 +194,7 @@ public class StepExecutorTests
         public StepExecutionResult Execute(
             ProcessInstance processInstance,
             StepInstance stepInstance,
-            PreparedStepDefinition stepDefinition)
+            StepDefinition stepDefinition)
         {
             return new StepExecutionResult(StepExecutionState.Completed, nextStepId);
         }
@@ -209,7 +207,7 @@ public class StepExecutorTests
 
         public StepExecutionResult Execute(ProcessInstance processInstance,
             StepInstance stepInstance,
-            PreparedStepDefinition stepDefinition)
+            StepDefinition stepDefinition)
         {
             Executions++;
 
