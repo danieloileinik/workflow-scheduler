@@ -28,12 +28,12 @@ public class StepExecutor(IEnumerable<IStepStrategy> strategies)
         StepInstance step,
         CancellationToken ct)
     {
-        var visited = new HashSet<Guid>();
+        HashSet<Guid>? visited = null;
 
         while (true)
         {
             ct.ThrowIfCancellationRequested();
-            if (!visited.Add(stepDefinition.Id))
+            if (visited is not null && !visited.Add(stepDefinition.Id))
                 return Error.Validation("ProcessDefinition.Cycle", "Automatic step chain contains a cycle");
 
             var strategy = strategies.FirstOrDefault(s => s.StepType == stepDefinition.Type);
@@ -71,6 +71,8 @@ public class StepExecutor(IEnumerable<IStepStrategy> strategies)
             if (move.IsError)
                 return move.Errors;
 
+            // Allocate cycle tracking only when execution continues to another step without waiting.
+            visited ??= [stepDefinition.Id];
             stepDefinition = next;
             step = move.Value;
         }
