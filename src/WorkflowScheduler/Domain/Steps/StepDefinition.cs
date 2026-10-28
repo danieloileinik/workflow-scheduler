@@ -23,6 +23,5 @@ public sealed class StepDefinition(
     public Guid? NextStepId { get; } = nextStepId;
     public Guid? CompensationStepId { get; } = compensationStepId;
 
-    [NotMapped]
-    public StepMetadata ParsedMetadata => _parsedMetadata.Value;
+    [NotMapped] public StepMetadata ParsedMetadata => _parsedMetadata.Value;
 }

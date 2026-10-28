@@ -223,7 +223,9 @@ public class RegisterProcessDefinitionValidatorTests
 
         // Assert
         Assert.False(result.IsValid);
-        Assert.Equal("Compensation steps cannot be on the forward execution path", Assert.Single(result.Errors).ErrorMessage);
+        Assert.Equal(
+            "Compensation steps cannot be on the forward execution path",
+            Assert.Single(result.Errors).ErrorMessage);
     }
 
     private static StepDefinitionDto CreateCallStep(Guid? nextStepId = null)

@@ -47,7 +47,12 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
                         steps.Count));
             }
 
-            var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version, steps, snapshot.CreatedAt);
+            var definition = new ProcessDefinition(
+                snapshot.Id,
+                snapshot.Name,
+                snapshot.Version,
+                steps,
+                snapshot.CreatedAt);
 
             if (!Validator.Validate(definition).IsValid)
                 return null;

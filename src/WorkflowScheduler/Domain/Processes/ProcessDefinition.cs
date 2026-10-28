@@ -7,10 +7,10 @@ namespace WorkflowScheduler.Domain.Processes;
 
 public sealed class ProcessDefinition
 {
-    private readonly List<StepDefinition> _steps = [];
-    private readonly ReadOnlyCollection<StepDefinition> _readOnlySteps;
-    private readonly Lazy<FrozenDictionary<Guid, StepDefinition>> _stepsById;
     private readonly Lazy<StepDefinition?> _firstStep;
+    private readonly ReadOnlyCollection<StepDefinition> _readOnlySteps;
+    private readonly List<StepDefinition> _steps = [];
+    private readonly Lazy<FrozenDictionary<Guid, StepDefinition>> _stepsById;
 
     private ProcessDefinition(Guid id, string name, int version, DateTime createdAt)
     {
@@ -19,8 +19,7 @@ public sealed class ProcessDefinition
         Version = version;
         CreatedAt = createdAt;
         _readOnlySteps = _steps.AsReadOnly();
-        _stepsById = new Lazy<FrozenDictionary<Guid, StepDefinition>>(
-            () => _steps.ToFrozenDictionary(step => step.Id));
+        _stepsById = new Lazy<FrozenDictionary<Guid, StepDefinition>>(() => _steps.ToFrozenDictionary(step => step.Id));
         _firstStep = new Lazy<StepDefinition?>(() => _steps.MinBy(step => step.Position));
     }
 
@@ -58,7 +57,7 @@ public sealed class ProcessDefinition
         _ = _stepsById.Value;
         _ = _firstStep.Value;
 
-        foreach (StepDefinition step in _steps)
+        foreach (var step in _steps)
             _ = step.ParsedMetadata;
     }
 }

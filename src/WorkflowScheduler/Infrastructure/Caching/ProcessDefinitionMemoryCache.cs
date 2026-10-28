@@ -46,7 +46,7 @@ public sealed class ProcessDefinitionMemoryCache : IDisposable
             definition.InitializeExecution();
 
             // Account for retained JSON, parsed strings and per-step objects; oversized definitions are not cached.
-            long size = 1024 + 2L * definition.Name.Length
+            var size = 1024 + 2L * definition.Name.Length
                             + definition.Steps.Sum(step => 384L + 2L * step.Name.Length + 4L * step.Metadata.Length);
             _definitions.Set(
                 definitionId,

@@ -164,8 +164,7 @@ public class StepExecutorTests
             "loop",
             StepType.Condition,
             $$"""{"inputKey":"x","operator":"eq","value":"1","trueNextStepId":"{{stepId}}","falseNextStepId":"{{stepId}}"}""",
-            stepId,
-            null);
+            stepId);
         var definition = new ProcessDefinition(definitionId, "cycle", 1, [stepDefinition]);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");

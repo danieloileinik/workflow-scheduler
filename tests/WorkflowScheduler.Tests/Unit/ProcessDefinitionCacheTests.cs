@@ -92,8 +92,19 @@ public class ProcessDefinitionCacheTests
         const string callMetadata = """{"serviceName":"billing","command":"Execute"}""";
         const string waitMetadata = """{"eventName":"Approved"}""";
         var first = new StepDefinition(Guid.NewGuid(), definitionId, "first", StepType.Call, callMetadata);
-        var second = new StepDefinition(Guid.NewGuid(), definitionId, "second", StepType.WaitEvent, waitMetadata, position: 1);
-        var definition = new ProcessDefinition(definitionId, "workflow", 7, [first, second], DateTime.UtcNow.AddDays(-1));
+        var second = new StepDefinition(
+            Guid.NewGuid(),
+            definitionId,
+            "second",
+            StepType.WaitEvent,
+            waitMetadata,
+            position: 1);
+        var definition = new ProcessDefinition(
+            definitionId,
+            "workflow",
+            7,
+            [first, second],
+            DateTime.UtcNow.AddDays(-1));
 
         var savedSnapshot = RedisValue.Null;
         database

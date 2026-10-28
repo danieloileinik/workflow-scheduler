@@ -9,7 +9,13 @@ public class ProcessDefinitionTests
         // Arrange
         var id = Guid.NewGuid();
         var first = new StepDefinition(Guid.NewGuid(), id, "first", StepType.WaitEvent, """{"eventName":"First"}""");
-        var second = new StepDefinition(Guid.NewGuid(), id, "second", StepType.WaitEvent, """{"eventName":"Second"}""", position: 1);
+        var second = new StepDefinition(
+            Guid.NewGuid(),
+            id,
+            "second",
+            StepType.WaitEvent,
+            """{"eventName":"Second"}""",
+            position: 1);
         List<StepDefinition> supplied = [first];
         var definition = new ProcessDefinition(id, "workflow", 1, supplied);
 
@@ -30,7 +36,13 @@ public class ProcessDefinitionTests
         // Arrange
         var id = Guid.NewGuid();
         var first = new StepDefinition(Guid.NewGuid(), id, "first", StepType.WaitEvent, """{"eventName":"First"}""");
-        var second = new StepDefinition(Guid.NewGuid(), id, "second", StepType.WaitEvent, """{"eventName":"Second"}""", position: 1);
+        var second = new StepDefinition(
+            Guid.NewGuid(),
+            id,
+            "second",
+            StepType.WaitEvent,
+            """{"eventName":"Second"}""",
+            position: 1);
         var definition = new ProcessDefinition(id, "workflow", 1, [second, first]);
 
         // Act

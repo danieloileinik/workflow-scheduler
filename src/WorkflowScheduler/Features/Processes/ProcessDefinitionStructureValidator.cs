@@ -41,7 +41,7 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
                 continue;
             }
 
-            if (step.CompensationStepId is Guid compensation)
+            if (step.CompensationStepId is { } compensation)
                 compensationIds.Add(compensation);
 
             if (step.Type == StepType.Condition)
@@ -60,13 +60,13 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
         foreach (var step in definition.Steps)
         {
             var referencesValid = true;
-            if (step.NextStepId is Guid next)
+            if (step.NextStepId is { } next)
                 referencesValid = CheckReference(step, next);
 
-            if (step.CompensationStepId is Guid compensation
+            if (step.CompensationStepId is { } compensation
                 && (step.Type != StepType.Call || !steps.TryGetValue(compensation, out var target)
-                    || target.Type != StepType.Call || target.NextStepId is not null
-                    || target.CompensationStepId is not null || target.Id == step.Id))
+                                               || target.Type != StepType.Call || target.NextStepId is not null
+                                               || target.CompensationStepId is not null || target.Id == step.Id))
                 context.AddFailure("Steps", "Compensation must reference a separate terminal Call step");
 
             try
@@ -111,6 +111,7 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
 
         if (compensationOnForwardPath)
             context.AddFailure("Steps", "Compensation steps cannot be on the forward execution path");
+        return;
 
         bool CheckReference(StepDefinition source, Guid targetId)
         {
