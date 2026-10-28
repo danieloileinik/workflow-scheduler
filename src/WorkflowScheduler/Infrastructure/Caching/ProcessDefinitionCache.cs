@@ -77,7 +77,6 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
             [
                 .. definition
                     .Steps
-                    .OrderBy(s => s.Position)
                     .Select(s => new StepSnapshot(s.Id, s.Name, s.Type, s.Metadata, s.NextStepId, s.CompensationStepId))
             ]);
 
