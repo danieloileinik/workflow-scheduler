@@ -14,7 +14,7 @@ public static class DependencyInjection
 {
     extension(IServiceCollection services)
     {
-        public IServiceCollection AddWorkflowScheduler(IConfiguration configuration)
+        public void AddWorkflowScheduler(IConfiguration configuration)
         {
             services
                 .AddHealthChecks()
@@ -47,10 +47,10 @@ public static class DependencyInjection
 
             services.AddHostedService<RetryWorker>();
 
-            return services.AddWorkflowApplication();
+            services.AddWorkflowApplication();
         }
 
-        private IServiceCollection AddWorkflowApplication()
+        private void AddWorkflowApplication()
         {
             services.AddSingleton<ProcessDefinitionMemoryCache>();
             services.AddScoped<CachedProcessDefinitionProvider>();
@@ -69,8 +69,6 @@ public static class DependencyInjection
                 cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
                 cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
             });
-
-            return services;
         }
     }
 }
