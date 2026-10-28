@@ -15,9 +15,10 @@ public class SendEventHandler(
 {
     public async Task<ErrorOr<Success>> Handle(SendEventCommand request, CancellationToken ct)
     {
+        var eventName = $"event:{request.EventName.ToUpperInvariant()}";
         var duplicate = await db.EventLogs.AnyAsync(
             e => e.ProcessInstanceId == request.ProcessInstanceId
-                 && e.EventName == $"event:{request.EventName.ToUpperInvariant()}"
+                 && e.EventName == eventName
                  && e.CorrelationId == request.CorrelationId,
             ct);
         if (duplicate)
@@ -67,7 +68,7 @@ public class SendEventHandler(
         db.EventLogs.Add(
             new EventLog(
                 request.ProcessInstanceId,
-                $"event:{request.EventName.ToUpperInvariant()}",
+                eventName,
                 request.CorrelationId));
 
         return Result.Success;
