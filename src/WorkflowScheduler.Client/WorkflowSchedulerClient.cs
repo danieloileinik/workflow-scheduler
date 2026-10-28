@@ -229,7 +229,7 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
             {
                 using var call = new CancelProcessGrpcClient(_callInvoker).CancelProcessAsync(
                     new CancelProcessRequest
-                    { ProcessInstanceId = processInstanceId.ToString() },
+                        { ProcessInstanceId = processInstanceId.ToString() },
                     options);
                 await call.ResponseAsync.ConfigureAwait(false);
 

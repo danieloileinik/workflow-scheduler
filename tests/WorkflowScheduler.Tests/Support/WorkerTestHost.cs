@@ -50,7 +50,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
             new ProducerConfig { BootstrapServers = bootstrap, EnableIdempotence = true }).Build();
         _offsets = new ConsumerBuilder<string, string>(
             new ConsumerConfig
-            { BootstrapServers = bootstrap, GroupId = groupId, EnableAutoCommit = false }).Build();
+                { BootstrapServers = bootstrap, GroupId = groupId, EnableAutoCommit = false }).Build();
     }
 
     public string ServiceName { get; }
@@ -90,7 +90,7 @@ internal sealed class WorkerTestHost : IAsyncDisposable
             await admin.CreateTopicsAsync(
                 new[] { "process.commands." + serviceName, "process.commands." + serviceName + ".dead-letter" }
                     .Select(topic => new TopicSpecification
-                    { Name = topic, NumPartitions = 1, ReplicationFactor = 1 }));
+                        { Name = topic, NumPartitions = 1, ReplicationFactor = 1 }));
         }
 
         var host = new WorkerTestHost(

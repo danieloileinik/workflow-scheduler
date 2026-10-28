@@ -107,5 +107,4 @@ public class ProcessDefinitionStructureValidator : AbstractValidator<ProcessDefi
             || edges.Values.SelectMany(x => x).Any(compensationIds.Contains))
             context.AddFailure("Steps", "Compensation steps cannot be on the forward execution path");
     }
-
 }

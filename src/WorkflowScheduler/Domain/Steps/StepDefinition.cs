@@ -32,8 +32,7 @@ public class StepDefinition(
     public StepType Type { get; init; } = type;
     public string Metadata { get; init; } = metadata;
 
-    [NotMapped]
-    public StepMetadata ParsedMetadata => _parsedMetadata ??= StepMetadata.Parse(Type, Metadata);
+    [NotMapped] public StepMetadata ParsedMetadata => _parsedMetadata ??= StepMetadata.Parse(Type, Metadata);
 
     public Guid? NextStepId { get; init; } = nextStepId;
     public Guid? CompensationStepId { get; init; } = compensationStepId;

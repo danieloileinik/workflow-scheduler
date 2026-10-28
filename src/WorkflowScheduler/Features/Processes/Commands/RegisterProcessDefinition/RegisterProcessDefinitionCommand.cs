@@ -11,15 +11,16 @@ public sealed record RegisterProcessDefinitionCommand : IRequest<ErrorOr<Registe
     {
         Definition = new ProcessDefinition(name, version);
 
-        foreach (StepDefinitionDto step in steps)
-            Definition.AddStep(new StepDefinition(
-                step.Id,
-                Definition.Id,
-                step.Name,
-                step.Type,
-                step.Metadata,
-                step.NextStepId,
-                step.CompensationStepId));
+        foreach (var step in steps)
+            Definition.AddStep(
+                new StepDefinition(
+                    step.Id,
+                    Definition.Id,
+                    step.Name,
+                    step.Type,
+                    step.Metadata,
+                    step.NextStepId,
+                    step.CompensationStepId));
     }
 
     public ProcessDefinition Definition { get; }

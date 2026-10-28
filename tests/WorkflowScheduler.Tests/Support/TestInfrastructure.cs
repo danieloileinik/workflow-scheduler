@@ -1,4 +1,3 @@
-using WorkflowScheduler.Infrastructure.Caching;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -9,7 +8,7 @@ using StackExchange.Redis;
 using Testcontainers.Kafka;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
-using WorkflowScheduler.Features.Processes;
+using WorkflowScheduler.Infrastructure.Caching;
 
 namespace WorkflowScheduler.Tests.Support;
 
@@ -45,7 +44,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
 
             IntegrationPostgres = _postgres.GetConnectionString();
             EndToEndPostgres = new NpgsqlConnectionStringBuilder(IntegrationPostgres)
-            { Database = "workflow_e2e" }.ConnectionString;
+                { Database = "workflow_e2e" }.ConnectionString;
 
             await using (var connection = new NpgsqlConnection(IntegrationPostgres))
             {
@@ -189,7 +188,7 @@ public sealed class TestInfrastructure : IAsyncLifetime
     {
         using var admin = new AdminClientBuilder(
             new AdminClientConfig
-            { BootstrapServers = BootstrapServers }).Build();
+                { BootstrapServers = BootstrapServers }).Build();
         await admin.CreateTopicsAsync(
             new[] { "billing", "shipping", "refund", "undo-a", "undo-b", "high", "low" }
                 .Select(service => new TopicSpecification

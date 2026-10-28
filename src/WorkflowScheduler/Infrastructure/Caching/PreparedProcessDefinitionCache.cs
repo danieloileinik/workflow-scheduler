@@ -15,6 +15,14 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
         _definitions = new MemoryCache(new MemoryCacheOptions { SizeLimit = capacityBytes });
     }
 
+    public void Dispose()
+    {
+        _definitions.Dispose();
+
+        foreach (var loadLock in _loadLocks)
+            loadLock.Dispose();
+    }
+
     public async Task<PreparedProcessDefinition?> GetOrLoadAsync(
         Guid definitionId,
         Func<CancellationToken, Task<ProcessDefinition?>> load,
@@ -24,7 +32,7 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
         if (_definitions.Get<PreparedProcessDefinition>(definitionId) is { } cached)
             return cached;
 
-        SemaphoreSlim loadLock = _loadLocks[definitionId.GetHashCode() & (_loadLocks.Length - 1)];
+        var loadLock = _loadLocks[definitionId.GetHashCode() & (_loadLocks.Length - 1)];
         await loadLock.WaitAsync(ct);
 
         try
@@ -32,18 +40,21 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
             if (_definitions.Get<PreparedProcessDefinition>(definitionId) is { } loaded)
                 return loaded;
 
-            ProcessDefinition? definition = await load(ct);
+            var definition = await load(ct);
             if (definition is null)
                 return null;
 
             var prepared = new PreparedProcessDefinition(definition);
             // Approximate retained strings and per-step objects; oversized definitions are not cached.
-            long size = 512 + definition.Steps.Sum(step => 256L + 2L * (step.Name.Length + step.Metadata.Length));
-            _definitions.Set(definitionId, prepared, new MemoryCacheEntryOptions
-            {
-                Size = size,
-                SlidingExpiration = TimeSpan.FromMinutes(30)
-            });
+            var size = 512 + definition.Steps.Sum(step => 256L + 2L * (step.Name.Length + step.Metadata.Length));
+            _definitions.Set(
+                definitionId,
+                prepared,
+                new MemoryCacheEntryOptions
+                {
+                    Size = size,
+                    SlidingExpiration = TimeSpan.FromMinutes(30)
+                });
 
             return prepared;
         }
@@ -56,13 +67,5 @@ public sealed class PreparedProcessDefinitionCache : IDisposable
     public void Clear()
     {
         _definitions.Clear();
-    }
-
-    public void Dispose()
-    {
-        _definitions.Dispose();
-
-        foreach (SemaphoreSlim loadLock in _loadLocks)
-            loadLock.Dispose();
     }
 }

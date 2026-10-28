@@ -18,7 +18,7 @@ public class WorkflowSchedulerClientTests
         var key = Guid.NewGuid();
         var process = Guid.NewGuid();
         var invoker = new RecordingInvoker(_ => new StartProcessResponse
-        { ProcessInstanceId = process.ToString() });
+            { ProcessInstanceId = process.ToString() });
         using var client = Client(invoker);
         var first = await client.StartAsync(definition, new { OrderId = 42 }, "order-42", key);
         var replay = await client.StartAsync(definition, new { OrderId = 42 }, "order-42", key);
@@ -43,7 +43,7 @@ public class WorkflowSchedulerClientTests
     {
         var id = Guid.NewGuid();
         var invoker = new RecordingInvoker(_ => new RegisterProcessDefinitionResponse
-        { DefinitionId = id.ToString() });
+            { DefinitionId = id.ToString() });
         using var client = Client(invoker);
         var definition = Workflow
             .Define("order", 2)
@@ -217,7 +217,7 @@ public class WorkflowSchedulerClientTests
     {
         var options = new WorkflowClientOptions();
         var invoker = new RecordingInvoker(_ => new StartProcessResponse
-        { ProcessInstanceId = Guid.NewGuid().ToString() });
+            { ProcessInstanceId = Guid.NewGuid().ToString() });
         var client = Client(invoker, options);
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
         await client.StartAsync(Guid.NewGuid(), new { OrderId = 42 }, "order", Guid.NewGuid());

@@ -29,7 +29,7 @@ public class ProcessDefinitionCache(IConnectionMultiplexer redis, ILogger<Proces
                 return null;
 
             var definition = new ProcessDefinition(snapshot.Id, snapshot.Name, snapshot.Version)
-            { CreatedAt = snapshot.CreatedAt };
+                { CreatedAt = snapshot.CreatedAt };
 
             foreach (var step in snapshot.Steps)
             {

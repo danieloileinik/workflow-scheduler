@@ -16,11 +16,12 @@ public sealed class CachedProcessDefinitionProvider(
 
     private async Task<ProcessDefinition?> LoadAsync(Guid definitionId, CancellationToken ct)
     {
-        ProcessDefinition? cached = await cache.GetAsync(definitionId, ct);
+        var cached = await cache.GetAsync(definitionId, ct);
         if (cached is not null)
             return cached;
 
-        ProcessDefinition? definition = await db.ProcessDefinitions
+        var definition = await db
+            .ProcessDefinitions
             .AsNoTracking()
             .Include(candidate => candidate.Steps)
             .FirstOrDefaultAsync(candidate => candidate.Id == definitionId, ct);

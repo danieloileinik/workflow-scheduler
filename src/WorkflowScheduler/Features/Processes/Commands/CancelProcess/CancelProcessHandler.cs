@@ -20,10 +20,10 @@ public class CancelProcessHandler(AppDbContext db, CachedProcessDefinitionProvid
             return result;
 
         foreach (var step in instance.Steps.Where(x => x is
-        {
-            IsCompensation: false, Status: StepStatus.Pending or StepStatus.Running
+                 {
+                     IsCompensation: false, Status: StepStatus.Pending or StepStatus.Running
                      or StepStatus.Waiting
-        }))
+                 }))
         {
             var cancel = step.Cancel();
             if (cancel.IsError)

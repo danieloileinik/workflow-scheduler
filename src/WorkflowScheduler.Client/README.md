@@ -100,7 +100,8 @@ builder.Services.AddWorkflowSchedulerClient(options =>
 ```
 
 The registration reuses a singleton gRPC channel and disposes it with the host. A standalone client, as above, should be
-disposed by its caller. Configure `JsonSerializerOptions`, `ChannelOptions` and a per-RPC `HeadersFactory` before creating
+disposed by its caller. Configure `JsonSerializerOptions`, `ChannelOptions` and a per-RPC `HeadersFactory` before
+creating
 the client when you need custom JSON, TLS, transport limits or authorization metadata.
 
 ## Add waiting steps and compensation
@@ -181,12 +182,12 @@ pages. `GetStatusAsync` returns the full history; large histories or outputs can
 
 `WorkflowClientException` preserves the gRPC `StatusCode`, detail, trailers and original exception. Common cases:
 
-| Status | What to do |
-|--------|------------|
-| `NotFound` | Check the definition/process ID; register a missing definition if appropriate |
-| `InvalidArgument` | Correct the request or payload |
-| `FailedPrecondition` | Check current state or a reused identity; do not blindly repeat the mutation |
-| `Unavailable` / `DeadlineExceeded` | The outcome may be unknown; retry with the saved request identity |
+| Status                             | What to do                                                                    |
+|------------------------------------|-------------------------------------------------------------------------------|
+| `NotFound`                         | Check the definition/process ID; register a missing definition if appropriate |
+| `InvalidArgument`                  | Correct the request or payload                                                |
+| `FailedPrecondition`               | Check current state or a reused identity; do not blindly repeat the mutation  |
+| `Unavailable` / `DeadlineExceeded` | The outcome may be unknown; retry with the saved request identity             |
 
 Caller cancellation throws `OperationCanceledException`. The Client does not automatically retry mutating RPCs.
 

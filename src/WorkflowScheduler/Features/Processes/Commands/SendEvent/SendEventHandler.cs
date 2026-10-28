@@ -45,7 +45,7 @@ public class SendEventHandler(
         if (stepDefinition.Type != StepType.WaitEvent)
             return ProcessErrors.StepTypeMismatch;
 
-        StepMetadata.WaitEvent metadata = (StepMetadata.WaitEvent)stepDefinition.Metadata;
+        var metadata = (StepMetadata.WaitEvent)stepDefinition.Metadata;
         if (!string.Equals(metadata.EventName, request.EventName, StringComparison.OrdinalIgnoreCase))
             return ProcessErrors.EventNameMismatch;
 
@@ -72,5 +72,4 @@ public class SendEventHandler(
 
         return Result.Success;
     }
-
 }

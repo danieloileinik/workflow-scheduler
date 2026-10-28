@@ -23,7 +23,7 @@ public class WorkerKafkaTests(TestInfrastructure infrastructure)
         var source = "process.commands." + service;
         using var admin = new AdminClientBuilder(
             new AdminClientConfig
-            { BootstrapServers = infrastructure.BootstrapServers }).Build();
+                { BootstrapServers = infrastructure.BootstrapServers }).Build();
         await admin.CreateTopicsAsync(
         [
             new TopicSpecification { Name = source, NumPartitions = 1, ReplicationFactor = 1 },

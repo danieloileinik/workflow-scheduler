@@ -17,7 +17,11 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("custom-step", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "custom", type, """{"serviceName":"test","command":"Run","eventName":"Event"}""");
+        var stepDefinition = new StepDefinition(
+            definition.Id,
+            "custom",
+            type,
+            """{"serviceName":"test","command":"Run","eventName":"Event"}""");
         definition.AddStep(stepDefinition);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
@@ -27,7 +31,12 @@ public class StepExecutorTests
         var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
+        var result = executor.Run(
+            prepared,
+            process,
+            prepared.FindStep(stepDefinition.Id)!,
+            step,
+            CancellationToken.None);
 
         // Assert
         Assert.False(result.IsError);
@@ -42,7 +51,11 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("completed-step", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, """{"serviceName":"test","command":"Run"}""");
+        var stepDefinition = new StepDefinition(
+            definition.Id,
+            "call",
+            StepType.Call,
+            """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
@@ -56,7 +69,12 @@ public class StepExecutorTests
         var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
+        var result = executor.Run(
+            prepared,
+            process,
+            prepared.FindStep(stepDefinition.Id)!,
+            step,
+            CancellationToken.None);
 
         // Assert
         Assert.True(result.IsError);
@@ -73,7 +91,11 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("compensation", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "undo", StepType.Call, """{"serviceName":"test","command":"Run"}""");
+        var stepDefinition = new StepDefinition(
+            definition.Id,
+            "undo",
+            StepType.Call,
+            """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
@@ -85,7 +107,12 @@ public class StepExecutorTests
         var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
+        var result = executor.Run(
+            prepared,
+            process,
+            prepared.FindStep(stepDefinition.Id)!,
+            step,
+            CancellationToken.None);
 
         // Assert
         Assert.False(result.IsError);
@@ -99,7 +126,11 @@ public class StepExecutorTests
     {
         // Arrange
         var definition = new ProcessDefinition("invalid-outcome", 1);
-        var stepDefinition = new StepDefinition(definition.Id, "call", StepType.Call, """{"serviceName":"test","command":"Run"}""");
+        var stepDefinition = new StepDefinition(
+            definition.Id,
+            "call",
+            StepType.Call,
+            """{"serviceName":"test","command":"Run"}""");
         definition.AddStep(stepDefinition);
 
         var process = new ProcessInstance(definition.Id, "order", "{}");
@@ -109,7 +140,12 @@ public class StepExecutorTests
         var prepared = new PreparedProcessDefinition(definition);
 
         // Act
-        var result = executor.Run(prepared, process, prepared.FindStep(stepDefinition.Id)!, step, CancellationToken.None);
+        var result = executor.Run(
+            prepared,
+            process,
+            prepared.FindStep(stepDefinition.Id)!,
+            step,
+            CancellationToken.None);
 
         // Assert
         Assert.True(result.IsError);

@@ -9,7 +9,7 @@ internal sealed class WorkerRetry(WorkflowWorkerOptions options, ILogger logger)
 {
     public async Task<T> RunAsync<T>(string operation, Func<CancellationToken, Task<T>> action, CancellationToken ct)
     {
-        for (var attempt = 1; ; attempt++)
+        for (var attempt = 1;; attempt++)
         {
             ct.ThrowIfCancellationRequested();
 

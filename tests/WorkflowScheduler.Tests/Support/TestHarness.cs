@@ -1,8 +1,7 @@
-using WorkflowScheduler.Infrastructure.Caching;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
-using WorkflowScheduler.Features.Processes;
 using WorkflowScheduler.Features.Steps.Commands.CompleteStep;
+using WorkflowScheduler.Infrastructure.Caching;
 using WorkflowScheduler.Infrastructure.Messaging;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
 

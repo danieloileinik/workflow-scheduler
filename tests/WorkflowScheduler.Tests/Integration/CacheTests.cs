@@ -1,6 +1,6 @@
-using WorkflowScheduler.Infrastructure.Caching;
 using StackExchange.Redis;
 using WorkflowScheduler.Features.Processes;
+using WorkflowScheduler.Infrastructure.Caching;
 using WorkflowScheduler.Tests.Support;
 
 namespace WorkflowScheduler.Tests.Integration;

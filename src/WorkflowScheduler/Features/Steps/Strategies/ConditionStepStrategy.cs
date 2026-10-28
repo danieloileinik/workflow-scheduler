@@ -15,7 +15,7 @@ public class ConditionStepStrategy : IStepStrategy
         StepInstance stepInstance,
         PreparedStepDefinition stepDefinition)
     {
-        StepMetadata.Condition condition = (StepMetadata.Condition)stepDefinition.Metadata;
+        var condition = (StepMetadata.Condition)stepDefinition.Metadata;
         // Strategies are scoped to one sequential command execution; retain its immutable parsed input.
         if (!ReferenceEquals(_inputData, processInstance.InputData))
         {
@@ -49,7 +49,7 @@ public class ConditionStepStrategy : IStepStrategy
 
     private static bool CompareNumeric(string left, string op, decimal right)
     {
-        if (!decimal.TryParse(left, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value))
+        if (!decimal.TryParse(left, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
             return false;
 
         return op switch
@@ -61,5 +61,4 @@ public class ConditionStepStrategy : IStepStrategy
             _ => false
         };
     }
-
 }

@@ -221,7 +221,7 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
 
         var pending = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-            { ProcessInstanceId = processId.ToString() });
+                { ProcessInstanceId = processId.ToString() });
         // Advance the persisted deadline; the real RetryWorker must discover and dispatch it.
         await app.WithDb(async db =>
         {
@@ -238,7 +238,7 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
 
         var completed = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-            { ProcessInstanceId = processId.ToString() });
+                { ProcessInstanceId = processId.ToString() });
         await app.WaitForOutboxAsync(2);
 
         // Assert
@@ -290,7 +290,7 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
         var undoSecond = await broker.ReadAsync("undo-b", processId);
         var midway = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-            { ProcessInstanceId = processId.ToString() });
+                { ProcessInstanceId = processId.ToString() });
         await new CompleteStepGrpcClient(invoker).CompleteStepAsync(Callback(undoSecond));
 
         var undoFirst = await broker.ReadAsync("undo-a", processId);
@@ -298,7 +298,7 @@ public class GrpcWorkflowTests(TestInfrastructure infrastructure)
 
         var completed = await new GetProcessStatusGrpcClient(invoker).GetProcessStatusAsync(
             new GetProcessStatusRequest
-            { ProcessInstanceId = processId.ToString() });
+                { ProcessInstanceId = processId.ToString() });
         await app.WaitForOutboxAsync(4);
 
         // Assert

@@ -88,16 +88,17 @@ Here `worker` is the builder returned by `AddWorkflowSchedulerWorker`. Your `Res
 `WorkflowCommandContext` and a cancellation token. Register its dependencies through normal DI. The SDK registers the
 handler as scoped unless it is already registered; each message gets a fresh asynchronous scope.
 
-For a durable implementation, follow the demo's [Inventory handler](../../samples/order-demo/OrderDemo.Inventory/InventoryHandler.cs)
+For a durable implementation, follow the
+demo's [Inventory handler](../../samples/order-demo/OrderDemo.Inventory/InventoryHandler.cs)
 or [Payment handler](../../samples/order-demo/OrderDemo.Payments/PaymentHandler.cs). Commit the business change and its
 execution receipt together, and return the stored result when the receipt already exists.
 
-| Context property | Use |
-|------------------|-----|
-| `IdempotencyKey` | Deduplicate this execution and attempt; persist it with the result |
-| `Execution` | Inspect process, definition-step and execution IDs plus the attempt number |
-| `Command` | Distinguish commands when one handler handles several operations |
-| `IsCompensation` | Identify an undo command |
+| Context property        | Use                                                                              |
+|-------------------------|----------------------------------------------------------------------------------|
+| `IdempotencyKey`        | Deduplicate this execution and attempt; persist it with the result               |
+| `Execution`             | Inspect process, definition-step and execution IDs plus the attempt number       |
+| `Command`               | Distinguish commands when one handler handles several operations                 |
+| `IsCompensation`        | Identify an undo command                                                         |
 | `CallbackCorrelationId` | Stable callback identity managed by the SDK; changes for a new scheduled attempt |
 
 Delivery is **at least once**. If the service crashes after committing a business operation but before the scheduler
@@ -111,7 +112,8 @@ command. The scheduler chooses when to execute it; the handler performs the doma
 
 - Returning a result sends a success callback. Throwing an exception, invalid typed input or a missing handler sends a
   failure callback. The scheduler then applies its retry and compensation policy.
-- A serialized output over 3 MiB produces a small failure callback. Store large results externally and return a reference.
+- A serialized output over 3 MiB produces a small failure callback. Store large results externally and return a
+  reference.
 - Callback transport failures retry the already computed result in memory. The SDK does not rerun the handler as a local
   transport retry. A process restart can still cause redelivery.
 - Before execution, the Worker checks that the execution and attempt are active. It skips completed, cancelled and stale
@@ -129,25 +131,26 @@ in progress.
 
 Configure these options inside `AddWorkflowSchedulerWorker` before building the host:
 
-| Option | Default | Purpose |
-|--------|---------|---------|
-| `ServiceName` | Required | Command topic suffix |
-| `BootstrapServers` | Required | Kafka brokers |
-| `GroupId` | `workflow-<ServiceName>` | Stable group shared by service replicas |
-| `DeadLetterTopic` | `<command-topic>.dead-letter` | Destination for invalid envelopes |
-| `HandlerTimeout` | 1 minute | Cooperative handler cancellation deadline |
-| `RpcTimeout` | 10 seconds | Timeout of each status, callback or dead-letter transport attempt |
-| `MaxDeliveryAttempts` | 5 | Attempts for one transport operation |
-| `RetryDelay` | 1 second | Delay between transient transport failures |
-| `JsonSerializerOptions` | Web defaults | Typed payload serialization |
-| `ConsumerConfig` | Earliest; 1-second commit interval; 15-minute max poll interval | Kafka consumer and security settings |
-| `DeadLetterProducerConfig` | Idempotent; all replicas acknowledge | Kafka producer and security settings |
+| Option                     | Default                                                         | Purpose                                                           |
+|----------------------------|-----------------------------------------------------------------|-------------------------------------------------------------------|
+| `ServiceName`              | Required                                                        | Command topic suffix                                              |
+| `BootstrapServers`         | Required                                                        | Kafka brokers                                                     |
+| `GroupId`                  | `workflow-<ServiceName>`                                        | Stable group shared by service replicas                           |
+| `DeadLetterTopic`          | `<command-topic>.dead-letter`                                   | Destination for invalid envelopes                                 |
+| `HandlerTimeout`           | 1 minute                                                        | Cooperative handler cancellation deadline                         |
+| `RpcTimeout`               | 10 seconds                                                      | Timeout of each status, callback or dead-letter transport attempt |
+| `MaxDeliveryAttempts`      | 5                                                               | Attempts for one transport operation                              |
+| `RetryDelay`               | 1 second                                                        | Delay between transient transport failures                        |
+| `JsonSerializerOptions`    | Web defaults                                                    | Typed payload serialization                                       |
+| `ConsumerConfig`           | Earliest; 1-second commit interval; 15-minute max poll interval | Kafka consumer and security settings                              |
+| `DeadLetterProducerConfig` | Idempotent; all replicas acknowledge                            | Kafka producer and security settings                              |
 
 These delivery attempts are separate from the scheduler's delayed business retries. Increasing `HandlerTimeout` or
 transport retry settings may require a larger `ConsumerConfig.MaxPollIntervalMs`; registration validates that budget.
 A handler that ignores cancellation can still overrun it.
 
-For a secured broker, configure SASL/TLS on **both** `ConsumerConfig` and `DeadLetterProducerConfig`. Configure scheduler
+For a secured broker, configure SASL/TLS on **both** `ConsumerConfig` and `DeadLetterProducerConfig`. Configure
+scheduler
 gRPC transport through `WorkflowClientOptions`. Provision command and dead-letter topics with the required partitions,
 replication and permissions before starting the service. Keep the same group ID across deployments.
 
