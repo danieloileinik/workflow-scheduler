@@ -62,8 +62,7 @@ public static class DependencyInjection
             services.AddScoped<CachedProcessDefinitionProvider>();
             services.AddScoped<SagaCoordinator>();
 
-            services.AddScoped<CallStepStrategy>();
-            services.AddScoped<IStepStrategy>(provider => provider.GetRequiredService<CallStepStrategy>());
+            services.AddScoped<IStepStrategy, CallStepStrategy>();
             services.AddScoped<IStepStrategy, WaitEventStepStrategy>();
             services.AddScoped<IStepStrategy, ConditionStepStrategy>();
             services.AddScoped<StepExecutor>();

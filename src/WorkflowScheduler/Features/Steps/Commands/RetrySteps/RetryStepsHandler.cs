@@ -11,8 +11,7 @@ namespace WorkflowScheduler.Features.Steps.Commands.RetrySteps;
 public class RetryStepsHandler(
     AppDbContext db,
     CachedProcessDefinitionProvider definitions,
-    StepExecutor executor,
-    CallStepStrategy calls)
+    StepExecutor executor)
     : IRequestHandler<RetryStepsCommand, ErrorOr<Success>>
 {
     public async Task<ErrorOr<Success>> Handle(RetryStepsCommand request, CancellationToken ct)
@@ -46,14 +45,10 @@ public class RetryStepsHandler(
 
             if (step.Status == StepStatus.Running)
             {
-                if (target.Type != StepType.Call)
-                    return ProcessErrors.StepTypeMismatch;
-
-                var redelivery = step.PrepareRedelivery();
+                var redelivery = executor.Redeliver(instance, target, step, ct);
                 if (redelivery.IsError)
                     return redelivery;
 
-                calls.Execute(instance, step, target);
                 continue;
             }
 

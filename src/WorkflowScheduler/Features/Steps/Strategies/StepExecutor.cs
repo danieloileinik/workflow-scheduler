@@ -22,6 +22,28 @@ public class StepExecutor(IEnumerable<IStepStrategy> strategies)
             : Run(definition, instance, next, move.Value, ct);
     }
 
+    public ErrorOr<Success> Redeliver(ProcessInstance instance,
+        StepDefinition stepDefinition,
+        StepInstance step,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (stepDefinition.Type != StepType.Call)
+            return ProcessErrors.StepTypeMismatch;
+
+        var strategy = strategies.FirstOrDefault(candidate => candidate.StepType == stepDefinition.Type);
+        if (strategy is null)
+            return ProcessErrors.StepTypeMismatch;
+
+        var redelivery = step.PrepareRedelivery();
+        if (redelivery.IsError)
+            return redelivery;
+
+        strategy.Execute(instance, step, stepDefinition);
+
+        return Result.Success;
+    }
+
     public ErrorOr<Success> Run(ProcessDefinition definition,
         ProcessInstance instance,
         StepDefinition stepDefinition,

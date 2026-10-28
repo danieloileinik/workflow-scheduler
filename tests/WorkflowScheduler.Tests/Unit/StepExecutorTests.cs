@@ -186,6 +186,33 @@ public class StepExecutorTests
         Assert.Equal(2, process.Steps.Count);
     }
 
+    [Fact]
+    public void Redeliver_WithRunningCall_UsesRegisteredStrategyWithoutRestartingOrAdvancingAttempt()
+    {
+        // Arrange
+        var definitionId = Guid.NewGuid();
+        var definition = new StepDefinition(Guid.NewGuid(), definitionId, "call", StepType.Call,
+            """{"serviceName":"test","command":"Run"}""");
+        var process = new ProcessInstance(definitionId, "order", "{}");
+        var step = process.Start(definition.Id).Value;
+        Assert.False(step.MarkRunning().IsError);
+        Assert.False(process.Wait().IsError);
+        var strategy = new ResultStrategy(StepType.Call, StepExecutionState.Running);
+        var executor = new StepExecutor([strategy]);
+
+        // Act
+        var result = executor.Redeliver(process, definition, step, CancellationToken.None);
+
+        // Assert
+        Assert.False(result.IsError);
+        Assert.Equal(1, strategy.Executions);
+        Assert.Equal(StepStatus.Running, step.Status);
+        Assert.Equal(0, step.RetryCount);
+        Assert.Equal(ProcessStatus.Waiting, process.Status);
+        Assert.Equal(step.Id, process.CurrentStepId);
+        Assert.Same(step, Assert.Single(process.Steps));
+    }
+
     private sealed class ContinueStrategy(Guid nextStepId) : IStepStrategy
     {
         public StepType StepType => StepType.Condition;
