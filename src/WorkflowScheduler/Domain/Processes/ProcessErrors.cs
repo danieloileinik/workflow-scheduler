@@ -31,6 +31,12 @@ public static class ProcessErrors
     public static Error NotWaiting =>
         Error.Conflict("Process.NotWaiting", "Process is not in waiting state");
 
+    public static Error NotCompensating =>
+        Error.Conflict("Process.NotCompensating", "Only failed or cancelled processes can resume compensation");
+
+    public static Error CompensationNotFailed =>
+        Error.Conflict("Process.CompensationNotFailed", "Only the failed head of the compensation chain can be resumed");
+
     public static Error EventNameMismatch =>
         Error.Conflict(
             "Process.EventNameMismatch",

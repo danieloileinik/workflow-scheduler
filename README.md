@@ -130,7 +130,8 @@ supports sequences and branches; arbitrary graphs and loops require direct defin
 
 There are no parallel branches, timers, cron schedules, script execution or visual designer. Authentication and
 authorization are not implemented in the gRPC server; configure access control and TLS at the deployment boundary.
-Exhausted compensation needs operator intervention; there is no recovery API yet.
+Exhausted compensation needs operator intervention. After resolving the cause, use `ResumeCompensation` to resume the
+specific failed compensation execution without editing database rows.
 
 ## Reference
 
@@ -231,6 +232,7 @@ Each RPC has a separate service named `workflow.<Name>`; generated C# types use 
 | `StartProcess` | [Start with an idempotency key](src/WorkflowScheduler.Contracts/Processes/start_process.proto) |
 | `SendEvent` | [External event](src/WorkflowScheduler.Contracts/Processes/send_event.proto) |
 | `CancelProcess` | [Cancellation](src/WorkflowScheduler.Contracts/Processes/cancel_process.proto) |
+| `ResumeCompensation` | [Resume a failed compensation execution](src/WorkflowScheduler.Contracts/Processes/resume_compensation.proto) |
 | `GetProcessStatus` | [Status and paged history](src/WorkflowScheduler.Contracts/Processes/get_process_status.proto) |
 | `CompleteStep` | [Success or failure callback](src/WorkflowScheduler.Contracts/Steps/complete_step.proto) |
 | `IsStepActive` | [Execution activity check](src/WorkflowScheduler.Contracts/Steps/is_step_active.proto) |
@@ -308,6 +310,18 @@ automatically: inspect `Error`, fix its cause and reset `FailedAt`, `NextAttempt
 The retry worker polls due steps every two seconds. Retry attempts retain the execution ID and increment `Attempt`;
 late callbacks cannot complete a newer attempt. Compensation uses the same retry policy and stops if a compensation
 exhausts its retries. Inspect `saga_compensation_logs` and domain-service state before intervening.
+
+To resume compensation after fixing its cause, call `ResumeCompensation` with the process ID and the failed compensation
+execution's `StepInstanceId`. Only the failed head of the chain can resume, and only for a `Failed` or `Cancelled` process.
+The failed execution remains in history. A new execution receives a fresh automatic retry budget; its success continues
+the existing compensation order without changing the process's terminal status. Late callbacks for the old execution
+cannot complete the new one.
+
+The failed execution ID is also the resume request identity. Concurrent or repeated requests for the same failed
+execution return success without creating additional executions. If the resumed execution later fails, explicitly
+resume that new failed execution ID; replaying the previous request cannot restart it. The resume receipt, new execution,
+saga update and outbox command commit together under the process lock. Inspect external effects before resuming an
+operation with an uncertain outcome, and keep domain-level compensation idempotent across execution IDs.
 
 The same worker recovers running calls whose callback deadline expired, including compensation calls. Recovery keeps
 the execution ID, attempt and callback identity unchanged. A deadline is armed only after an acknowledged Kafka delivery;

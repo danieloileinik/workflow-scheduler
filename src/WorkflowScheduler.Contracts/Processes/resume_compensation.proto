@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+option csharp_namespace = "WorkflowScheduler.Grpc";
+
+package workflow;
+
+service ResumeCompensation {
+  rpc ResumeCompensation (ResumeCompensationRequest) returns (ResumeCompensationResponse);
+}
+
+message ResumeCompensationRequest {
+  string process_instance_id = 1;
+  string failed_step_instance_id = 2;
+}
+
+message ResumeCompensationResponse {
+}

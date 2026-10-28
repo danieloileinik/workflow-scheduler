@@ -271,6 +271,32 @@ public class WorkflowSchedulerClientTests
         Assert.True(request.IsCompensation);
     }
 
+    [Fact]
+    public async Task ResumeCompensation_UsesFailedExecutionAsStableRequestIdentity()
+    {
+        // Arrange
+        var invoker = new RecordingInvoker(_ => new ResumeCompensationResponse());
+        using var client = Client(invoker);
+        var process = Guid.NewGuid();
+        var failed = Guid.NewGuid();
+
+        // Act
+        await client.ResumeCompensationAsync(process, failed);
+        await client.ResumeCompensationAsync(process, failed);
+
+        // Assert
+        Assert.Equal(2, invoker.Requests.Count);
+        Assert.All(invoker.Requests, record =>
+        {
+            var request = Assert.IsType<ResumeCompensationRequest>(record.Request);
+            Assert.Equal(process.ToString(), request.ProcessInstanceId);
+            Assert.Equal(failed.ToString(), request.FailedStepInstanceId);
+        });
+        await Assert.ThrowsAsync<ArgumentException>(() => client.ResumeCompensationAsync(Guid.Empty, failed));
+        await Assert.ThrowsAsync<ArgumentException>(() => client.ResumeCompensationAsync(process, Guid.Empty));
+        Assert.Equal(2, invoker.Requests.Count);
+    }
+
     private sealed class RecordingInvoker(Func<string, object> respond) : CallInvoker
     {
         public List<(object Request, CallOptions Options)> Requests { get; } = [];

@@ -145,6 +145,23 @@ logical event; an already accepted event returns `FailedPrecondition` without ad
 Use `await scheduler.CancelAsync(orderProcessId)` to request cancellation. It does not stop an operation already
 executing in another service; compensation may continue after the process status becomes `Cancelled`.
 
+If a compensation exhausts its automatic retries, resolve the underlying problem and resume its specific failed
+execution through the SDK:
+
+```csharp
+await scheduler.ResumeCompensationAsync(processId, failedStepInstanceId);
+```
+
+`failedStepInstanceId` is the execution ID of the failed compensation from process history, not its definition-step ID
+or a failed forward call's ID. Only the failed head of the compensation chain can resume. The process remains `Failed`
+or `Cancelled`; a new compensation execution gets a fresh automatic retry budget, while the old failure remains in
+history. After success, remaining compensations continue in their existing order.
+
+The failed execution ID identifies this administrative request. Reuse both IDs after a lost response: accepted requests
+are durably deduplicated, including after completion or another failure. To resume a later failed execution, explicitly
+use its new ID. A successful response means the resume was accepted, not that the compensation has completed. Verify
+external side effects first and ensure compensation operations are idempotent across different execution IDs.
+
 ## Add a condition
 
 ```csharp

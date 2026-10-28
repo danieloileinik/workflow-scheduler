@@ -102,6 +102,40 @@ public class SagaCoordinator(AppDbContext db, StepExecutor executor)
         return StartNext(instance, definition, next, ct);
     }
 
+    public async Task<ErrorOr<Success>> ResumeAsync(ProcessInstance instance,
+        ProcessDefinition definition,
+        Guid failedStepInstanceId,
+        CancellationToken ct)
+    {
+        if (instance.Status is not (ProcessStatus.Failed or ProcessStatus.Cancelled))
+            return ProcessErrors.NotCompensating;
+
+        var failed = await db.SagaCompensationLogs.FirstOrDefaultAsync(
+            log => log.ProcessInstanceId == instance.Id && log.StepInstanceId == failedStepInstanceId, ct);
+        if (failed is null)
+            return ProcessErrors.StepNotFound;
+
+        if (failed.Status != CompensationStatus.Failed)
+            return ProcessErrors.CompensationNotFailed;
+
+        var blocked = await db.SagaCompensationLogs.AnyAsync(
+            log => log.ProcessInstanceId == instance.Id && log.Id != failed.Id
+                   && (log.Status == CompensationStatus.Running
+                       || (log.Status != CompensationStatus.Done && log.Sequence <= failed.Sequence)), ct);
+        if (blocked)
+            return ProcessErrors.CompensationNotFailed;
+
+        var failedExecution = await db.StepInstances.AnyAsync(
+            step => step.ProcessInstanceId == instance.Id && step.Id == failedStepInstanceId
+                    && step.StepDefinitionId == failed.StepDefinitionId
+                    && step.IsCompensation && step.Status == StepStatus.Failed, ct);
+        if (!failedExecution)
+            return ProcessErrors.CompensationNotFailed;
+
+        // Preserve the failed execution and give the resumed run a new identity and retry budget.
+        return StartNext(instance, definition, failed, ct);
+    }
+
     private ErrorOr<Success> StartNext(ProcessInstance instance,
         ProcessDefinition definition,
         SagaCompensationLog? next,

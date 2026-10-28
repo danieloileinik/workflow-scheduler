@@ -108,6 +108,10 @@ when an operation must remain unique across different workflow retry attempts.
 Compensation is another registered command, such as `ReleaseStock`. Register it with `Handle` just like a forward
 command. The scheduler chooses when to execute it; the handler performs the domain-specific undo operation.
 
+After an exhausted compensation is explicitly resumed with `ResumeCompensation`, the Worker receives a new execution ID
+with attempt zero. The failed execution and its receipts remain unchanged. Keep compensation idempotent at the domain
+level too: execution receipts deduplicate delivery of one execution, while an operator-initiated resume has a new identity.
+
 ## Results, retries and shutdown
 
 - Returning a result sends a success callback. Throwing an exception, invalid typed input or a missing handler sends a

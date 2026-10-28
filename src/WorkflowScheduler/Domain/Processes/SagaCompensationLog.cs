@@ -30,6 +30,9 @@ public class SagaCompensationLog
     {
         StepInstanceId = stepInstanceId;
         Status = CompensationStatus.Running;
+        StartedAt = DateTime.UtcNow;
+        CompletedAt = null;
+        Error = null;
     }
 
     public void Complete()

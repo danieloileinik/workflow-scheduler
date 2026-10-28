@@ -3,6 +3,7 @@ using WorkflowScheduler.Common;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Features.Processes.Commands.CancelProcess;
 using WorkflowScheduler.Features.Processes.Commands.RegisterProcessDefinition;
+using WorkflowScheduler.Features.Processes.Commands.ResumeCompensation;
 using WorkflowScheduler.Features.Processes.Commands.SendEvent;
 using WorkflowScheduler.Features.Processes.Commands.StartProcess;
 using WorkflowScheduler.Features.Processes.Queries.GetProcessDefinition;
@@ -54,6 +55,7 @@ public class Program
         app.MapGrpcService<CompleteStepEndpoint>();
         app.MapGrpcService<SendEventEndpoint>();
         app.MapGrpcService<CancelProcessEndpoint>();
+        app.MapGrpcService<ResumeCompensationEndpoint>();
         app.MapGrpcService<GetProcessStatusEndpoint>();
         app.MapGrpcService<IsStepActiveEndpoint>();
         await app.RunAsync();

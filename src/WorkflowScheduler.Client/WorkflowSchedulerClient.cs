@@ -12,6 +12,7 @@ using GetProcessStatusGrpcClient = WorkflowScheduler.Grpc.GetProcessStatus.GetPr
 using IsStepActiveGrpcClient = WorkflowScheduler.Grpc.IsStepActive.IsStepActiveClient;
 using RegisterProcessDefinitionGrpcClient =
     WorkflowScheduler.Grpc.RegisterProcessDefinition.RegisterProcessDefinitionClient;
+using ResumeCompensationGrpcClient = WorkflowScheduler.Grpc.ResumeCompensation.ResumeCompensationClient;
 using SendEventGrpcClient = WorkflowScheduler.Grpc.SendEvent.SendEventClient;
 using StartProcessGrpcClient = WorkflowScheduler.Grpc.StartProcess.StartProcessClient;
 
@@ -231,6 +232,31 @@ public sealed class WorkflowSchedulerClient : IWorkflowSchedulerClient, IDisposa
                     new CancelProcessRequest
                         { ProcessInstanceId = processInstanceId.ToString() },
                     options);
+                await call.ResponseAsync.ConfigureAwait(false);
+
+                return true;
+            },
+            cancellationToken);
+    }
+
+    public Task ResumeCompensationAsync(Guid processInstanceId,
+        Guid failedStepInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.Id(processInstanceId, nameof(processInstanceId));
+        Guard.Id(failedStepInstanceId, nameof(failedStepInstanceId));
+
+        var request = new ResumeCompensationRequest
+        {
+            ProcessInstanceId = processInstanceId.ToString(),
+            FailedStepInstanceId = failedStepInstanceId.ToString()
+        };
+
+        return InvokeAsync(
+            nameof(ResumeCompensationAsync),
+            async options =>
+            {
+                using var call = new ResumeCompensationGrpcClient(_callInvoker).ResumeCompensationAsync(request, options);
                 await call.ResponseAsync.ConfigureAwait(false);
 
                 return true;

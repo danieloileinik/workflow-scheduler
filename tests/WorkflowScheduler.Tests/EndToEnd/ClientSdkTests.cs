@@ -136,6 +136,64 @@ public class ClientSdkTests(TestInfrastructure infrastructure)
     }
 
     [Fact]
+    public async Task ResumeCompensation_RetriesFailedUndoThroughGrpcAndDeduplicatesLostResponses()
+    {
+        // Arrange
+        await using var app = await infrastructure.CreateGrpcAppAsync();
+        app.StartServer();
+        using var client = new WorkflowSchedulerClient(new WorkflowClientOptions { Address = app.ClientOptions.BaseAddress });
+        using var broker = infrastructure.CreateProbe("billing", "refund");
+        var definition = await client.RegisterAsync(Workflow.Define("resume-undo-" + Guid.NewGuid())
+            .Call("billing", "Charge").CompensateWith("refund", "Refund").WaitFor("Approved").Build());
+        var process = await client.StartAsync(definition, new { OrderId = 42 }, "order", Guid.NewGuid());
+        var forward = await broker.ReadAsync("billing", process);
+        await client.CompleteStepAsync(Execution(forward), new { }, "charge-complete");
+        await client.CancelAsync(process);
+        var failed = await broker.ReadAsync("refund", process);
+        await app.WithDb(db => db.StepInstances.Where(step => step.Id == failed.StepInstanceId)
+            .ExecuteUpdateAsync(update => update.SetProperty(step => step.RetryCount, step => step.MaxRetries)));
+        await client.FailStepAsync(Execution(failed) with { Attempt = 3 }, "Refund unavailable", "refund-failed");
+
+        // Act
+        await client.ResumeCompensationAsync(process, failed.StepInstanceId);
+        await client.ResumeCompensationAsync(process, failed.StepInstanceId);
+        var resumed = await broker.ReadAsync("refund", process);
+        await client.CompleteStepAsync(Execution(resumed), new { Refunded = true }, "refund-complete");
+        await client.ResumeCompensationAsync(process, failed.StepInstanceId);
+        var state = await client.GetStatusAsync(process);
+        await app.WaitForOutboxAsync(3);
+
+        // Assert
+        Assert.NotEqual(failed.StepInstanceId, resumed.StepInstanceId);
+        Assert.Equal(0, resumed.Attempt);
+        Assert.Equal(WorkflowProcessStatus.Cancelled, state.Status);
+        Assert.Equal(WorkflowStepStatus.Failed, state.StepHistory.Single(step => step.Id == failed.StepInstanceId).Status);
+        Assert.Equal(WorkflowStepStatus.Completed, state.StepHistory.Single(step => step.Id == resumed.StepInstanceId).Status);
+        Assert.Equal(1, await app.WithDb(db => db.SagaCompensationLogs.CountAsync(log => log.Status == CompensationStatus.Done)));
+        Assert.Equal(1, await app.WithDb(db => db.EventLogs.CountAsync(log => log.EventName == "ResumeCompensation")));
+        Assert.Equal(3, await app.WithDb(db => db.OutboxMessages.CountAsync()));
+        Assert.Equal(0, broker.CountRemaining(process));
+    }
+
+    [Theory]
+    [InlineData("invalid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public async Task ResumeCompensation_InvalidIdentityIsRejectedBeforeWriting(string id)
+    {
+        // Arrange
+        await using var app = await infrastructure.CreateGrpcAppAsync();
+        var client = new WorkflowScheduler.Grpc.ResumeCompensation.ResumeCompensationClient(app.CallInvoker);
+        var request = new ResumeCompensationRequest { ProcessInstanceId = id, FailedStepInstanceId = Guid.NewGuid().ToString() };
+
+        // Act
+        var error = await Assert.ThrowsAsync<RpcException>(() => client.ResumeCompensationAsync(request).ResponseAsync);
+
+        // Assert
+        Assert.Equal(StatusCode.InvalidArgument, error.StatusCode);
+        Assert.Equal(0, await app.WithDb(db => db.EventLogs.CountAsync()));
+    }
+
+    [Fact]
     public async Task HistoryPages_PreserveOrderAndExposeTotalWithoutLoadingOutputsByDefault()
     {
         await using var app = await infrastructure.CreateGrpcAppAsync();

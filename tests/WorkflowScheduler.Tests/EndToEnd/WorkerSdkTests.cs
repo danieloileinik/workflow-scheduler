@@ -396,6 +396,13 @@ public class WorkerSdkTests(TestInfrastructure infrastructure)
             return inner.CancelAsync(processInstanceId, cancellationToken);
         }
 
+        public Task ResumeCompensationAsync(Guid processInstanceId,
+            Guid failedStepInstanceId,
+            CancellationToken cancellationToken = default)
+        {
+            return inner.ResumeCompensationAsync(processInstanceId, failedStepInstanceId, cancellationToken);
+        }
+
         public Task<WorkflowProcessSnapshot> GetStatusAsync(Guid processInstanceId,
             CancellationToken cancellationToken = default)
         {

@@ -38,6 +38,11 @@ public interface IWorkflowSchedulerClient
         CancellationToken cancellationToken = default);
 
     Task CancelAsync(Guid processInstanceId, CancellationToken cancellationToken = default);
+
+    Task ResumeCompensationAsync(Guid processInstanceId,
+        Guid failedStepInstanceId,
+        CancellationToken cancellationToken = default);
+
     Task<WorkflowProcessSnapshot> GetStatusAsync(Guid processInstanceId, CancellationToken cancellationToken = default);
 
     Task<WorkflowProcessSnapshot> GetStatusPageAsync(Guid processInstanceId,
