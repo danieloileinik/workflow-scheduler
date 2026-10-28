@@ -111,6 +111,121 @@ public class RegisterProcessDefinitionValidatorTests
         Assert.True(result.IsValid);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Validate_WithUnknownConditionBranch_ReturnsOneReferenceError(bool missingTrueBranch)
+    {
+        // Arrange
+        var validator = new RegisterProcessDefinitionValidator();
+        var call = CreateCallStep();
+        var missingId = Guid.NewGuid();
+        var condition = CreateConditionStep(
+            Guid.NewGuid(),
+            missingTrueBranch ? missingId : call.Id,
+            missingTrueBranch ? call.Id : missingId);
+        var command = CreateDefinition(condition, call);
+
+        // Act
+        var result = validator.Validate(command);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Equal("All step references must belong to this definition", Assert.Single(result.Errors).ErrorMessage);
+    }
+
+    [Fact]
+    public void Validate_WithMissingReferenceAndInvalidMetadata_PreservesErrorOrder()
+    {
+        // Arrange
+        var validator = new RegisterProcessDefinitionValidator();
+        var missing = CreateCallStep(Guid.NewGuid());
+        var invalid = CreateCallStep() with { Metadata = "{}" };
+        var command = CreateDefinition(missing, invalid);
+
+        // Act
+        var result = validator.Validate(command);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Equal(
+            ["Invalid metadata for step Call", "All step references must belong to this definition"],
+            result.Errors.Select(error => error.ErrorMessage));
+    }
+
+    [Theory]
+    [InlineData(StepType.Call)]
+    [InlineData(StepType.WaitEvent)]
+    public void Validate_WithConditionLoopThroughYieldingStep_ReturnsValidResult(StepType type)
+    {
+        // Arrange
+        var validator = new RegisterProcessDefinitionValidator();
+        var conditionId = Guid.NewGuid();
+        var yielding = CreateCallStep(conditionId) with
+        {
+            Type = type,
+            Metadata = type == StepType.Call
+                ? """{"serviceName":"billing","command":"Execute"}"""
+                : """{"eventName":"Approved"}"""
+        };
+        var condition = CreateConditionStep(conditionId, yielding.Id);
+        var command = CreateDefinition(condition, yielding);
+
+        // Act
+        var result = validator.Validate(command);
+
+        // Assert
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Validate_WithBothBranchesReferencingNextCondition_ReturnsValidResult()
+    {
+        // Arrange
+        var validator = new RegisterProcessDefinitionValidator();
+        var call = CreateCallStep();
+        var second = CreateConditionStep(Guid.NewGuid(), call.Id);
+        var first = CreateConditionStep(Guid.NewGuid(), second.Id);
+        var command = CreateDefinition(first, second, call);
+
+        // Act
+        var result = validator.Validate(command);
+
+        // Assert
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("entry")]
+    [InlineData("next")]
+    [InlineData("true")]
+    [InlineData("false")]
+    public void Validate_WithCompensationOnForwardPath_ReturnsValidationError(string path)
+    {
+        // Arrange
+        var validator = new RegisterProcessDefinitionValidator();
+        var undo = CreateCallStep();
+        var call = CreateCallStep() with { CompensationStepId = undo.Id };
+        var condition = CreateConditionStep(
+            Guid.NewGuid(),
+            path == "true" ? undo.Id : call.Id,
+            path == "false" ? undo.Id : call.Id);
+        StepDefinitionDto[] steps = path switch
+        {
+            "entry" => [undo, call],
+            "next" => [call with { NextStepId = undo.Id }, undo],
+            _ => [condition, call, undo]
+        };
+        var command = CreateDefinition(steps);
+
+        // Act
+        var result = validator.Validate(command);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Equal("Compensation steps cannot be on the forward execution path", Assert.Single(result.Errors).ErrorMessage);
+    }
+
     private static StepDefinitionDto CreateCallStep(Guid? nextStepId = null)
     {
         return new StepDefinitionDto(
@@ -140,7 +255,7 @@ public class RegisterProcessDefinitionValidatorTests
         Assert.False(new RegisterProcessDefinitionValidator().Validate(CreateDefinition(step)).IsValid);
     }
 
-    private static StepDefinitionDto CreateConditionStep(Guid id, Guid nextStepId)
+    private static StepDefinitionDto CreateConditionStep(Guid id, Guid nextStepId, Guid? falseNextStepId = null)
     {
         return new StepDefinitionDto(
             id,
@@ -153,7 +268,7 @@ public class RegisterProcessDefinitionValidatorTests
                     Operator = "eq",
                     Value = "yes",
                     TrueNextStepId = nextStepId,
-                    FalseNextStepId = nextStepId
+                    FalseNextStepId = falseNextStepId ?? nextStepId
                 }),
             null,
             null);
