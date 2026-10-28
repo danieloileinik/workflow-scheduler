@@ -91,7 +91,7 @@ internal sealed class WorkflowMessageProcessor(
             }
         }
 
-        if (failure is null && !WorkflowProtocol.OutputFitsMessage(JsonSerializer.Serialize(output)))
+        if (failure is null && JsonSerializer.SerializeToUtf8Bytes(output).Length > WorkflowProtocol.MaxOutputDataBytes)
             failure = "Command output exceeds the callback message size limit.";
 
         failure = failure?[..Math.Min(failure.Length, 2048)];

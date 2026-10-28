@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using ErrorOr;
 using MediatR;
@@ -19,8 +18,7 @@ public class StartProcessHandler(
     {
         var hash = Convert.ToHexString(
             SHA256.HashData(
-                Encoding.UTF8.GetBytes(
-                    JsonSerializer.Serialize(new { request.DefinitionId, request.BusinessKey, request.InputData }))));
+                JsonSerializer.SerializeToUtf8Bytes(new { request.DefinitionId, request.BusinessKey, request.InputData })));
         var previous = await db.StartRequests.FindAsync([request.IdempotencyKey], ct);
         if (previous is not null)
             return previous.RequestHash == hash
