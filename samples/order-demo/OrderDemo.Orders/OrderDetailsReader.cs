@@ -17,10 +17,17 @@ public sealed class OrderDetailsReader(
         await Task.WhenAll(inventory, payment, processTask);
 
         var process = await processTask;
-        var snapshots = await Task.WhenAll(inventory, payment);
+        var inventoryResult = await inventory;
+        var paymentResult = await payment;
+        List<string> warnings = [];
 
-        return new OrderDetails(order, process, snapshots[0].Snapshot, snapshots[1].Snapshot,
-            snapshots.Where(value => value.Warning is not null).Select(value => value.Warning!).ToArray());
+        if (inventoryResult.Warning is { } inventoryWarning)
+            warnings.Add(inventoryWarning);
+
+        if (paymentResult.Warning is { } paymentWarning)
+            warnings.Add(paymentWarning);
+
+        return new OrderDetails(order, process, inventoryResult.Snapshot, paymentResult.Snapshot, warnings);
     }
 
     private async Task<WorkflowProcessSnapshot?> ReadProcessAsync(Guid? id, CancellationToken ct) =>
