@@ -1,4 +1,5 @@
 using FluentValidation;
+using FluentValidation.Results;
 using MediatR;
 using ValidationException = FluentValidation.ValidationException;
 
@@ -13,16 +14,19 @@ public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TReq
         RequestHandlerDelegate<TResponse> next,
         CancellationToken ct)
     {
-        if (!validators.Any())
-            return await next(ct);
+        List<ValidationFailure>? failures = null;
 
-        var failures = validators
-            .Select(v => v.Validate(request))
-            .SelectMany(r => r.Errors)
-            .Where(f => f != null)
-            .ToList();
+        foreach (var validator in validators)
+        {
+            var result = validator.Validate(request);
+            if (result.Errors.Count == 0)
+                continue;
 
-        if (failures.Count != 0)
+            failures ??= [];
+            failures.AddRange(result.Errors);
+        }
+
+        if (failures is not null)
             throw new ValidationException(failures);
 
         return await next(ct);
