@@ -8,7 +8,11 @@ using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Features.Steps.Commands.RetrySteps;
 
-public class RetryStepsHandler(AppDbContext db, CachedProcessDefinitionProvider definitions, StepExecutor executor)
+public class RetryStepsHandler(
+    AppDbContext db,
+    CachedProcessDefinitionProvider definitions,
+    StepExecutor executor,
+    CallStepStrategy calls)
     : IRequestHandler<RetryStepsCommand, ErrorOr<Success>>
 {
     public async Task<ErrorOr<Success>> Handle(RetryStepsCommand request, CancellationToken ct)
@@ -17,10 +21,11 @@ public class RetryStepsHandler(AppDbContext db, CachedProcessDefinitionProvider 
         if (instance is null)
             return ProcessErrors.NotFound;
 
+        var now = DateTime.UtcNow;
         var due = instance
             .Steps
-            .Where(x => x.Status == StepStatus.Pending
-                        && x.NextRetryAt <= DateTime.UtcNow)
+            .Where(step => (step.Status == StepStatus.Pending && step.NextRetryAt <= now)
+                           || (step.Status == StepStatus.Running && step.NextRecoveryAt <= now))
             .ToList();
         if (due.Count == 0)
             return Result.Success;
@@ -38,6 +43,20 @@ public class RetryStepsHandler(AppDbContext db, CachedProcessDefinitionProvider 
             var target = definition.FindStep(step.StepDefinitionId);
             if (target is null)
                 return ProcessErrors.StepNotFound;
+
+            if (step.Status == StepStatus.Running)
+            {
+                if (target.Type != StepType.Call)
+                    return ProcessErrors.StepTypeMismatch;
+
+                var redelivery = step.PrepareRedelivery();
+                if (redelivery.IsError)
+                    return redelivery;
+
+                calls.Execute(instance, step, target);
+                continue;
+            }
+
             if (!step.IsCompensation)
             {
                 var resume = instance.Resume();

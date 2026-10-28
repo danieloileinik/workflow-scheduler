@@ -115,8 +115,9 @@ explicit upgrade or dump/restore before use with the supplied PostgreSQL 18 imag
   context's idempotency key. Keep a business-level key too if an operation must stay unique across retry attempts.
 - **Reuse request identities when retrying.** Keep the same start idempotency key or event correlation ID. Registration
   rejects an existing name/version; retrieve that definition instead of registering it again.
-- **Calls retry up to three times after the initial attempt**, with a 30-second delay between attempts. A missing callback
-  does not trigger an automatic timeout.
+- **Failed calls retry up to three times after the initial attempt**, with a 30-second delay between attempts. A missing
+  callback triggers redelivery of the same execution and attempt after `CallRecovery:CallbackTimeout` (five minutes
+  by default), without consuming a business retry. Persist execution receipts to safely return the previous result.
 - **Each call receives the original input.** Outputs and event payloads are recorded in history; they are not merged into
   later calls or condition input.
 - **Cancellation is cooperative.** Already executing operations may finish. Only acknowledged successful calls are
@@ -300,13 +301,20 @@ ownership and process status under the process lock, with a ten-second timeout i
 claims expire; unfinished claims are released. A broker acknowledgement lost before the database update can cause
 redelivery.
 
-Outbox failures retry after 2, 4, 8, 16, 32, then 60 seconds. Invalid or oversized records and records failing eight
-attempts are quarantined with `FailedAt`. Quarantine leaves the workflow waiting. Inspect `Error`, fix its cause and
-then reset `FailedAt`, `NextAttemptAt` and `Attempts` for the affected record if replay is appropriate.
+Transient outbox failures retry after 2, 4, 8, 16, 32, then 60 seconds, with no attempt limit. Invalid or oversized records
+are quarantined with `FailedAt`. Quarantine leaves the workflow waiting. Already quarantined records are not replayed
+automatically: inspect `Error`, fix its cause and reset `FailedAt`, `NextAttemptAt` and `Attempts` if replay is appropriate.
 
 The retry worker polls due steps every two seconds. Retry attempts retain the execution ID and increment `Attempt`;
 late callbacks cannot complete a newer attempt. Compensation uses the same retry policy and stops if a compensation
 exhausts its retries. Inspect `saga_compensation_logs` and domain-service state before intervening.
+
+The same worker recovers running calls whose callback deadline expired, including compensation calls. Recovery keeps
+the execution ID, attempt and callback identity unchanged. A deadline is armed only after an acknowledged Kafka delivery;
+queuing redelivery clears it until publication succeeds, so a broker outage does not accumulate recovery commands.
+Apply the database initializer before starting the updated server. It adds `NextRecoveryAt` and its index and gives
+existing running calls an initial five-minute deadline once. Configure subsequent deadlines with
+`CallRecovery:CallbackTimeout` (positive, at most 30 days).
 
 There is no automatic history retention policy, lifecycle-event stream, metrics dashboard or general migration history.
 

@@ -6,7 +6,7 @@ public static class DatabaseInitializer
     {
         await db.Database.EnsureCreatedAsync(ct);
 
-        string[] resources = ["OutboxDelivery", "ExecutionSequence"];
+        string[] resources = ["OutboxDelivery", "ExecutionSequence", "CallRecovery"];
 
         foreach (var resource in resources)
         {

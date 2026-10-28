@@ -41,6 +41,12 @@ public static class DependencyInjection
             }
 
             services.Configure<KafkaOptions>(configuration.GetSection("Kafka"));
+            services.AddOptions<CallRecoveryOptions>()
+                .Bind(configuration.GetSection("CallRecovery"))
+                .Validate(options => options.CallbackTimeout > TimeSpan.Zero
+                                     && options.CallbackTimeout <= TimeSpan.FromDays(30),
+                    "CallbackTimeout must be positive and no greater than 30 days.")
+                .ValidateOnStart();
             services.AddSingleton<IMessagePublisher, KafkaPublisher>();
             services.AddScoped<OutboxDispatcher>();
             services.AddHostedService<OutboxWorker>();
@@ -56,7 +62,8 @@ public static class DependencyInjection
             services.AddScoped<CachedProcessDefinitionProvider>();
             services.AddScoped<SagaCoordinator>();
 
-            services.AddScoped<IStepStrategy, CallStepStrategy>();
+            services.AddScoped<CallStepStrategy>();
+            services.AddScoped<IStepStrategy>(provider => provider.GetRequiredService<CallStepStrategy>());
             services.AddScoped<IStepStrategy, WaitEventStepStrategy>();
             services.AddScoped<IStepStrategy, ConditionStepStrategy>();
             services.AddScoped<StepExecutor>();

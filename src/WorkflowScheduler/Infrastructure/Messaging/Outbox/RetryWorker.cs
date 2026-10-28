@@ -15,16 +15,15 @@ public class RetryWorker(IServiceScopeFactory scopes, ILogger<RetryWorker> logge
         var now = DateTime.UtcNow;
         var ids = await db
             .StepInstances
-            .Where(step => step.Status == StepStatus.Pending && step.NextRetryAt <= now
-                                                             && db.ProcessInstances.Any(process =>
-                                                                 process.Id == step.ProcessInstanceId
-                                                                 && (step.IsCompensation
-                                                                     ? process.Status == ProcessStatus.Cancelled ||
-                                                                       process.Status == ProcessStatus.Failed
-                                                                     : process.Status == ProcessStatus.Waiting &&
-                                                                       process.CurrentStepId == step.Id)))
+            .Where(step => ((step.Status == StepStatus.Pending && step.NextRetryAt <= now)
+                            || (step.Status == StepStatus.Running && step.NextRecoveryAt <= now))
+                           && db.ProcessInstances.Any(process =>
+                               process.Id == step.ProcessInstanceId
+                               && (step.IsCompensation
+                                   ? process.Status == ProcessStatus.Cancelled || process.Status == ProcessStatus.Failed
+                                   : process.Status == ProcessStatus.Waiting && process.CurrentStepId == step.Id)))
             .GroupBy(step => step.ProcessInstanceId)
-            .Select(group => new { Id = group.Key, Due = group.Min(step => step.NextRetryAt) })
+            .Select(group => new { Id = group.Key, Due = group.Min(step => step.NextRecoveryAt ?? step.NextRetryAt) })
             .OrderBy(process => process.Due)
             .ThenBy(process => process.Id)
             .Take(100)
@@ -60,15 +59,21 @@ public class RetryWorker(IServiceScopeFactory scopes, ILogger<RetryWorker> logge
             }
 
             if (failed)
+            {
+                var deferredUntil = DateTime.UtcNow.AddSeconds(30);
                 await db
                     .StepInstances
-                    .Where(step => step.ProcessInstanceId == id && step.Status == StepStatus.Pending
-                                                                && step.NextRetryAt <= now)
+                    .Where(step => step.ProcessInstanceId == id
+                                   && ((step.Status == StepStatus.Pending && step.NextRetryAt <= now)
+                                       || (step.Status == StepStatus.Running && step.NextRecoveryAt <= now)))
                     .ExecuteUpdateAsync(
-                        update => update.SetProperty(
-                            step => step.NextRetryAt,
-                            DateTime.UtcNow.AddSeconds(30)),
+                        update => update
+                            .SetProperty(step => step.NextRetryAt,
+                                step => step.Status == StepStatus.Pending ? deferredUntil : step.NextRetryAt)
+                            .SetProperty(step => step.NextRecoveryAt,
+                                step => step.Status == StepStatus.Running ? deferredUntil : step.NextRecoveryAt),
                         ct);
+            }
         }
 
         return ids.Length;

@@ -1,13 +1,19 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Microsoft.Extensions.Options;
 using WorkflowScheduler.Common;
 using WorkflowScheduler.Contracts.Grpc;
 using WorkflowScheduler.Domain.Processes;
+using WorkflowScheduler.Domain.Steps;
 using WorkflowScheduler.Infrastructure.Persistence;
 
 namespace WorkflowScheduler.Infrastructure.Messaging.Outbox;
 
-public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILogger<OutboxDispatcher> logger)
+public class OutboxDispatcher(
+    AppDbContext db,
+    IMessagePublisher publisher,
+    ILogger<OutboxDispatcher> logger,
+    IOptions<CallRecoveryOptions> recovery)
 {
     public const int BatchSize = 100;
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(1);
@@ -131,7 +137,7 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                 message.Payload,
                 timeout.Token);
 
-        await db
+        var acknowledged = await db
             .OutboxMessages
             .Where(candidate => candidate.Id == message.Id && candidate.ClaimId == claimId)
             .ExecuteUpdateAsync(
@@ -146,6 +152,19 @@ public class OutboxDispatcher(AppDbContext db, IMessagePublisher publisher, ILog
                     .SetProperty(candidate => candidate.ClaimId, (Guid?)null)
                     .SetProperty(candidate => candidate.ClaimedUntil, (DateTime?)null),
                 timeout.Token);
+
+        if (!suppressed && acknowledged == 1)
+        {
+            var nextRecoveryAt = DateTime.UtcNow.Add(recovery.Value.CallbackTimeout);
+            await db.StepInstances
+                .Where(step => step.Id == command.StepInstanceId
+                               && step.ProcessInstanceId == command.ProcessInstanceId
+                               && step.StepDefinitionId == command.StepDefinitionId
+                               && step.Status == StepStatus.Running && step.RetryCount == command.Attempt)
+                .ExecuteUpdateAsync(update => update.SetProperty(step => step.NextRecoveryAt, nextRecoveryAt),
+                    timeout.Token);
+        }
+
         await transaction.CommitAsync(timeout.Token);
     }
 

@@ -25,6 +25,8 @@
                           LogicalName="WorkflowScheduler.Database.OutboxDelivery.sql"/>
         <EmbeddedResource Include="../../database/002_execution_sequence.sql"
                           LogicalName="WorkflowScheduler.Database.ExecutionSequence.sql"/>
+        <EmbeddedResource Include="../../database/003_call_recovery.sql"
+                          LogicalName="WorkflowScheduler.Database.CallRecovery.sql"/>
     </ItemGroup>
 
 </Project>

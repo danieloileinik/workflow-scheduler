@@ -11,19 +11,33 @@ namespace WorkflowScheduler.Tests.Integration;
 public class RetryWorkerTests(TestInfrastructure infrastructure)
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailedProcess_IsDeferredAndDoesNotPreventOtherDueRetries(bool throws)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task FailedProcess_IsDeferredAndDoesNotPreventOtherDueRetries(bool throws, bool recovery)
     {
+        // Arrange
         var app = await infrastructure.CreateHarnessAsync();
         var call = TestWorkflow.Call();
         var definition = await app.Register(call);
         var bad = await app.Start(definition);
         var good = await app.Start(definition);
-        await app.Complete(bad, call.Id, false);
-        await app.Complete(good, call.Id, false);
+        if (recovery)
+        {
+            await app.Dispatch();
+        }
+        else
+        {
+            await app.Complete(bad, call.Id, false);
+            await app.Complete(good, call.Id, false);
+        }
+
+        var due = DateTime.UtcNow.AddMinutes(-1);
         await app.WithDb(db => db.StepInstances.ExecuteUpdateAsync(update =>
-            update.SetProperty(step => step.NextRetryAt, DateTime.UtcNow.AddMinutes(-1))));
+            update
+                .SetProperty(step => step.NextRetryAt, recovery ? (DateTime?)null : due)
+                .SetProperty(step => step.NextRecoveryAt, recovery ? due : (DateTime?)null)));
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -53,17 +67,23 @@ public class RetryWorkerTests(TestInfrastructure infrastructure)
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<RetryWorker>.Instance);
 
-        Assert.Equal(2, await worker.DispatchAsync(CancellationToken.None));
+        // Act
+        var count = await worker.DispatchAsync(CancellationToken.None);
 
         var rejected = await app.WithDb(db =>
             db.StepInstances.AsNoTracking().SingleAsync(step => step.ProcessInstanceId == bad));
         var dispatched = await app.WithDb(db =>
             db.StepInstances.AsNoTracking().SingleAsync(step => step.ProcessInstanceId == good));
-        Assert.Equal(StepStatus.Pending, rejected.Status);
-        Assert.True(rejected.NextRetryAt > DateTime.UtcNow);
+        var subsequent = await worker.DispatchAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, count);
+        Assert.Equal(recovery ? StepStatus.Running : StepStatus.Pending, rejected.Status);
+        Assert.True((recovery ? rejected.NextRecoveryAt : rejected.NextRetryAt) > DateTime.UtcNow);
         Assert.Equal(StepStatus.Running, dispatched.Status);
-        Assert.Equal(1, rejected.RetryCount);
-        Assert.Equal(1, dispatched.RetryCount);
-        Assert.Equal(0, await worker.DispatchAsync(CancellationToken.None));
+        Assert.Null(dispatched.NextRecoveryAt);
+        Assert.Equal(recovery ? 0 : 1, rejected.RetryCount);
+        Assert.Equal(recovery ? 0 : 1, dispatched.RetryCount);
+        Assert.Equal(0, subsequent);
     }
 }

@@ -36,6 +36,7 @@ public class StepInstance(
     public DateTime StartedAt { get; init; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; private set; }
     public DateTime? NextRetryAt { get; private set; }
+    public DateTime? NextRecoveryAt { get; private set; }
     public string? OutputData { get; private set; }
     public string? Error { get; private set; }
 
@@ -52,6 +53,7 @@ public class StepInstance(
 
         Status = StepStatus.Running;
         NextRetryAt = null;
+        NextRecoveryAt = null;
 
         return Result.Success;
     }
@@ -62,6 +64,7 @@ public class StepInstance(
             return StepErrors.InvalidTransition(Status, StepStatus.Waiting);
 
         Status = StepStatus.Waiting;
+        NextRecoveryAt = null;
 
         return Result.Success;
     }
@@ -72,6 +75,7 @@ public class StepInstance(
             return StepErrors.InvalidTransition(Status, StepStatus.Completed);
 
         Status = StepStatus.Completed;
+        NextRecoveryAt = null;
         OutputData = outputData;
         CompletedAt = DateTime.UtcNow;
 
@@ -87,6 +91,7 @@ public class StepInstance(
 
         RetryCount++;
         Status = StepStatus.Pending;
+        NextRecoveryAt = null;
         NextRetryAt = DateTime.UtcNow.Add(delay);
         Error = null;
         CompletedAt = null;
@@ -100,6 +105,7 @@ public class StepInstance(
             return StepErrors.InvalidTransition(Status, StepStatus.Failed);
 
         Status = StepStatus.Failed;
+        NextRecoveryAt = null;
         Error = error;
         CompletedAt = DateTime.UtcNow;
 
@@ -113,7 +119,19 @@ public class StepInstance(
 
         Status = StepStatus.Cancelled;
         NextRetryAt = null;
+        NextRecoveryAt = null;
         CompletedAt = DateTime.UtcNow;
+
+        return Result.Success;
+    }
+
+    public ErrorOr<Success> PrepareRedelivery()
+    {
+        if (Status != StepStatus.Running)
+            return StepErrors.InvalidTransition(Status, StepStatus.Running);
+
+        // The outbox arms the next deadline only after Kafka acknowledges this delivery.
+        NextRecoveryAt = null;
 
         return Result.Success;
     }
