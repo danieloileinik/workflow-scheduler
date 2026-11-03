@@ -1,6 +1,7 @@
 namespace WorkflowScheduler.Infrastructure.Messaging.Outbox;
 
-public class OutboxWorker(IServiceScopeFactory scopes, ILogger<OutboxWorker> logger) : BackgroundService
+public class OutboxWorker(IServiceScopeFactory scopes, ILogger<OutboxWorker> logger)
+    : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -9,11 +10,11 @@ public class OutboxWorker(IServiceScopeFactory scopes, ILogger<OutboxWorker> log
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
-                var count = await scope
-                    .ServiceProvider
-                    .GetRequiredService<OutboxDispatcher>()
+                var claimedCount = await scope
+                    .ServiceProvider.GetRequiredService<OutboxDispatcher>()
                     .DispatchAsync(stoppingToken);
-                if (count == OutboxDispatcher.BatchSize)
+
+                if (claimedCount == OutboxDispatcher.BatchSize)
                     continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

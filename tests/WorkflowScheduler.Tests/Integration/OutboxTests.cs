@@ -1,6 +1,7 @@
 using System.Text.Json;
 using WorkflowScheduler.Common;
 using WorkflowScheduler.Contracts.Grpc;
+using WorkflowScheduler.Infrastructure.Messaging;
 using WorkflowScheduler.Infrastructure.Messaging.Outbox;
 using WorkflowScheduler.Tests.Support;
 
@@ -16,7 +17,9 @@ public class OutboxTests(TestInfrastructure infrastructure)
         // Arrange
         var app = await infrastructure.CreateHarnessAsync();
         var process = await app.Start(await app.Register(TestWorkflow.Call()));
-        var publishing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publishing = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         app.Publisher.BeforePublishAsync = async ct =>
         {
@@ -37,18 +40,21 @@ public class OutboxTests(TestInfrastructure infrastructure)
             await publishing.Task.WaitAsync(timeout.Token);
             cancellation = app.Send(new CancelProcessCommand(process), timeout.Token);
             await Eventually.UntilAsync(
-                ct => app.WithDb(db => db
-                    .Database
-                    .SqlQuery<int>(
-                        $"""
-                         SELECT count(*)::integer AS "Value" FROM pg_locks
-                         WHERE locktype = 'advisory' AND NOT granted
-                           AND classid::bigint = {high} AND objid::bigint = {low}
-                         """)
-                    .SingleAsync(ct)),
+                ct =>
+                    app.WithDb(db =>
+                        db.Database.SqlQuery<int>(
+                                $"""
+                                SELECT count(*)::integer AS "Value" FROM pg_locks
+                                WHERE locktype = 'advisory' AND NOT granted
+                                  AND classid::bigint = {high} AND objid::bigint = {low}
+                                """
+                            )
+                            .SingleAsync(ct)
+                    ),
                 waiters => waiters == 1,
                 "Cancellation waits for the publishing process lock",
-                TimeSpan.FromSeconds(5));
+                TimeSpan.FromSeconds(5)
+            );
         }
         finally
         {
@@ -64,7 +70,11 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.False((await cancellation!).IsError);
         Assert.Single(app.Publisher.Messages);
         Assert.Equal("Cancelled", (await app.Send(new GetProcessStatusQuery(process)))!.Status);
-        Assert.NotNull(await app.WithDb(db => db.OutboxMessages.Select(message => message.ProcessedAt).SingleAsync()));
+        Assert.NotNull(
+            await app.WithDb(db =>
+                db.OutboxMessages.Select(message => message.ProcessedAt).SingleAsync()
+            )
+        );
     }
 
     [Fact]
@@ -87,13 +97,20 @@ public class OutboxTests(TestInfrastructure infrastructure)
         try
         {
             await Eventually.UntilAsync(
-                _ => app.WithDb(context => context.OutboxMessages
-                    .AnyAsync(message => message.ClaimId != null)),
+                _ =>
+                    app.WithDb(context =>
+                        context.OutboxMessages.AnyAsync(message => message.ClaimId != null)
+                    ),
                 claimed => claimed,
-                "Dispatcher claimed the message");
-            await app.WithDb(context => context.OutboxMessages.ExecuteUpdateAsync(update => update
-                .SetProperty(message => message.ClaimId, newOwner)
-                .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))));
+                "Dispatcher claimed the message"
+            );
+            await app.WithDb(context =>
+                context.OutboxMessages.ExecuteUpdateAsync(update =>
+                    update
+                        .SetProperty(message => message.ClaimId, newOwner)
+                        .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))
+                )
+            );
         }
         finally
         {
@@ -104,7 +121,9 @@ public class OutboxTests(TestInfrastructure infrastructure)
         // Assert
         Assert.Empty(app.Publisher.Messages);
 
-        var pending = await app.WithDb(context => context.OutboxMessages.AsNoTracking().SingleAsync());
+        var pending = await app.WithDb(context =>
+            context.OutboxMessages.AsNoTracking().SingleAsync()
+        );
         Assert.Equal(newOwner, pending.ClaimId);
         Assert.Null(pending.ProcessedAt);
         Assert.Equal(0, pending.Attempts);
@@ -121,9 +140,12 @@ public class OutboxTests(TestInfrastructure infrastructure)
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await using var transaction = await db.Database.BeginTransactionAsync();
-        var message = await db.OutboxMessages.SingleAsync(value => value.Payload.Contains(lockedProcess.ToString()));
+        var message = await db.OutboxMessages.SingleAsync(value =>
+            value.Payload.Contains(lockedProcess.ToString())
+        );
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM outbox_messages WHERE \"Id\" = {message.Id} FOR UPDATE");
+            $"SELECT 1 FROM outbox_messages WHERE \"Id\" = {message.Id} FOR UPDATE"
+        );
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
@@ -135,7 +157,10 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Equal(availableProcess.ToString(), delivered.Key);
         Assert.Equal(
             1,
-            await app.WithDb(context => context.OutboxMessages.CountAsync(value => value.ProcessedAt != null)));
+            await app.WithDb(context =>
+                context.OutboxMessages.CountAsync(value => value.ProcessedAt != null)
+            )
+        );
     }
 
     [Fact]
@@ -147,14 +172,16 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var definition = await app.Register(TestWorkflow.Call());
         var first = await app.Start(definition);
         var cancelled = await app.Start(definition);
-        await app.WithDb(db => db
-            .OutboxMessages
-            .Where(message => message.Payload.Contains(first.ToString()))
-            .ExecuteUpdateAsync(update => update.SetProperty(
-                message => message.CreatedAt,
-                DateTime.UtcNow.AddDays(-1))));
+        await app.WithDb(db =>
+            db.OutboxMessages.Where(message => message.Payload.Contains(first.ToString()))
+                .ExecuteUpdateAsync(update =>
+                    update.SetProperty(message => message.CreatedAt, DateTime.UtcNow.AddDays(-1))
+                )
+        );
 
-        var publishing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publishing = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         app.Publisher.BeforePublishAsync = async ct =>
         {
@@ -183,7 +210,12 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Equal(first.ToString(), Assert.Single(app.Publisher.Messages).Key);
         Assert.Equal(first, (await broker.ReadAsync("billing", first)).ProcessInstanceId);
         Assert.Equal(0, broker.CountRemaining(cancelled));
-        Assert.Equal(2, await app.WithDb(db => db.OutboxMessages.CountAsync(message => message.ProcessedAt != null)));
+        Assert.Equal(
+            2,
+            await app.WithDb(db =>
+                db.OutboxMessages.CountAsync(message => message.ProcessedAt != null)
+            )
+        );
     }
 
     [Fact]
@@ -193,16 +225,19 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var app = await infrastructure.CreateHarnessAsync();
         using var broker = infrastructure.CreateProbe("billing");
         var process = await app.Start(await app.Register(TestWorkflow.Call()));
-        await app.WithDb(db => db.Database.ExecuteSqlRawAsync(
-            """
-            CREATE FUNCTION reject_outbox_ack() RETURNS trigger LANGUAGE plpgsql AS $$
-            BEGIN
-                IF NEW."ProcessedAt" IS NOT NULL THEN RAISE EXCEPTION 'Injected acknowledgement failure'; END IF;
-                RETURN NEW;
-            END $$;
-            CREATE TRIGGER reject_outbox_ack BEFORE UPDATE OF "ProcessedAt" ON outbox_messages
-                FOR EACH ROW EXECUTE FUNCTION reject_outbox_ack();
-            """));
+        await app.WithDb(db =>
+            db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE FUNCTION reject_outbox_ack() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW."ProcessedAt" IS NOT NULL THEN RAISE EXCEPTION 'Injected acknowledgement failure'; END IF;
+                    RETURN NEW;
+                END $$;
+                CREATE TRIGGER reject_outbox_ack BEFORE UPDATE OF "ProcessedAt" ON outbox_messages
+                    FOR EACH ROW EXECUTE FUNCTION reject_outbox_ack();
+                """
+            )
+        );
 
         // Act
         try
@@ -216,12 +251,18 @@ public class OutboxTests(TestInfrastructure infrastructure)
         }
         finally
         {
-            await app.WithDb(db => db.Database.ExecuteSqlRawAsync(
-                "DROP TRIGGER reject_outbox_ack ON outbox_messages; DROP FUNCTION reject_outbox_ack();"));
+            await app.WithDb(db =>
+                db.Database.ExecuteSqlRawAsync(
+                    "DROP TRIGGER reject_outbox_ack ON outbox_messages; DROP FUNCTION reject_outbox_ack();"
+                )
+            );
         }
 
-        await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update.SetProperty(message => message.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
+        await app.WithDb(db =>
+            db.OutboxMessages.ExecuteUpdateAsync(update =>
+                update.SetProperty(message => message.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))
+            )
+        );
         await app.Dispatch();
 
         // Assert
@@ -251,8 +292,11 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var error = await app.WithDb(db => db.OutboxMessages.Select(x => x.Error).SingleAsync());
         app.Publisher.Fail = false;
         Assert.Equal(0, await app.Dispatch());
-        await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update.SetProperty(message => message.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
+        await app.WithDb(db =>
+            db.OutboxMessages.ExecuteUpdateAsync(update =>
+                update.SetProperty(message => message.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))
+            )
+        );
         await app.Dispatch();
         await app.Dispatch();
         // Assert
@@ -260,7 +304,9 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Single(app.Publisher.Messages);
         Assert.Equal(process.ToString(), app.Publisher.Messages[0].Key);
 
-        var command = JsonSerializer.Deserialize<ExecuteStepCommand>(app.Publisher.Messages[0].Payload);
+        var command = JsonSerializer.Deserialize<ExecuteStepCommand>(
+            app.Publisher.Messages[0].Payload
+        );
         Assert.Equal(process, command!.ProcessInstanceId);
         Assert.Equal(command.StepInstanceId.ToString(), command.CorrelationId);
         Assert.Equal(0, command.Attempt);
@@ -270,7 +316,10 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Equal(0, broker.CountRemaining(process));
         Assert.Equal(
             1,
-            await app.WithDb(db => db.OutboxMessages.CountAsync(x => x.ProcessedAt != null && x.Error == null)));
+            await app.WithDb(db =>
+                db.OutboxMessages.CountAsync(x => x.ProcessedAt != null && x.Error == null)
+            )
+        );
     }
 
     [Fact]
@@ -286,7 +335,10 @@ public class OutboxTests(TestInfrastructure infrastructure)
         // Assert
         Assert.Empty(app.Publisher.Messages);
         Assert.Equal(0, broker.CountRemaining(process));
-        Assert.Equal(1, await app.WithDb(db => db.OutboxMessages.CountAsync(x => x.ProcessedAt != null)));
+        Assert.Equal(
+            1,
+            await app.WithDb(db => db.OutboxMessages.CountAsync(x => x.ProcessedAt != null))
+        );
     }
 
     [Fact]
@@ -296,8 +348,12 @@ public class OutboxTests(TestInfrastructure infrastructure)
         var app = await infrastructure.CreateHarnessAsync();
         using var broker = infrastructure.CreateProbe("billing");
         var definition = await app.Register(TestWorkflow.Call());
-        var processes = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => app.Start(definition)));
-        var publishing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var processes = await Task.WhenAll(
+            Enumerable.Range(0, 4).Select(_ => app.Start(definition))
+        );
+        var publishing = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         app.Publisher.BeforePublishAsync = async ct =>
         {
@@ -315,11 +371,11 @@ public class OutboxTests(TestInfrastructure infrastructure)
             await publishing.Task.WaitAsync(TimeSpan.FromSeconds(10));
             await app.WithDb(async db =>
             {
-                await using var transaction = await db.Database.BeginTransactionAsync(timeout.Token);
+                await using var transaction = await db.Database.BeginTransactionAsync(
+                    timeout.Token
+                );
                 var messages = await db
-                    .OutboxMessages
-                    .FromSqlRaw(
-                        "SELECT * FROM outbox_messages FOR UPDATE NOWAIT")
+                    .OutboxMessages.FromSqlRaw("SELECT * FROM outbox_messages FOR UPDATE NOWAIT")
                     .AsNoTracking()
                     .ToListAsync(timeout.Token);
                 Assert.Equal(4, messages.Count);
@@ -349,7 +405,12 @@ public class OutboxTests(TestInfrastructure infrastructure)
             Assert.Equal(0, broker.CountRemaining(process));
         }
 
-        Assert.Equal(4, await app.WithDb(db => db.OutboxMessages.CountAsync(message => message.ProcessedAt != null)));
+        Assert.Equal(
+            4,
+            await app.WithDb(db =>
+                db.OutboxMessages.CountAsync(message => message.ProcessedAt != null)
+            )
+        );
     }
 
     [Fact]
@@ -367,8 +428,9 @@ public class OutboxTests(TestInfrastructure infrastructure)
                     {
                         Type = "process.commands.billing",
                         Payload = "{invalid-json",
-                        CreatedAt = DateTime.UtcNow.AddDays(-1)
-                    }));
+                        CreatedAt = DateTime.UtcNow.AddDays(-1),
+                    })
+            );
 
             return await db.SaveChangesAsync();
         });
@@ -377,7 +439,12 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Equal(1, await app.Dispatch());
 
         Assert.Equal(process, (await broker.ReadAsync("billing", process)).ProcessInstanceId);
-        Assert.Equal(100, await app.WithDb(db => db.OutboxMessages.CountAsync(message => message.FailedAt != null)));
+        Assert.Equal(
+            100,
+            await app.WithDb(db =>
+                db.OutboxMessages.CountAsync(message => message.FailedAt != null)
+            )
+        );
         Assert.Single(app.Publisher.Messages);
     }
 
@@ -399,11 +466,20 @@ public class OutboxTests(TestInfrastructure infrastructure)
             Assert.Null(message.ProcessedAt);
             Assert.NotNull(message.NextAttemptAt);
             Assert.Null(message.FailedAt);
-            Assert.InRange(message.NextAttemptAt.Value - DateTime.UtcNow,
-                TimeSpan.FromSeconds(attempt >= 6 ? 50 : 0), TimeSpan.FromSeconds(60));
+            Assert.InRange(
+                message.NextAttemptAt.Value - DateTime.UtcNow,
+                TimeSpan.FromSeconds(attempt >= 6 ? 50 : 0),
+                TimeSpan.FromSeconds(60)
+            );
             Assert.Equal(0, await app.Dispatch());
-            await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-                update.SetProperty(candidate => candidate.NextAttemptAt, DateTime.UtcNow.AddSeconds(-1))));
+            await app.WithDb(db =>
+                db.OutboxMessages.ExecuteUpdateAsync(update =>
+                    update.SetProperty(
+                        candidate => candidate.NextAttemptAt,
+                        DateTime.UtcNow.AddSeconds(-1)
+                    )
+                )
+            );
         }
 
         app.Publisher.Fail = false;
@@ -424,7 +500,8 @@ public class OutboxTests(TestInfrastructure infrastructure)
         // Arrange
         var app = await infrastructure.CreateHarnessAsync();
         await app.Start(await app.Register(TestWorkflow.Call()));
-        app.Publisher.BeforePublishAsync = _ => Task.FromException(new ArgumentException("Invalid command"));
+        app.Publisher.BeforePublishAsync = _ =>
+            Task.FromException(new MessageRejectedException("Invalid command"));
 
         // Act
         await app.Dispatch();
@@ -442,17 +519,44 @@ public class OutboxTests(TestInfrastructure infrastructure)
     }
 
     [Fact]
+    public async Task UnexpectedArgumentException_DoesNotQuarantineMessage()
+    {
+        // Arrange
+        var app = await infrastructure.CreateHarnessAsync();
+        await app.Start(await app.Register(TestWorkflow.Call()));
+        app.Publisher.BeforePublishAsync = _ =>
+            Task.FromException(new ArgumentException("Unexpected failure"));
+
+        // Act
+        await app.Dispatch();
+
+        // Assert
+        var message = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
+        Assert.Null(message.FailedAt);
+        Assert.Null(message.ProcessedAt);
+        Assert.NotNull(message.NextAttemptAt);
+        Assert.Equal(1, message.Attempts);
+        Assert.Empty(app.Publisher.Messages);
+    }
+
+    [Fact]
     public async Task ExpiredClaim_IsRecoveredAfterAnInterruptedDispatcher()
     {
         var app = await infrastructure.CreateHarnessAsync();
         await app.Start(await app.Register(TestWorkflow.Call()));
-        await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update
-                .SetProperty(message => message.ClaimId, Guid.NewGuid())
-                .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))));
+        await app.WithDb(db =>
+            db.OutboxMessages.ExecuteUpdateAsync(update =>
+                update
+                    .SetProperty(message => message.ClaimId, Guid.NewGuid())
+                    .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))
+            )
+        );
         Assert.Equal(0, await app.Dispatch());
-        await app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update.SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddSeconds(-1))));
+        await app.WithDb(db =>
+            db.OutboxMessages.ExecuteUpdateAsync(update =>
+                update.SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddSeconds(-1))
+            )
+        );
 
         Assert.Equal(1, await app.Dispatch());
 
@@ -475,7 +579,8 @@ public class OutboxTests(TestInfrastructure infrastructure)
                 """
                 ALTER TABLE outbox_messages DROP COLUMN "Attempts", DROP COLUMN "NextAttemptAt",
                     DROP COLUMN "FailedAt", DROP COLUMN "ClaimId", DROP COLUMN "ClaimedUntil"
-                """);
+                """
+            );
 
             await DatabaseInitializer.InitializeAsync(db);
             await DatabaseInitializer.InitializeAsync(db);
@@ -507,7 +612,9 @@ public class OutboxTests(TestInfrastructure infrastructure)
             return Task.FromCanceled(cancellation.Token);
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => app.Dispatch(cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            app.Dispatch(cancellation.Token)
+        );
 
         var pending = await app.WithDb(db => db.OutboxMessages.AsNoTracking().SingleAsync());
         Assert.Null(pending.ProcessedAt);
@@ -524,10 +631,14 @@ public class OutboxTests(TestInfrastructure infrastructure)
         await app.Start(await app.Register(TestWorkflow.Call()));
 
         var newOwner = Guid.NewGuid();
-        app.Publisher.BeforePublishAsync = _ => app.WithDb(db => db.OutboxMessages.ExecuteUpdateAsync(update =>
-            update
-                .SetProperty(message => message.ClaimId, newOwner)
-                .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))));
+        app.Publisher.BeforePublishAsync = _ =>
+            app.WithDb(db =>
+                db.OutboxMessages.ExecuteUpdateAsync(update =>
+                    update
+                        .SetProperty(message => message.ClaimId, newOwner)
+                        .SetProperty(message => message.ClaimedUntil, DateTime.UtcNow.AddMinutes(1))
+                )
+            );
 
         await app.Dispatch();
 
@@ -535,6 +646,9 @@ public class OutboxTests(TestInfrastructure infrastructure)
         Assert.Equal(newOwner, pending.ClaimId);
         Assert.Null(pending.ProcessedAt);
         Assert.Empty(
-            await app.WithDb(db => db.OutboxMessages.Where(message => message.FailedAt != null).ToListAsync()));
+            await app.WithDb(db =>
+                db.OutboxMessages.Where(message => message.FailedAt != null).ToListAsync()
+            )
+        );
     }
 }
