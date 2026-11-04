@@ -8,18 +8,6 @@ business operations and data. The scheduler owns the sequence and execution hist
 
 Built with .NET 10, gRPC, PostgreSQL and Kafka. Redis is an optional cache.
 
-## Try the working example
-
-You need Docker with Compose, `curl` and Python 3. Run from the repository root:
-
-```bash
-docker compose -f samples/order-demo/compose.yaml up --build -d
-```
-
-The first build and Kafka startup can take a few minutes. Follow the
-[order demo walkthrough](samples/order-demo/README.md) to create an order, approve it and see it complete.
-The demo includes the scheduler and three services, so you can see the Client and Worker SDKs working together.
-
 ## How it works
 
 ```mermaid
@@ -83,6 +71,16 @@ Register the definition and start it with the Client SDK. Run Workers with handl
 | Trace SDK calls through complete running services | [Order demo](samples/order-demo/README.md#what-happens-inside) |
 
 The SDK guides start with a minimal one-step workflow. Start the scheduler locally, run the Worker, then run the Client.
+
+## Try the working example
+
+```bash
+docker compose -f samples/order-demo/compose.yaml up --build -d
+```
+
+The first build and Kafka startup can take a few minutes. Follow the
+[order demo walkthrough](samples/order-demo/README.md) to create an order, approve it and see it complete.
+The demo includes the scheduler and three services, so you can see the Client and Worker SDKs working together.
 
 ## Run the scheduler locally
 
